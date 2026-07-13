@@ -1,6 +1,8 @@
 # AI Handoff & Architecture Blueprint
 
 > **Notice to Future AI Assistants**: Read this document first to immediately understand the repository structure, schema, conventions, and design philosophy without spending tokens parsing the entire codebase.
+>
+> 📖 **Hugo Integration**: For instructions on plugging Hugo Content Adapters to this CMS, read [HUGO_CONTENT_ADAPTER.md](file:///home/dog/git/admin-cms/HUGO_CONTENT_ADAPTER.md).
 
 ---
 
@@ -27,18 +29,20 @@ admin-cms/
 │   │   │   └── [placeholder]/   # Modular placeholder pages (blog, books, etc.)
 │   │   ├── globals.css          # Design tokens, themes (HN Orange, Dark, Mono, Teal)
 │   │   └── layout.tsx           # Root layout & ThemeProvider
-│   ├── components/              # Shared UI (Header, Sidebar, ThemeToggle, etc.)
+│   ├── components/              # Shared UI (Header, Sidebar, DeployWidget, etc.)
 │   ├── db/
 │   │   ├── schema.ts            # Drizzle table schemas (microblogs, etc.)
-│   │   └── index.ts             # Turso / libSQL client initializer
+│   │   └── index.ts             # Turso / libSQL client & auto-initializer
 │   ├── features/
 │   │   ├── auth/                # Session cookies, password check, login server actions
 │   │   ├── microblog/           # Microblog actions, Zod validation, Editor & List
-│   │   └── media/               # StorageProvider interface (Local, S3, R2, Vercel Blob)
+│   │   ├── media/               # StorageProvider interface (Local, S3, R2, Vercel Blob)
+│   │   └── deploy/              # Manual Vercel deploy trigger action
 │   ├── lib/
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
 ├── tests/                       # Vitest unit test suite
+├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
 ├── drizzle.config.ts            # Drizzle kit configuration
 └── prompt.txt                   # Original prompt & requirements
 ```
