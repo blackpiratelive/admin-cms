@@ -55,11 +55,34 @@ export const gallery = sqliteTable("gallery", {
   updatedAt: text("updated_at").notNull(),
 });
 
+export const projects = sqliteTable("projects", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const todos = sqliteTable("todos", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  dueDate: text("due_date"),
+  priority: text("priority", { enum: ["low", "medium", "high"] }).notNull().default("medium"),
+  completed: integer("completed").notNull().default(0),
+  projectId: text("project_id"),
+  tags: text("tags").notNull().default("[]"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 export type Microblog = typeof microblogs.$inferSelect;
 export type NewMicroblog = typeof microblogs.$inferInsert;
 
 export type GalleryPhoto = typeof gallery.$inferSelect;
 export type NewGalleryPhoto = typeof gallery.$inferInsert;
+export type Project = typeof projects.$inferSelect;
+export type Todo = typeof todos.$inferSelect;
 
 export interface ShortLink {
   slug: string;
@@ -83,6 +106,5 @@ export interface PasteItem {
   expiresAt?: string | null;
   createdAt: string;
 }
-
 
 

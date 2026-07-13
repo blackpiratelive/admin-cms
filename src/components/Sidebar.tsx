@@ -20,6 +20,7 @@ import {
   Quote,
   Link2,
   Settings,
+  CheckSquare,
 } from "lucide-react";
 
 export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
@@ -95,6 +96,14 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
 
         <div className="nav-section">
           <div className="nav-section-title">Tracking</div>
+          <Link
+            href="/todos"
+            className={`nav-link ${isActive("/todos") ? "active" : ""}`}
+            onClick={handleLinkClick}
+          >
+            <CheckSquare size={16} />
+            <span>Todos</span>
+          </Link>
           <Link
             href="/books"
             className={`nav-link ${isActive("/books") ? "active" : ""}`}

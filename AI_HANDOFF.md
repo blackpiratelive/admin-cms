@@ -29,6 +29,7 @@ admin-cms/
 │   │   ├── (dashboard)/         # Protected dashboard layout & routes
 │   │   │   ├── page.tsx         # Dashboard overview with metrics
 │   │   │   ├── microblog/       # Microblog list & CRUD editor routes
+│   │   │   ├── todos/           # Todo list and project management route
 │   │   │   └── [placeholder]/   # Modular placeholder pages (blog, books, etc.)
 │   │   ├── globals.css          # Design tokens, themes (HN Orange, Dark, Mono, Teal)
 │   │   └── layout.tsx           # Root layout & ThemeProvider
@@ -39,6 +40,7 @@ admin-cms/
 │   ├── features/
 │   │   ├── auth/                # Session cookies, password check, login server actions
 │   │   ├── microblog/           # Microblog actions, Zod validation, Editor & List
+│   │   │   ├── todos/           # Todo CRUD actions and TodoDashboard UI
 │   │   ├── media/               # StorageProvider interface (Local, S3, R2, Vercel Blob)
 │   │   └── deploy/              # Manual Vercel deploy trigger action
 │   ├── lib/
@@ -102,6 +104,11 @@ admin-cms/
 - `expiresAt` (text, nullable ISO timestamp): Automatic expiry timestamp
 - `createdAt` (text, ISO timestamp)
 
+### `projects` and `todos` (Personal task management)
+- `projects`: `id`, unique `name`, optional `description`, and creation/update timestamps.
+- `todos`: `id`, required `title`, optional `description` and `dueDate`, priority (`low`, `medium`, or `high`), `completed` integer flag, optional `projectId`, JSON-string `tags`, and creation/update timestamps.
+- The Todo dashboard at `/todos` supports task creation/editing, completion, deletion, project creation/deletion, tag suggestions, and filtering by completion state, project, and tag. Deleting a project leaves its tasks intact but unassigned.
+
 
 
 ---
@@ -125,6 +132,9 @@ To add a new content type (e.g. `Books`, `Blog`, `Quotes`):
    - `[Feature]Editor.tsx` & `[Feature]List.tsx`: Visual components.
 3. **App Route**: Replace the page in `src/app/(dashboard)/[feature_name]/page.tsx` with the new feature component.
 4. **Tests**: Add unit test in `tests/[feature_name].test.ts`.
+
+### Completed module: Todos
+The Todo module follows this same pattern in `src/features/todos/` and is linked under **Tracking** in the sidebar. Its runtime tables are created by `ensureDbInitialized()` for new or existing deployments; the matching Drizzle migration is `0002_todos.sql`.
 
 ---
 
@@ -197,4 +207,3 @@ The CMS communicates with the following endpoints using `Authorization: Bearer <
 - **Build Verification**: `npm run build`
 - **Execute Tests**: `npm run test`
 - **Drizzle DB Push**: `npm run db:push`
-
