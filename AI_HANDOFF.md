@@ -85,9 +85,50 @@ To add a new content type (e.g. `Books`, `Blog`, `Quotes`):
 
 ---
 
-## 6. How to Run Commands & Tests
+## 7. Cloudflare R2 Configuration via Vercel Environment Variables
+
+The High-Performance Photo Gallery upload system utilizes browser-side Web Workers to resize photographs and uploads them directly to Cloudflare R2 via pre-signed S3 URLs.
+
+To configure Cloudflare R2 in Vercel:
+
+1. **Obtain Credentials from Cloudflare Dashboard**:
+   - Go to **Cloudflare Dashboard** -> **R2** -> **Manage R2 API Tokens**.
+   - Create an API Token with **Object Read & Write** permissions for your R2 bucket.
+   - Note down the `Access Key ID`, `Secret Access Key`, and your Cloudflare `Account ID` (found in the R2 Overview sidebar).
+
+2. **Add Environment Variables in Vercel**:
+   In your Vercel Project Settings under **Settings** -> **Environment Variables**, add:
+
+   | Variable | Example / Description |
+   | --- | --- |
+   | `R2_ACCOUNT_ID` | `abc123def4567890ghijkl` (Cloudflare Account ID) |
+   | `R2_ACCESS_KEY_ID` | `1a2b3c4d5e6f7g8h9i0j` (R2 API Token Access Key) |
+   | `R2_SECRET_ACCESS_KEY` | `9876543210fedcba` (R2 API Token Secret) |
+   | `R2_BUCKET_NAME` | `gallery` (Name of your Cloudflare R2 bucket) |
+   | `R2_PUBLIC_DOMAIN` | `https://media.yourdomain.com` or `https://pub-id.r2.dev` |
+
+3. **CORS Configuration on R2 Bucket** (Required for Direct Browser Uploads):
+   In Cloudflare R2 -> Select Bucket -> **Settings** -> **CORS Policy**, add:
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://your-cms.vercel.app", "http://localhost:3000"],
+       "AllowedMethods": ["GET", "PUT", "HEAD"],
+       "AllowedHeaders": ["*"],
+       "ExposeHeaders": ["ETag"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+> 💡 **Local Development Fallback**: If R2 environment variables are omitted, the CMS automatically falls back to an authenticated local mock upload endpoint (`/api/gallery/local-upload`) so local testing works out of the box.
+
+---
+
+## 8. How to Run Commands & Tests
 
 - **Development Server**: `npm run dev`
 - **Build Verification**: `npm run build`
 - **Execute Tests**: `npm run test`
 - **Drizzle DB Push**: `npm run db:push`
+
