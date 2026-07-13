@@ -5,10 +5,11 @@ import { verifySessionToken } from "./features/auth/session";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow login route and static assets
+  // Allow login route, public API, and static assets
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth/login") ||
+    pathname.startsWith("/api/microblogs") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon.ico")
   ) {
