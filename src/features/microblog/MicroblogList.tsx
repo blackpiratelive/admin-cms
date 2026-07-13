@@ -92,9 +92,9 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
             <tr>
               <th>Snippet / Slug</th>
               <th>Status</th>
-              <th>Created</th>
-              <th>Published</th>
-              <th>Updated</th>
+              <th className="hide-on-mobile">Created</th>
+              <th className="hide-on-mobile">Published</th>
+              <th className="hide-on-mobile">Updated</th>
               <th style={{ textAlign: "right" }}>Actions</th>
             </tr>
           </thead>
@@ -130,13 +130,13 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
                         {item.status}
                       </span>
                     </td>
-                    <td style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                    <td className="hide-on-mobile" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
                       {formatDate(item.createdAt)}
                     </td>
-                    <td style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                    <td className="hide-on-mobile" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
                       {formatDate(item.publishedAt)}
                     </td>
-                    <td style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                    <td className="hide-on-mobile" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
                       {formatDate(item.updatedAt)}
                     </td>
                     <td style={{ textAlign: "right" }}>

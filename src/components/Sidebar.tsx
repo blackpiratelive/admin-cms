@@ -21,7 +21,7 @@ import {
   Settings,
 } from "lucide-react";
 
-export function Sidebar() {
+export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
 
   const isActive = (path: string) => {
@@ -30,13 +30,23 @@ export function Sidebar() {
     return false;
   };
 
+  const handleLinkClick = () => {
+    if (onClose) {
+      onClose();
+    }
+  };
+
   return (
-    <aside className="sidebar" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+    <aside
+      className={`sidebar ${isOpen ? "open" : ""}`}
+      style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}
+    >
       <div>
         <nav className="nav-section">
           <Link
             href="/"
             className={`nav-link ${isActive("/") ? "active" : ""}`}
+            onClick={handleLinkClick}
           >
             <LayoutDashboard size={16} />
             <span>Dashboard</span>
@@ -48,6 +58,7 @@ export function Sidebar() {
           <Link
             href="/microblog"
             className={`nav-link ${isActive("/microblog") ? "active" : ""}`}
+            onClick={handleLinkClick}
           >
             <MessageSquareText size={16} />
             <span>Microblog</span>
@@ -55,6 +66,7 @@ export function Sidebar() {
           <Link
             href="/blog"
             className={`nav-link ${isActive("/blog") ? "active" : ""}`}
+            onClick={handleLinkClick}
           >
             <FileText size={16} />
             <span>Blog</span>
@@ -63,6 +75,7 @@ export function Sidebar() {
           <Link
             href="/notes"
             className={`nav-link ${isActive("/notes") ? "active" : ""}`}
+            onClick={handleLinkClick}
           >
             <StickyNote size={16} />
             <span>Notes</span>
@@ -71,6 +84,7 @@ export function Sidebar() {
           <Link
             href="/pages"
             className={`nav-link ${isActive("/pages") ? "active" : ""}`}
+            onClick={handleLinkClick}
           >
             <Files size={16} />
             <span>Pages</span>
@@ -83,6 +97,7 @@ export function Sidebar() {
           <Link
             href="/books"
             className={`nav-link ${isActive("/books") ? "active" : ""}`}
+            onClick={handleLinkClick}
           >
             <BookOpen size={16} />
             <span>Books</span>
@@ -91,6 +106,7 @@ export function Sidebar() {
           <Link
             href="/movies"
             className={`nav-link ${isActive("/movies") ? "active" : ""}`}
+            onClick={handleLinkClick}
           >
             <Film size={16} />
             <span>Movies</span>
@@ -99,6 +115,7 @@ export function Sidebar() {
           <Link
             href="/tv"
             className={`nav-link ${isActive("/tv") ? "active" : ""}`}
+            onClick={handleLinkClick}
           >
             <Tv size={16} />
             <span>TV Shows</span>
@@ -107,6 +124,7 @@ export function Sidebar() {
           <Link
             href="/games"
             className={`nav-link ${isActive("/games") ? "active" : ""}`}
+            onClick={handleLinkClick}
           >
             <Gamepad2 size={16} />
             <span>Games</span>
@@ -119,6 +137,7 @@ export function Sidebar() {
           <Link
             href="/gallery"
             className={`nav-link ${isActive("/gallery") ? "active" : ""}`}
+            onClick={handleLinkClick}
           >
             <Image size={16} />
             <span>Gallery</span>
@@ -127,6 +146,7 @@ export function Sidebar() {
           <Link
             href="/uploads"
             className={`nav-link ${isActive("/uploads") ? "active" : ""}`}
+            onClick={handleLinkClick}
           >
             <Upload size={16} />
             <span>Uploads</span>
@@ -139,6 +159,7 @@ export function Sidebar() {
           <Link
             href="/bookmarks"
             className={`nav-link ${isActive("/bookmarks") ? "active" : ""}`}
+            onClick={handleLinkClick}
           >
             <Bookmark size={16} />
             <span>Bookmarks</span>
@@ -147,6 +168,7 @@ export function Sidebar() {
           <Link
             href="/quotes"
             className={`nav-link ${isActive("/quotes") ? "active" : ""}`}
+            onClick={handleLinkClick}
           >
             <Quote size={16} />
             <span>Quotes</span>
@@ -155,6 +177,7 @@ export function Sidebar() {
           <Link
             href="/links"
             className={`nav-link ${isActive("/links") ? "active" : ""}`}
+            onClick={handleLinkClick}
           >
             <Link2 size={16} />
             <span>Links</span>
@@ -166,6 +189,7 @@ export function Sidebar() {
           <Link
             href="/settings"
             className={`nav-link ${isActive("/settings") ? "active" : ""}`}
+            onClick={handleLinkClick}
           >
             <Settings size={16} />
             <span>Settings</span>

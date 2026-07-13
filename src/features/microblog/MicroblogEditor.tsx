@@ -4,7 +4,8 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { saveMicroblog, deleteMicroblog } from "./actions";
 import { type Microblog } from "@/db/schema";
-import { Save, Eye, Trash2, Globe, FileEdit, Archive, Upload } from "lucide-react";
+import { CloudinaryImageUploader } from "@/features/media/CloudinaryImageUploader";
+import { Save, Eye, Trash2, Globe, FileEdit, Archive, Upload, Image as ImageIcon } from "lucide-react";
 
 interface MicroblogEditorProps {
   initialData?: Microblog | null;
@@ -24,6 +25,7 @@ export function MicroblogEditor({ initialData }: MicroblogEditorProps) {
   const [coverImageUrl, setCoverImageUrl] = useState<string>(initialData?.coverImageUrl || "");
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"write" | "preview">("write");
+  const [showUploader, setShowUploader] = useState(false);
 
   // Character & Word counts
   const charCount = contentMarkdown.length;
@@ -64,6 +66,16 @@ export function MicroblogEditor({ initialData }: MicroblogEditorProps) {
     router.push("/microblog");
   };
 
+  const handleImageUploaded = (url: string) => {
+    if (!coverImageUrl) {
+      setCoverImageUrl(url);
+    }
+  };
+
+  const handleInsertMarkdown = (snippet: string) => {
+    setContentMarkdown((prev) => (prev ? `${prev}\n\n${snippet}` : snippet));
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       {/* Editor Top Bar Actions */}
@@ -101,7 +113,7 @@ export function MicroblogEditor({ initialData }: MicroblogEditorProps) {
       </div>
 
       {/* Settings Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", background: "var(--bg-card)", padding: "12px", border: "1px solid var(--border-color)" }}>
+      <div className="editor-settings-grid">
         <div className="form-group">
           <label className="form-label">Slug (auto-generated if empty)</label>
           <input
@@ -139,6 +151,50 @@ export function MicroblogEditor({ initialData }: MicroblogEditorProps) {
         </div>
       </div>
 
+      {/* Cover Image URL & Media Upload Controls */}
+      <div style={{ background: "var(--bg-card)", padding: "12px", border: "1px solid var(--border-color)", display: "flex", flexDirection: "column", gap: "10px" }}>
+        <div className="media-header">
+          <label className="form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <ImageIcon size={14} />
+            <span>Cover Image URL & Media</span>
+          </label>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => setShowUploader(!showUploader)}
+          >
+            <Upload size={14} />
+            <span>{showUploader ? "Hide Cloudinary Direct Uploader" : "Upload Image to Cloudinary"}</span>
+          </button>
+        </div>
+
+        <div className="media-input-group">
+          <input
+            type="text"
+            className="text-input"
+            style={{ flex: 1, width: "100%" }}
+            value={coverImageUrl}
+            onChange={(e) => setCoverImageUrl(e.target.value)}
+            placeholder="https://res.cloudinary.com/... or cover image URL"
+          />
+          {coverImageUrl && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", border: "1px solid var(--border-color)", padding: "2px 6px", flexShrink: 0 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={coverImageUrl} alt="Cover preview" style={{ width: "32px", height: "32px", objectFit: "cover" }} />
+              <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>Cover Preview</span>
+            </div>
+          )}
+        </div>
+
+        {/* Embedded Cloudinary Direct Upload Component */}
+        {showUploader && (
+          <CloudinaryImageUploader
+            onImageUploaded={handleImageUploaded}
+            onInsertMarkdown={handleInsertMarkdown}
+          />
+        )}
+      </div>
+
       {/* Editor & Live Preview Switcher Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", gap: "4px" }}>
@@ -166,31 +222,33 @@ export function MicroblogEditor({ initialData }: MicroblogEditorProps) {
 
       {/* Main Split / Toggle View */}
       <div className="editor-layout">
-        {(activeTab === "write" || true) && (
-          <div className="editor-pane">
-            <textarea
-              className="editor-textarea"
-              placeholder="Write your microblog markdown here..."
-              value={contentMarkdown}
-              onChange={(e) => setContentMarkdown(e.target.value)}
-            />
-          </div>
-        )}
+        <div className={`editor-pane ${activeTab !== "write" ? "hide-on-mobile-tab" : ""}`}>
+          <textarea
+            className="editor-textarea"
+            placeholder="Write your microblog markdown here..."
+            value={contentMarkdown}
+            onChange={(e) => setContentMarkdown(e.target.value)}
+          />
+        </div>
 
-        {(activeTab === "preview" || true) && (
-          <div className="preview-pane">
-            <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase", fontWeight: "bold" }}>
-              Live Preview
-            </div>
-            {contentMarkdown ? (
-              <div style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font-sans)", lineHeight: "1.6" }}>
-                {contentMarkdown}
-              </div>
-            ) : (
-              <em style={{ color: "var(--text-muted)" }}>Nothing to preview yet...</em>
-            )}
+        <div className={`preview-pane ${activeTab !== "preview" ? "hide-on-mobile-tab" : ""}`}>
+          <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase", fontWeight: "bold" }}>
+            Live Preview
           </div>
-        )}
+          {coverImageUrl && (
+            <div style={{ marginBottom: "12px" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={coverImageUrl} alt="Cover" style={{ maxWidth: "100%", maxHeight: "200px", borderRadius: "2px" }} />
+            </div>
+          )}
+          {contentMarkdown ? (
+            <div style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font-sans)", lineHeight: "1.6" }}>
+              {contentMarkdown}
+            </div>
+          ) : (
+            <em style={{ color: "var(--text-muted)" }}>Nothing to preview yet...</em>
+          )}
+        </div>
       </div>
     </div>
   );
