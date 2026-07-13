@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { saveMicroblog, deleteMicroblog } from "./actions";
+import { saveMicroblog, deleteMicroblog, recalculateRelatedAction } from "./actions";
 import { type Microblog } from "@/db/schema";
 import { CloudinaryImageUploader } from "@/features/media/CloudinaryImageUploader";
-import { Save, Eye, Trash2, Globe, FileEdit, Archive, Upload, Image as ImageIcon } from "lucide-react";
+import { Save, Eye, Trash2, Globe, FileEdit, Archive, Upload, Image as ImageIcon, RefreshCw } from "lucide-react";
 
 interface MicroblogEditorProps {
   initialData?: Microblog | null;
@@ -37,6 +37,7 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
   });
   const [lastAutosavedTime, setLastAutosavedTime] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRefreshingRelated, setIsRefreshingRelated] = useState(false);
   const [activeTab, setActiveTab] = useState<"write" | "preview">("write");
   const [showUploader, setShowUploader] = useState(false);
 
@@ -95,6 +96,26 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
     setImages((prev) => [...prev, url]);
     if (!coverImageUrl) {
       setCoverImageUrl(url);
+    }
+  };
+
+  const handleRefreshRelated = async () => {
+    if (!id) {
+      alert("Save the post first before refreshing related posts.");
+      return;
+    }
+    setIsRefreshingRelated(true);
+    try {
+      const result = await recalculateRelatedAction(id, tags, contentMarkdown);
+      if (result.success && result.relatedPosts) {
+        setRelatedPosts(result.relatedPosts);
+      } else {
+        alert(result.error || "Failed to recalculate related posts.");
+      }
+    } catch (err) {
+      alert("An error occurred while refreshing related posts.");
+    } finally {
+      setIsRefreshingRelated(false);
     }
   };
 
@@ -379,8 +400,23 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
 
       {/* Related Posts */}
       <div style={{ background: "var(--bg-card)", padding: "12px", border: "1px solid var(--border-color)", display: "flex", flexDirection: "column", gap: "10px" }}>
-        <div style={{ fontWeight: "bold", fontSize: "13px" }}>
-          Related Posts ({relatedPosts.length})
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontWeight: "bold", fontSize: "13px" }}>
+            Related Posts ({relatedPosts.length})
+          </div>
+          {id && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={handleRefreshRelated}
+              disabled={isRefreshingRelated}
+              style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px" }}
+              title="Recalculate related posts based on current content and tags"
+            >
+              <RefreshCw size={12} style={{ animation: isRefreshingRelated ? "spin 1s linear infinite" : "none" }} />
+              <span>{isRefreshingRelated ? "Refreshing..." : "Refresh"}</span>
+            </button>
+          )}
         </div>
         {relatedPosts.length === 0 ? (
           <div style={{ color: "var(--text-muted)", fontSize: "12px", fontStyle: "italic" }}>
@@ -487,6 +523,12 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
           )}
         </div>
       </div>
+      <style jsx>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

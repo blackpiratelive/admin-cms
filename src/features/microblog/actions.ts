@@ -217,3 +217,19 @@ export async function importMicroblogBatch(posts: {
     return { success: false, error: error.message || String(error) };
   }
 }
+
+export async function recalculateRelatedAction(id: string, tagsString: string, contentMarkdown: string) {
+  try {
+    await ensureDbInitialized();
+    let tags: string[] = [];
+    if (tagsString.trim()) {
+      tags = tagsString.split(",").map(t => t.trim()).filter(Boolean);
+    }
+    await updateRelatedPosts(id, tags, contentMarkdown);
+    const related = await getRelatedPosts(id);
+    return { success: true, relatedPosts: related };
+  } catch (err: any) {
+    console.error("Manual related posts refresh failed:", err);
+    return { success: false, error: err.message || String(err) };
+  }
+}
