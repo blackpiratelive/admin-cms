@@ -15,6 +15,7 @@ import {
   Gamepad2,
   Image,
   Upload,
+  Database,
   Bookmark,
   Quote,
   Link2,
@@ -134,6 +135,14 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
 
         <div className="nav-section">
           <div className="nav-section-title">Media</div>
+          <Link
+            href="/storage"
+            className={`nav-link ${isActive("/storage") ? "active" : ""}`}
+            onClick={handleLinkClick}
+          >
+            <Database size={16} />
+            <span>Storage</span>
+          </Link>
           <Link
             href="/gallery"
             className={`nav-link ${isActive("/gallery") ? "active" : ""}`}
