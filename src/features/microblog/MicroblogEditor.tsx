@@ -238,6 +238,38 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
     setTimeout(() => setCopiedShortUrl(false), 2000);
   };
 
+  const handleDeleteShortUrl = async () => {
+    if (!shortUrl) return;
+    if (!confirm("Delete this short URL from RapidLink API?")) return;
+
+    setIsShortening(true);
+    try {
+      const { deleteShortLink } = await import("@/features/links/actions");
+      const urlSlug = shortUrl.split("/").filter(Boolean).pop();
+      if (urlSlug) {
+        await deleteShortLink(urlSlug);
+      }
+
+      setShortUrl("");
+      setShortSlugInput("");
+
+      await saveMicroblog({
+        id,
+        slug,
+        contentMarkdown,
+        status,
+        tags,
+        coverImageUrl: coverImageUrl || null,
+        shortUrl: null,
+        images,
+      });
+    } catch (err: any) {
+      alert("Error deleting short URL: " + (err.message || String(err)));
+    } finally {
+      setIsShortening(false);
+    }
+  };
+
   // Settings Grid
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -353,6 +385,16 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
                 style={{ padding: "2px 6px" }}
               >
                 {copiedShortUrl ? <span style={{ color: "#2e7d32", fontSize: "11px" }}>Copied!</span> : "Copy"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-danger"
+                onClick={handleDeleteShortUrl}
+                disabled={isShortening}
+                style={{ padding: "2px 6px" }}
+                title="Delete short link from RapidLink API"
+              >
+                Delete Link
               </button>
             </div>
           )}

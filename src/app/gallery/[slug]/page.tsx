@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: PublicPhotoPageProps): Promis
   const { slug } = await params;
   const photo = await getGalleryPhotoBySlug(slug);
 
-  if (!photo || photo.visibility === "private") {
+  if (!photo || photo.visibility === "private" || !photo.shortUrl) {
     return {
       title: "Photo Not Found",
     };
@@ -35,7 +35,7 @@ export default async function PublicGalleryPhotoPage({ params }: PublicPhotoPage
   const { slug } = await params;
   const photo = await getGalleryPhotoBySlug(slug);
 
-  if (!photo || photo.visibility === "private") {
+  if (!photo || photo.visibility === "private" || !photo.shortUrl) {
     notFound();
   }
 

@@ -179,6 +179,69 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
     }
   };
 
+  const handleDeletePhotoShortLink = async () => {
+    if (!editingPhoto || !editForm.shortUrl) return;
+    if (!confirm("Delete this short URL from RapidLink API and revoke public share link?")) return;
+
+    setIsPhotoShortening(true);
+    try {
+      const { deleteShortLink } = await import("@/features/links/actions");
+      const urlSlug = editForm.shortUrl.split("/").filter(Boolean).pop();
+      if (urlSlug) {
+        await deleteShortLink(urlSlug);
+      }
+
+      setEditForm((prev) => ({ ...prev, shortUrl: "", shortSlug: "" }));
+
+      const tagsArray = editForm.tags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+      await saveGalleryPhoto({
+        id: editingPhoto.id,
+        title: editForm.title,
+        slug: editForm.slug || generatePhotoSlug(editForm.title),
+        description: editForm.description || null,
+        originalUrl: editingPhoto.originalUrl,
+        largeUrl: editingPhoto.largeUrl,
+        mediumUrl: editingPhoto.mediumUrl,
+        thumbnailUrl: editingPhoto.thumbnailUrl,
+        width: editingPhoto.width,
+        height: editingPhoto.height,
+        fileSize: editingPhoto.fileSize,
+        mimeType: editingPhoto.mimeType,
+        camera: editForm.camera || null,
+        lens: editForm.lens || null,
+        focalLength: editForm.focalLength || null,
+        aperture: editForm.aperture || null,
+        shutterSpeed: editForm.shutterSpeed || null,
+        iso: editForm.iso ? Number(editForm.iso) : null,
+        takenAt: editForm.takenAt || null,
+        latitude: editForm.latitude ? Number(editForm.latitude) : null,
+        longitude: editForm.longitude ? Number(editForm.longitude) : null,
+        locationName: editForm.locationName || null,
+        visibility: editForm.visibility,
+        featured: editForm.featured,
+        processingStatus: editingPhoto.processingStatus as any,
+        tags: tagsArray,
+        album: editForm.album || null,
+        shortUrl: null,
+      });
+
+      setPhotos((prev) =>
+        prev.map((p) => (p.id === editingPhoto.id ? { ...p, shortUrl: null } : p))
+      );
+      if (selectedPhoto?.id === editingPhoto.id) {
+        setSelectedPhoto((prev) => (prev ? { ...prev, shortUrl: null } : null));
+      }
+    } catch (err: any) {
+      alert("Error deleting short link: " + (err.message || String(err)));
+    } finally {
+      setIsPhotoShortening(false);
+    }
+  };
+
   const handleCopyPhotoShortUrl = (url: string) => {
     navigator.clipboard.writeText(url);
     setPhotoCopiedShortUrl(true);
@@ -731,6 +794,16 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
                           style={{ padding: "1px 6px" }}
                         >
                           {photoCopiedShortUrl ? "Copied!" : "Copy"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-danger"
+                          onClick={handleDeletePhotoShortLink}
+                          disabled={isPhotoShortening}
+                          style={{ padding: "1px 6px" }}
+                          title="Delete short link from RapidLink API & remove public share access"
+                        >
+                          Delete Link
                         </button>
                       </div>
                     )}
