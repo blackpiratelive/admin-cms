@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { type CloudinaryResource } from "@/features/media/cloudinaryActions";
 import { importMicroblogBatch } from "@/features/microblog/actions";
+import { type CloudflareUsageStats } from "@/features/gallery/actions";
 import {
   Settings,
   Upload,
@@ -14,10 +15,16 @@ import {
   Check,
   RefreshCw,
   Info,
+  Cloud,
+  Database,
+  HardDrive,
+  Layers,
+  ArrowUpRight,
 } from "lucide-react";
 
 interface SettingsDashboardProps {
   cloudinaryImages: CloudinaryResource[];
+  r2Stats?: CloudflareUsageStats;
 }
 
 interface ParsedImportPost {
@@ -40,7 +47,7 @@ interface ParsedImportPost {
   errorMessages: string[];
 }
 
-export function SettingsDashboard({ cloudinaryImages }: SettingsDashboardProps) {
+export function SettingsDashboard({ cloudinaryImages, r2Stats }: SettingsDashboardProps) {
   const [activeTab, setActiveTab] = useState<"system" | "import">("system");
   const [parsedPosts, setParsedPosts] = useState<ParsedImportPost[]>([]);
   const [isReading, setIsReading] = useState(false);
@@ -409,12 +416,116 @@ export function SettingsDashboard({ cloudinaryImages }: SettingsDashboardProps) 
       {/* Preferences Tab Content */}
       {activeTab === "system" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {/* Cloudflare R2 Usage Stats & Limits Card */}
+          {r2Stats && (
+            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", padding: "16px", borderRadius: "4px", display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-color)", paddingBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Cloud size={18} style={{ color: "var(--accent)" }} />
+                  <h3 style={{ fontSize: "15px", fontWeight: "bold", margin: 0 }}>
+                    Cloudflare R2 Usage Stats & Plan Limits
+                  </h3>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span
+                    className={`status-badge status-${r2Stats.configured ? "published" : "draft"}`}
+                    style={{ fontSize: "11px" }}
+                  >
+                    {r2Stats.configured ? "R2 Cloud Connected" : "Local Dev Fallback"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Bucket & Storage Progress Meter */}
+              <div style={{ background: "var(--bg-sidebar)", padding: "12px", borderRadius: "4px", border: "1px solid var(--border-color)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", fontWeight: 600, marginBottom: "6px", flexWrap: "wrap", gap: "8px" }}>
+                  <span>
+                    Bucket: <code style={{ color: "var(--accent)" }}>{r2Stats.bucketName}</code>
+                  </span>
+                  <span>
+                    Storage Used: <strong>{r2Stats.usedFormatted}</strong> / {r2Stats.storageLimitFormatted} ({r2Stats.percentStorageUsed}%)
+                  </span>
+                </div>
+
+                {/* Meter bar */}
+                <div style={{ width: "100%", height: "8px", background: "var(--border-color)", borderRadius: "4px", overflow: "hidden" }}>
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${r2Stats.percentStorageUsed}%`,
+                      backgroundColor: r2Stats.percentStorageUsed > 85 ? "#d32f2f" : "var(--accent)",
+                      transition: "width 0.3s ease",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Metric Allowances Grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px" }}>
+                <div style={{ background: "var(--bg-sidebar)", padding: "12px", border: "1px solid var(--border-color)", borderRadius: "4px" }}>
+                  <div style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: "bold" }}>
+                    Stored Photos
+                  </div>
+                  <div style={{ fontSize: "18px", fontWeight: "bold", marginTop: "4px", color: "var(--text-primary)" }}>
+                    {r2Stats.totalPhotos} Photos
+                  </div>
+                </div>
+
+                <div style={{ background: "var(--bg-sidebar)", padding: "12px", border: "1px solid var(--border-color)", borderRadius: "4px" }}>
+                  <div style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: "bold" }}>
+                    Derivative Objects
+                  </div>
+                  <div style={{ fontSize: "18px", fontWeight: "bold", marginTop: "4px", color: "var(--text-primary)" }}>
+                    {r2Stats.totalObjects} Files
+                  </div>
+                </div>
+
+                <div style={{ background: "var(--bg-sidebar)", padding: "12px", border: "1px solid var(--border-color)", borderRadius: "4px" }}>
+                  <div style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: "bold" }}>
+                    Class A Ops Limit
+                  </div>
+                  <div style={{ fontSize: "12px", fontWeight: "bold", marginTop: "4px", color: "var(--badge-published)" }}>
+                    {r2Stats.classALimitFormatted}
+                  </div>
+                  <div style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>
+                    PUT, POST, LIST mutations
+                  </div>
+                </div>
+
+                <div style={{ background: "var(--bg-sidebar)", padding: "12px", border: "1px solid var(--border-color)", borderRadius: "4px" }}>
+                  <div style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: "bold" }}>
+                    Class B Ops Limit
+                  </div>
+                  <div style={{ fontSize: "12px", fontWeight: "bold", marginTop: "4px", color: "var(--badge-published)" }}>
+                    {r2Stats.classBLimitFormatted}
+                  </div>
+                  <div style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>
+                    GET, HEAD reads
+                  </div>
+                </div>
+
+                <div style={{ background: "var(--bg-sidebar)", padding: "12px", border: "1px solid var(--border-color)", borderRadius: "4px" }}>
+                  <div style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: "bold" }}>
+                    Egress Bandwidth
+                  </div>
+                  <div style={{ fontSize: "12px", fontWeight: "bold", marginTop: "4px", color: "var(--badge-published)" }}>
+                    {r2Stats.egressLimitFormatted}
+                  </div>
+                  <div style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>
+                    No egress charges
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", padding: "16px" }}>
             <h3 style={{ fontSize: "14px", fontWeight: "bold", marginBottom: "8px" }}>System Information</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "12px", fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>
               <div>CMS Mode: Single-User Standalone</div>
               <div>Database Driver: Drizzle ORM + libSQL (Turso)</div>
-              <div>Storage Provider: Cloudinary (Direct unsigned uploads)</div>
+              <div>Gallery Storage: Cloudflare R2 S3 API (Web Worker Pipeline)</div>
               <div>Static Rebuilds: Vercel Deploy Hook</div>
             </div>
           </div>

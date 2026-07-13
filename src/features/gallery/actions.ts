@@ -216,3 +216,86 @@ export async function deleteGalleryPhoto(id: string) {
     return { success: false, error: error.message || "Failed to delete photo." };
   }
 }
+
+export interface CloudflareUsageStats {
+  configured: boolean;
+  bucketName: string;
+  totalPhotos: number;
+  totalObjects: number;
+  usedBytes: number;
+  usedFormatted: string;
+  storageLimitFormatted: string;
+  percentStorageUsed: number;
+  classALimitFormatted: string;
+  classBLimitFormatted: string;
+  egressLimitFormatted: string;
+}
+
+export async function getCloudflareUsageStats(): Promise<CloudflareUsageStats> {
+  const accountId = process.env.R2_ACCOUNT_ID;
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  const bucketName = process.env.R2_BUCKET_NAME || "gallery";
+
+  const isConfigured = Boolean(accountId && accessKeyId && secretAccessKey);
+
+  let totalPhotos = 0;
+  let totalBytes = 0;
+
+  try {
+    await ensureDbInitialized();
+    const allPhotos = await db.select({ fileSize: gallery.fileSize }).from(gallery);
+    totalPhotos = allPhotos.length;
+    for (const p of allPhotos) {
+      if (p.fileSize) {
+        totalBytes += Math.round(p.fileSize * 1.4);
+      }
+    }
+  } catch (e) {
+    console.error("Error calculating local DB gallery stats:", e);
+  }
+
+  const s3 = getR2Client();
+  let r2ObjectCount = totalPhotos * 4;
+  if (s3) {
+    try {
+      const { ListObjectsV2Command } = await import("@aws-sdk/client-s3");
+      const command = new ListObjectsV2Command({ Bucket: bucketName });
+      const res = await s3.send(command);
+      if (res.Contents && res.Contents.length > 0) {
+        r2ObjectCount = res.Contents.length;
+        const actualR2Bytes = res.Contents.reduce((acc, obj) => acc + (obj.Size || 0), 0);
+        if (actualR2Bytes > 0) {
+          totalBytes = actualR2Bytes;
+        }
+      }
+    } catch (e) {
+      // Fall back to estimated totalBytes from Turso DB
+    }
+  }
+
+  const FREE_STORAGE_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
+  const percentStorageUsed = Math.min(100, Number(((totalBytes / FREE_STORAGE_BYTES) * 100).toFixed(2)));
+
+  const formatSize = (bytes: number) => {
+    if (bytes === 0) return "0 MB";
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  };
+
+  return {
+    configured: isConfigured,
+    bucketName: isConfigured ? bucketName : "gallery (Local Dev Fallback)",
+    totalPhotos,
+    totalObjects: r2ObjectCount,
+    usedBytes: totalBytes,
+    usedFormatted: formatSize(totalBytes),
+    storageLimitFormatted: "10 GB / month (Free Tier)",
+    percentStorageUsed,
+    classALimitFormatted: "1,000,000 requests / month (Free Tier)",
+    classBLimitFormatted: "10,000,000 requests / month (Free Tier)",
+    egressLimitFormatted: "Unlimited ($0 Egress)",
+  };
+}
+
