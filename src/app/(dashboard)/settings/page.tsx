@@ -1,10 +1,18 @@
-import { PlaceholderModule } from "@/components/PlaceholderModule";
+import { getCloudinaryResources } from "@/features/media/cloudinaryActions";
+import { SettingsDashboard } from "./SettingsDashboard";
 
-export default function SettingsPlaceholderPage() {
+export const dynamic = "force-dynamic";
+
+export const metadata = {
+  title: "Settings | Personal CMS",
+  description: "Configure system options and import markdown post files.",
+};
+
+export default async function SettingsPage() {
+  const result = await getCloudinaryResources();
+  const cloudinaryImages = result.success && result.resources ? result.resources : [];
+
   return (
-    <PlaceholderModule
-      title="System Settings"
-      description="Configure deploy hooks, database sync status, storage keys, and security preferences."
-    />
+    <SettingsDashboard cloudinaryImages={cloudinaryImages} />
   );
 }

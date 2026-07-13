@@ -151,3 +151,67 @@ export async function fetchRelatedPosts(postId: string) {
     return [];
   }
 }
+
+export async function importMicroblogBatch(posts: {
+  slug: string;
+  contentMarkdown: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  publishedAt: string | null;
+  status: "draft" | "published" | "scheduled" | "archived";
+  coverImageUrl: string | null;
+  images: string[];
+}[]) {
+  try {
+    await ensureDbInitialized();
+    const now = new Date().toISOString();
+    const idsToUpdate: { id: string; tags: string[]; contentMarkdown: string }[] = [];
+
+    await db.transaction(async (tx) => {
+      for (const post of posts) {
+        const existing = await tx.select().from(microblogs).where(eq(microblogs.slug, post.slug));
+        const id = existing.length > 0 ? existing[0].id : crypto.randomUUID();
+        
+        const recordData = {
+          id,
+          slug: post.slug,
+          contentMarkdown: post.contentMarkdown,
+          status: post.status,
+          tags: JSON.stringify(post.tags),
+          coverImageUrl: post.coverImageUrl,
+          images: JSON.stringify(post.images),
+          createdAt: post.createdAt || now,
+          updatedAt: post.updatedAt || now,
+          publishedAt: post.publishedAt,
+        };
+
+        if (existing.length > 0) {
+          await tx.update(microblogs).set({
+            ...recordData,
+            createdAt: existing[0].createdAt,
+          }).where(eq(microblogs.id, id));
+        } else {
+          await tx.insert(microblogs).values(recordData);
+        }
+
+        idsToUpdate.push({ id, tags: post.tags, contentMarkdown: post.contentMarkdown });
+      }
+    });
+
+    for (const item of idsToUpdate) {
+      try {
+        await updateRelatedPosts(item.id, item.tags, item.contentMarkdown);
+      } catch (err) {
+        console.error(`Error updating related posts for imported id ${item.id}:`, err);
+      }
+    }
+
+    revalidatePath("/microblog");
+    revalidatePath("/");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error importing microblog batch:", error);
+    return { success: false, error: error.message || String(error) };
+  }
+}
