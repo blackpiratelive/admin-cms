@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const posts = await db
+    const rawPosts = await db
       .select({
         id: microblogs.id,
         slug: microblogs.slug,
@@ -15,10 +15,33 @@ export async function GET() {
         publishedAt: microblogs.publishedAt,
         tags: microblogs.tags,
         coverImageUrl: microblogs.coverImageUrl,
+        images: microblogs.images,
       })
       .from(microblogs)
       .where(eq(microblogs.status, "published"))
       .orderBy(desc(microblogs.publishedAt));
+
+    const posts = rawPosts.map((post) => {
+      let parsedTags = [];
+      try {
+        parsedTags = JSON.parse(post.tags);
+      } catch (e) {
+        // Fallback
+      }
+
+      let parsedImages = [];
+      try {
+        parsedImages = JSON.parse(post.images);
+      } catch (e) {
+        // Fallback
+      }
+
+      return {
+        ...post,
+        tags: parsedTags,
+        images: parsedImages,
+      };
+    });
 
     return NextResponse.json({ posts });
   } catch (error) {

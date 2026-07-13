@@ -10,6 +10,7 @@ export const microblogs = sqliteTable("microblogs", {
   status: text("status", { enum: ["draft", "published", "scheduled", "archived"] }).notNull().default("draft"),
   tags: text("tags").notNull().default("[]"),
   coverImageUrl: text("cover_image_url"),
+  images: text("images").notNull().default("[]"),
 });
 
 export type Microblog = typeof microblogs.$inferSelect;

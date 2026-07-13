@@ -29,9 +29,17 @@ export async function ensureDbInitialized(): Promise<void> {
           published_at TEXT,
           status TEXT NOT NULL DEFAULT 'draft',
           tags TEXT NOT NULL DEFAULT '[]',
-          cover_image_url TEXT
+          cover_image_url TEXT,
+          images TEXT NOT NULL DEFAULT '[]'
         );
       `);
+      
+      // Add images column to existing installations dynamically
+      try {
+        await client.execute(`ALTER TABLE microblogs ADD COLUMN images TEXT NOT NULL DEFAULT '[]';`);
+      } catch (err) {
+        // Column already exists or table alteration not needed
+      }
     } catch (err) {
       console.error("Auto DB initialization error:", err);
       // Reset promise to allow retrying on error

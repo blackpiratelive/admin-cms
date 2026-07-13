@@ -19,6 +19,22 @@ export const microblogInputSchema = z.object({
     return [];
   }),
   coverImageUrl: z.string().nullable().optional(),
+  images: z.union([z.array(z.string()), z.string()]).transform((val) => {
+    if (Array.isArray(val)) return val;
+    if (typeof val === "string") {
+      try {
+        const parsed = JSON.parse(val);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        // Fallback for comma separated strings
+      }
+      return val
+        .split(",")
+        .map((i) => i.trim())
+        .filter(Boolean);
+    }
+    return [];
+  }).default([]),
 });
 
 export type MicroblogFormInput = z.input<typeof microblogInputSchema>;

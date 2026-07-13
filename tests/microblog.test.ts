@@ -32,6 +32,28 @@ describe("Microblog Schema & Slugs", () => {
     expect(parsed.tags).toEqual(["tech", "nextjs", "drizzle"]);
   });
 
+  it("validates microblog schema with images default", () => {
+    const input = {
+      contentMarkdown: "Testing microblog content markdown",
+      tags: ["hugo", "turso"],
+      images: ["https://media.com/1.jpg", "https://media.com/2.jpg"],
+    };
+
+    const parsed = microblogInputSchema.parse(input);
+    expect(parsed.images).toEqual(["https://media.com/1.jpg", "https://media.com/2.jpg"]);
+  });
+
+  it("parses comma separated string images into array", () => {
+    const input = {
+      contentMarkdown: "Images test",
+      tags: [],
+      images: "https://media.com/1.jpg, https://media.com/2.jpg",
+    };
+
+    const parsed = microblogInputSchema.parse(input);
+    expect(parsed.images).toEqual(["https://media.com/1.jpg", "https://media.com/2.jpg"]);
+  });
+
   it("fails validation when content markdown is empty", () => {
     expect(() => {
       microblogInputSchema.parse({ contentMarkdown: "" });

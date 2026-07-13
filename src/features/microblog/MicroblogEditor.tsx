@@ -23,6 +23,9 @@ export function MicroblogEditor({ initialData }: MicroblogEditorProps) {
     initialData?.tags ? JSON.parse(initialData.tags).join(", ") : ""
   );
   const [coverImageUrl, setCoverImageUrl] = useState<string>(initialData?.coverImageUrl || "");
+  const [images, setImages] = useState<string[]>(
+    initialData?.images ? JSON.parse(initialData.images) : []
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"write" | "preview">("write");
   const [showUploader, setShowUploader] = useState(false);
@@ -42,6 +45,7 @@ export function MicroblogEditor({ initialData }: MicroblogEditorProps) {
         status: finalStatus,
         tags,
         coverImageUrl: coverImageUrl || null,
+        images,
       });
 
       if (result.success) {
@@ -67,7 +71,10 @@ export function MicroblogEditor({ initialData }: MicroblogEditorProps) {
   };
 
   const handleImageUploaded = (url: string) => {
-    setCoverImageUrl(url);
+    setImages((prev) => [...prev, url]);
+    if (!coverImageUrl) {
+      setCoverImageUrl(url);
+    }
   };
 
   const handleInsertMarkdown = (snippet: string) => {
@@ -190,6 +197,94 @@ export function MicroblogEditor({ initialData }: MicroblogEditorProps) {
             onImageUploaded={handleImageUploaded}
             onInsertMarkdown={handleInsertMarkdown}
           />
+        )}
+      </div>
+
+      {/* Images Gallery */}
+      <div style={{ background: "var(--bg-card)", padding: "12px", border: "1px solid var(--border-color)", display: "flex", flexDirection: "column", gap: "10px" }}>
+        <label className="form-label" style={{ fontWeight: "bold" }}>
+          Post Images Gallery ({images.length})
+        </label>
+        
+        {images.length === 0 ? (
+          <div style={{ color: "var(--text-muted)", fontSize: "12px", fontStyle: "italic" }}>
+            No images attached to this post yet. Upload an image above to add it to the gallery.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "10px" }}>
+            {images.map((url, idx) => {
+              const isCover = coverImageUrl === url;
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    border: isCover ? "2px solid var(--accent)" : "1px solid var(--border-color)",
+                    padding: "6px",
+                    background: "var(--bg-sidebar)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "6px",
+                    position: "relative",
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={url}
+                    alt={`Gallery ${idx}`}
+                    style={{ width: "100%", height: "80px", objectFit: "cover" }}
+                  />
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", justifyContent: "space-between" }}>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() => handleInsertMarkdown(`![image](${url})`)}
+                      title="Insert into Markdown Editor"
+                      style={{ padding: "2px 4px", fontSize: "10px", flex: 1, justifyContent: "center" }}
+                    >
+                      Insert
+                    </button>
+                    {!isCover && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        onClick={() => setCoverImageUrl(url)}
+                        title="Set as Cover Image"
+                        style={{ padding: "2px 4px", fontSize: "10px", flex: 1, justifyContent: "center" }}
+                      >
+                        Cover
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-danger"
+                      onClick={() => setImages((prev) => prev.filter((_, i) => i !== idx))}
+                      title="Remove from Gallery"
+                      style={{ padding: "2px 4px", fontSize: "10px", width: "100%", justifyContent: "center" }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  {isCover && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: "4px",
+                        right: "4px",
+                        background: "var(--accent)",
+                        color: "var(--accent-text)",
+                        fontSize: "8px",
+                        fontWeight: "bold",
+                        padding: "1px 4px",
+                        borderRadius: "2px",
+                      }}
+                    >
+                      COVER
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 
