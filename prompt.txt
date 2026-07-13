@@ -1,0 +1,418 @@
+# Project: Personal CMS for Hugo + Turso
+
+## Overview
+
+I have an existing personal website built with Hugo.
+
+I want to build a completely separate repository that acts as a private CMS (admin dashboard) for my website.
+
+This CMS will become the **single source of truth** for structured content.
+
+The Hugo website will remain completely static and will consume data directly from Turso using Hugo Content Adapters during the build.
+
+No generated Markdown should be committed to Git.
+
+No generated JSON should be written to disk.
+
+The Hugo website is read-only.
+
+The CMS is the only application that writes to the database.
+
+---
+
+# Overall Architecture
+
+```text
+                    Turso (libSQL)
+                           │
+          ┌────────────────┴────────────────┐
+          │                                 │
+          ▼                                 ▼
+     Personal CMS                    Hugo Website
+     (Next.js)                  (Content Adapters)
+          │                                 │
+          └────────────────┬────────────────┘
+                           ▼
+                     Static Website
+```
+
+The Hugo website should never contain business logic for editing content.
+
+The CMS should never render the public website.
+
+Each application has a single responsibility.
+
+---
+
+# Repository
+
+This project is ONLY for the CMS.
+
+It should be completely independent of the Hugo repository.
+
+---
+
+# Tech Stack
+
+Use modern stable technologies.
+
+* Next.js (App Router)
+* TypeScript
+* custom CSS
+* Drizzle ORM
+* Turso (libSQL)
+* Zod for validation
+* React Hook Form
+* Server Actions where appropriate
+
+Avoid unnecessary dependencies.
+
+Organize the project cleanly.
+
+---
+
+# Authentication
+
+This CMS has exactly one user: me.
+
+Do NOT build a multi-user system.
+
+Requirements:
+
+* Password login
+* Secure session cookie
+* Logout
+* Protected routes
+* Middleware
+
+Do NOT implement:
+
+* Registration
+* Email verification
+* Forgot password
+* OAuth
+
+Authentication should be simple but secure.
+
+---
+
+# Dashboard
+
+Design this as a Personal CMS instead of a Microblog Dashboard.
+
+Navigation:
+
+Dashboard
+
+Content
+
+* Microblog
+* Blog (placeholder)
+* Notes (placeholder)
+* Pages (placeholder)
+
+Tracking
+
+* Books
+* Movies
+* TV Shows
+* Games
+
+Media
+
+* Gallery
+* Uploads
+
+Collections
+
+* Bookmarks
+* Quotes
+* Links
+
+Settings
+
+Only Microblog needs to be implemented initially.
+
+The rest should exist as placeholders for future expansion.
+
+---
+
+# Database
+
+Use Drizzle migrations.
+
+Create a microblogs table.
+
+Fields:
+
+* id
+* slug
+* content_markdown
+* created_at
+* updated_at
+* published_at
+* status
+* tags
+* cover_image_url (nullable)
+
+Status should be an enum:
+
+* draft
+* published
+* scheduled
+* archived
+
+Do NOT use a simple published boolean.
+
+Use timestamps consistently.
+
+Generate slugs automatically.
+
+---
+
+# Editor
+
+Create a modern writing experience.
+
+Features:
+
+* Markdown editor
+* Live preview
+* Character count
+* Word count
+* Autosave (optional)
+* Save draft
+* Publish
+* Archive
+* Delete
+* Edit existing posts
+
+---
+
+# Microblog List
+
+Display:
+
+* Title (generated automatically if needed)
+* Status
+* Created date
+* Published date
+* Updated date
+
+Filtering:
+
+* Draft
+* Published
+* Scheduled
+* Archived
+
+Search by content.
+
+---
+
+# UI
+
+The interface should feel like a lightweight Notion or Linear.
+
+Priorities:
+
+* Fast
+* Minimal
+* Keyboard friendly
+* Responsive
+* Dark mode
+* Clean typography
+
+Avoid excessive animations.
+
+---
+
+# Media
+
+Design for media support.
+
+Do NOT store images inside Turso.
+
+Instead:
+
+* Upload image
+* Store on external storage
+* Save URL in database
+
+Abstract the storage implementation so it can later support:
+
+* Vercel Blob
+* Cloudflare R2
+* S3
+
+---
+
+# Hugo Integration
+
+Do NOT generate Markdown files.
+
+Do NOT generate JSON files.
+
+The Hugo repository will use Content Adapters.
+
+The CMS only stores data in Turso.
+
+The Hugo site will fetch published content directly during builds.
+
+Design the schema with this in mind.
+
+---
+
+# Deployment Workflow
+
+Publishing a post should:
+
+Save to Turso
+
+↓
+
+Trigger a Vercel Deploy Hook
+
+↓
+
+Hugo rebuilds
+
+↓
+
+Content Adapter fetches latest content
+
+↓
+
+Website updates
+
+No Git commits.
+
+No generated files.
+
+---
+
+# Code Organization
+
+Organize code by feature.
+
+Example:
+
+app/
+
+components/
+
+features/
+
+* auth
+* microblog
+* media
+
+db/
+
+lib/
+
+hooks/
+
+types/
+
+Avoid dumping everything into one folder.
+
+---
+
+# Validation
+
+Validate:
+
+* Server
+* Client
+* Database
+
+Use Zod schemas.
+
+---
+
+# Error Handling
+
+Implement proper error handling.
+
+Display useful UI errors.
+
+Never expose database errors to users.
+
+---
+
+# Future Expansion
+
+Design everything so new content types can be added easily.
+
+Future modules include:
+
+Books
+
+Movies
+
+TV Shows
+
+Games
+
+Gallery
+
+Bookmarks
+
+Quotes
+
+Reading Progress
+
+Watch History
+
+Travel
+
+Projects
+
+The architecture should require minimal changes when adding a new module.
+
+---
+
+# Environment Variables
+
+Support:
+
+TURSO_DATABASE_URL
+
+TURSO_AUTH_TOKEN
+
+ADMIN_PASSWORD
+
+VERCEL_DEPLOY_HOOK
+
+Use .env.local for development.
+
+---
+
+# Documentation
+
+Generate:
+
+* README
+* AI Handoff document for future ai agents so they do not have to analyze the codebase
+
+Explain major architectural decisions.
+
+---
+
+# Coding Standards
+
+* Strict TypeScript
+* Reusable components
+* Good naming
+* Clean architecture
+* Modular code
+* No unnecessary abstractions
+* No overengineering
+* Follow current Next.js best practices
+
+The resulting CMS should feel like a professional internal tool built specifically for managing a personal website, with a strong foundation for future expansion.
+
+This is a personal CMS, not a product. Optimize for a single trusted user, not for multiple users or SaaS use cases. Favor simplicity, maintainability, and fast workflows over configurability. Avoid features that only make sense in multi-user systems.
+
+Design Philosophy: This application is used daily by a single power user. Prioritize speed, clarity, keyboard navigation, and information density over visual decoration. The interface should feel html friendly, utalitarian. Take inspiration from hackernews design, but instead of having only one color orange add thenming options. Use icons wherever possible. Make the website resposive to mobile, tabs and desktop. Avoid enterprise dashboard aesthetics, oversized cards, unnecessary whitespace, loud gradients, and decorative animations. Every screen should help the user accomplish a task with as few clicks as possible.
