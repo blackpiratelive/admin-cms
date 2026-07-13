@@ -78,10 +78,9 @@ export function SettingsDashboard({ cloudinaryImages }: SettingsDashboardProps) 
       }
     }
 
-    // Clean filenames: get basename and strip extension
+    // Clean filenames: get basename (preserve extension)
     return filenames.map((f) => {
-      const base = f.split("/").pop() || f;
-      return base.replace(/\.[^/.]+$/, "").trim();
+      return f.split("/").pop()?.trim() || f.trim();
     });
   };
 
@@ -178,19 +177,44 @@ export function SettingsDashboard({ cloudinaryImages }: SettingsDashboardProps) 
     const images: string[] = [];
     const errorMessages: string[] = [];
 
+    const findCloudinaryMatch = (imgName: string): CloudinaryResource | null => {
+      const cleanName = imgName.trim().toLowerCase();
+      const basename = cleanName.split("/").pop() || cleanName;
+      const hasExtension = basename.includes(".");
+
+      for (const res of cloudinaryImages) {
+        const secureUrlLower = res.secure_url.toLowerCase();
+        const publicIdLower = res.public_id.toLowerCase();
+
+        if (hasExtension) {
+          // If the shortcode includes an extension, match it against the end of the secure URL path
+          if (
+            secureUrlLower.endsWith("/" + basename) ||
+            secureUrlLower.includes("/" + basename + "/") ||
+            secureUrlLower.includes("/" + basename + "?") ||
+            secureUrlLower.includes("/" + basename)
+          ) {
+            return res;
+          }
+        } else {
+          // Fallback if no extension, match public_id
+          if (publicIdLower === basename || publicIdLower.endsWith("/" + basename)) {
+            return res;
+          }
+        }
+      }
+      return null;
+    };
+
     for (const imgName of uniqueImageNames) {
-      // Find matches in Cloudinary: check if public_id is exactly "microblog/image_name"
-      const targetPublicId = `microblog/${imgName}`.toLowerCase();
-      const match = cloudinaryImages.find(
-        (c) => c.public_id.toLowerCase() === targetPublicId
-      );
+      const match = findCloudinaryMatch(imgName);
 
       if (match) {
         detectedImages.push({ name: imgName, found: true, url: match.secure_url });
         images.push(match.secure_url);
       } else {
         detectedImages.push({ name: imgName, found: false, url: null });
-        errorMessages.push(`Image '${imgName}' not found in Cloudinary folder 'microblog/'`);
+        errorMessages.push(`Image '${imgName}' not found in Cloudinary`);
       }
     }
 
