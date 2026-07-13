@@ -1,6 +1,6 @@
 "use server";
 
-import { db } from "@/db";
+import { db, ensureDbInitialized } from "@/db";
 import { microblogs } from "@/db/schema";
 import { eq, like, and, desc } from "drizzle-orm";
 import { generateSlug, microblogInputSchema, type MicroblogFormInput } from "./schema";
@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 
 export async function getMicroblogs(filters?: { search?: string; status?: string }) {
   try {
+    await ensureDbInitialized();
     const conditions = [];
 
     if (filters?.status && filters.status !== "all") {
@@ -37,6 +38,7 @@ export async function getMicroblogs(filters?: { search?: string; status?: string
 
 export async function getMicroblogById(id: string) {
   try {
+    await ensureDbInitialized();
     const results = await db.select().from(microblogs).where(eq(microblogs.id, id));
     return results[0] || null;
   } catch (error) {
@@ -46,6 +48,7 @@ export async function getMicroblogById(id: string) {
 }
 
 export async function saveMicroblog(input: MicroblogFormInput) {
+  await ensureDbInitialized();
   const validated = microblogInputSchema.parse(input);
   const now = new Date().toISOString();
 
@@ -92,6 +95,7 @@ export async function saveMicroblog(input: MicroblogFormInput) {
 
 export async function deleteMicroblog(id: string) {
   try {
+    await ensureDbInitialized();
     await db.delete(microblogs).where(eq(microblogs.id, id));
     revalidatePath("/microblog");
     revalidatePath("/");
@@ -103,6 +107,7 @@ export async function deleteMicroblog(id: string) {
 }
 
 export async function setMicroblogStatus(id: string, status: "draft" | "published" | "scheduled" | "archived") {
+  await ensureDbInitialized();
   const existing = await getMicroblogById(id);
   if (!existing) return { success: false, error: "Not found" };
 
