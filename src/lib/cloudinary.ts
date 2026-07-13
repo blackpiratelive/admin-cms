@@ -41,5 +41,16 @@ export async function uploadDirectToCloudinary(
     );
   }
 
-  return await res.json();
+  const result = await res.json();
+
+  // Replace default Cloudinary base URL with custom domain/prefix if configured
+  const urlPrefix = process.env.NEXT_PUBLIC_CLOUDINARY_URL_PREFIX;
+  if (urlPrefix && result.secure_url) {
+    const defaultBase = `https://res.cloudinary.com/${activeCloudName}`;
+    if (result.secure_url.startsWith(defaultBase)) {
+      result.secure_url = result.secure_url.replace(defaultBase, urlPrefix);
+    }
+  }
+
+  return result;
 }
