@@ -51,6 +51,18 @@ export function SettingsDashboard({ cloudinaryImages }: SettingsDashboardProps) 
     status: string;
   } | null>(null);
   const [importResult, setImportResult] = useState<string | null>(null);
+  const [autosaveEnabled, setAutosaveEnabled] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("cms_autosave_enabled") !== "false";
+    }
+    return true;
+  });
+
+  const handleToggleAutosave = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const enabled = e.target.checked;
+    setAutosaveEnabled(enabled);
+    localStorage.setItem("cms_autosave_enabled", enabled ? "true" : "false");
+  };
 
   // Helper to extract image names from content
   const extractImageNames = (content: string): string[] => {
@@ -362,6 +374,24 @@ export function SettingsDashboard({ cloudinaryImages }: SettingsDashboardProps) 
               <div>Storage Provider: Cloudinary (Direct unsigned uploads)</div>
               <div>Static Rebuilds: Vercel Deploy Hook</div>
             </div>
+          </div>
+
+          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", padding: "16px" }}>
+            <h3 style={{ fontSize: "14px", fontWeight: "bold", marginBottom: "12px" }}>Editor Preferences</h3>
+            <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "13px" }}>
+              <input
+                type="checkbox"
+                checked={autosaveEnabled}
+                onChange={handleToggleAutosave}
+                style={{ width: "16px", height: "16px", accentColor: "var(--accent)" }}
+              />
+              <div>
+                <strong>Enable Microblog Autosave</strong>
+                <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>
+                  Automatically save changes as draft every 5 seconds when editing.
+                </div>
+              </div>
+            </label>
           </div>
 
           <div style={{ border: "1px dashed var(--border-color)", padding: "20px", background: "var(--bg-card)", borderRadius: "2px" }}>

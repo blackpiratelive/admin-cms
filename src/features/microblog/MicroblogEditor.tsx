@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { saveMicroblog, deleteMicroblog } from "./actions";
 import { type Microblog } from "@/db/schema";
@@ -14,7 +14,7 @@ interface MicroblogEditorProps {
 
 export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: MicroblogEditorProps) {
   const router = useRouter();
-  const [id] = useState<string | undefined>(initialData?.id);
+  const [id, setId] = useState<string | undefined>(initialData?.id);
   const [contentMarkdown, setContentMarkdown] = useState<string>(initialData?.contentMarkdown || "");
   const [slug, setSlug] = useState<string>(initialData?.slug || "");
   const [status, setStatus] = useState<"draft" | "published" | "scheduled" | "archived">(
@@ -28,6 +28,14 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
     initialData?.images ? JSON.parse(initialData.images) : []
   );
   const [relatedPosts, setRelatedPosts] = useState<any[]>(initialRelatedPosts);
+  const [lastSavedState, setLastSavedState] = useState({
+    contentMarkdown: initialData?.contentMarkdown || "",
+    slug: initialData?.slug || "",
+    tags: initialData?.tags ? JSON.parse(initialData.tags).join(", ") : "",
+    coverImageUrl: initialData?.coverImageUrl || "",
+    images: initialData?.images ? JSON.parse(initialData.images) : [],
+  });
+  const [lastAutosavedTime, setLastAutosavedTime] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"write" | "preview">("write");
   const [showUploader, setShowUploader] = useState(false);
@@ -51,6 +59,14 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
       });
 
       if (result.success) {
+        setId(result.id);
+        setLastSavedState({
+          contentMarkdown,
+          slug,
+          tags,
+          coverImageUrl,
+          images,
+        });
         if (result.relatedPosts) {
           setRelatedPosts(result.relatedPosts);
         }
@@ -86,14 +102,82 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
     setContentMarkdown((prev) => (prev ? `${prev}\n\n${snippet}` : snippet));
   };
 
+  // Autosave handler
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const autosaveEnabled = localStorage.getItem("cms_autosave_enabled") !== "false";
+    if (!autosaveEnabled) return;
+
+    const interval = setInterval(async () => {
+      let changed = false;
+      setLastSavedState((last) => {
+        if (
+          contentMarkdown !== last.contentMarkdown ||
+          slug !== last.slug ||
+          tags !== last.tags ||
+          coverImageUrl !== last.coverImageUrl ||
+          JSON.stringify(images) !== JSON.stringify(last.images)
+        ) {
+          changed = true;
+        }
+        return last;
+      });
+
+      if (!changed || isSaving) return;
+
+      const autosaveStatus = status === "published" ? "published" : "draft";
+
+      try {
+        const result = await saveMicroblog({
+          id,
+          slug,
+          contentMarkdown,
+          status: autosaveStatus,
+          tags,
+          coverImageUrl: coverImageUrl || null,
+          images,
+        });
+
+        if (result.success) {
+          setId(result.id);
+          setLastSavedState({
+            contentMarkdown,
+            slug,
+            tags,
+            coverImageUrl,
+            images,
+          });
+          setLastAutosavedTime(new Date().toLocaleTimeString());
+          if (result.relatedPosts) {
+            setRelatedPosts(result.relatedPosts);
+          }
+          if (!id) {
+            router.replace(`/microblog/${result.id}`);
+          }
+        }
+      } catch (err) {
+        console.error("Autosave error:", err);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [contentMarkdown, slug, tags, coverImageUrl, images, id, status, isSaving, router]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       {/* Editor Top Bar Actions */}
       <div className="page-header">
-        <h1 className="page-title">
-          <FileEdit size={18} />
-          {id ? "Edit Microblog" : "New Microblog"}
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <h1 className="page-title" style={{ margin: 0 }}>
+            <FileEdit size={18} />
+            {id ? "Edit Microblog" : "New Microblog"}
+          </h1>
+          {lastAutosavedTime && (
+            <span style={{ fontSize: "11px", color: "var(--text-muted)", background: "var(--bg-sidebar)", padding: "2px 6px", borderRadius: "2px", border: "1px solid var(--border-color)" }}>
+              Autosaved at {lastAutosavedTime}
+            </span>
+          )}
+        </div>
         <div style={{ display: "flex", gap: "8px" }}>
           {id && (
             <button type="button" onClick={handleDelete} className="btn btn-danger btn-sm" disabled={isSaving}>
