@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { type Microblog } from "@/db/schema";
-import { setMicroblogStatus, deleteMicroblog } from "./actions";
+import { setMicroblogStatus, deleteMicroblog, deleteMicroblogsBatch } from "./actions";
 import { Search, Plus, Edit3, Trash2, Calendar, Tag } from "lucide-react";
 
 interface MicroblogListProps {
@@ -14,6 +14,8 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
   const [items, setItems] = useState<Microblog[]>(initialItems);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const filteredItems = items.filter((item) => {
     const matchesStatus = statusFilter === "all" || item.status === statusFilter;
@@ -35,6 +37,42 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
     if (!confirm("Delete this microblog entry?")) return;
     await deleteMicroblog(id);
     setItems((prev) => prev.filter((item) => item.id !== id));
+    setSelectedIds((prev) => prev.filter((item) => item !== id));
+  };
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedIds(filteredItems.map((item) => item.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectRow = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Are you sure you want to permanently delete the ${selectedIds.length} selected microblog posts?`)) {
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      const res = await deleteMicroblogsBatch(selectedIds);
+      if (res.success) {
+        setItems((prev) => prev.filter((item) => !selectedIds.includes(item.id)));
+        setSelectedIds([]);
+      } else {
+        alert(res.error || "Failed to delete selected posts.");
+      }
+    } catch (err) {
+      alert("An error occurred during bulk deletion.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const formatDate = (dateStr?: string | null) => {
@@ -52,10 +90,24 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <div className="page-header">
         <h1 className="page-title">Microblog Posts ({filteredItems.length})</h1>
-        <Link href="/microblog/new" className="btn btn-primary">
-          <Plus size={16} />
-          <span>New Microblog</span>
-        </Link>
+        <div style={{ display: "flex", gap: "8px" }}>
+          {selectedIds.length > 0 && (
+            <button
+              type="button"
+              onClick={handleBulkDelete}
+              className="btn btn-danger"
+              disabled={isDeleting}
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+            >
+              <Trash2 size={16} />
+              <span>Delete Selected ({selectedIds.length})</span>
+            </button>
+          )}
+          <Link href="/microblog/new" className="btn btn-primary">
+            <Plus size={16} />
+            <span>New Microblog</span>
+          </Link>
+        </div>
       </div>
 
       {/* Filter and Search Toolbar */}
@@ -90,6 +142,13 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
         <table className="data-table">
           <thead>
             <tr>
+              <th style={{ width: "40px", paddingRight: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={filteredItems.length > 0 && selectedIds.length === filteredItems.length}
+                  onChange={handleSelectAll}
+                />
+              </th>
               <th>Snippet / Slug</th>
               <th>Status</th>
               <th className="hide-on-mobile">Created</th>
@@ -101,7 +160,7 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
           <tbody>
             {filteredItems.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: "center", padding: "24px", color: "var(--text-muted)" }}>
+                <td colSpan={7} style={{ textAlign: "center", padding: "24px", color: "var(--text-muted)" }}>
                   No microblog posts found.
                 </td>
               </tr>
@@ -114,6 +173,13 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
 
                 return (
                   <tr key={item.id}>
+                    <td style={{ width: "40px", paddingRight: 0 }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(item.id)}
+                        onChange={() => handleSelectRow(item.id)}
+                      />
+                    </td>
                     <td>
                       <Link
                         href={`/microblog/${item.id}`}

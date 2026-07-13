@@ -1,8 +1,8 @@
 "use server";
 
 import { db, ensureDbInitialized } from "@/db";
-import { microblogs } from "@/db/schema";
-import { eq, like, and, desc } from "drizzle-orm";
+import { microblogs, relatedMicroblogs } from "@/db/schema";
+import { eq, like, and, desc, or } from "drizzle-orm";
 import { generateSlug, microblogInputSchema, type MicroblogFormInput } from "./schema";
 import { triggerVercelDeployHook } from "@/lib/deploy-hook";
 import { revalidatePath } from "next/cache";
@@ -230,6 +230,29 @@ export async function recalculateRelatedAction(id: string, tagsString: string, c
     return { success: true, relatedPosts: related };
   } catch (err: any) {
     console.error("Manual related posts refresh failed:", err);
+    return { success: false, error: err.message || String(err) };
+  }
+}
+
+export async function deleteMicroblogsBatch(ids: string[]) {
+  try {
+    await ensureDbInitialized();
+    await db.transaction(async (tx) => {
+      for (const id of ids) {
+        await tx.delete(microblogs).where(eq(microblogs.id, id));
+        await tx.delete(relatedMicroblogs).where(
+          or(
+            eq(relatedMicroblogs.microblogId, id),
+            relatedMicroblogs.relatedMicroblogId ? eq(relatedMicroblogs.relatedMicroblogId, id) : undefined as any
+          )
+        );
+      }
+    });
+    revalidatePath("/microblog");
+    revalidatePath("/");
+    return { success: true };
+  } catch (err: any) {
+    console.error("Batch delete failed:", err);
     return { success: false, error: err.message || String(err) };
   }
 }
