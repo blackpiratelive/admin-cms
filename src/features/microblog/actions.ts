@@ -60,9 +60,11 @@ export async function saveMicroblog(input: MicroblogFormInput) {
 
   const existing = validated.id ? await getMicroblogById(validated.id) : null;
 
-  let publishedAt = validated.publishedAt;
-  if (validated.status === "published" && (!publishedAt || !existing?.publishedAt)) {
+  let publishedAt = existing?.publishedAt || validated.publishedAt;
+  if (validated.status === "published" && !publishedAt) {
     publishedAt = now;
+  } else if (validated.status !== "published") {
+    publishedAt = null;
   }
 
   const recordData = {
