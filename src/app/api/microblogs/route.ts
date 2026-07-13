@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { microblogs } from "@/db/schema";
+import { microblogs, relatedMicroblogs } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +21,24 @@ export async function GET() {
       .where(eq(microblogs.status, "published"))
       .orderBy(desc(microblogs.publishedAt));
 
+    // Fetch all related posts mapping
+    const relations = await db
+      .select({
+        microblogId: relatedMicroblogs.microblogId,
+        relatedSlug: microblogs.slug,
+      })
+      .from(relatedMicroblogs)
+      .innerJoin(microblogs, eq(relatedMicroblogs.relatedMicroblogId, microblogs.id));
+
+    // Map relations by microblogId
+    const relationsMap: Record<string, string[]> = {};
+    for (const rel of relations) {
+      if (!relationsMap[rel.microblogId]) {
+        relationsMap[rel.microblogId] = [];
+      }
+      relationsMap[rel.microblogId].push(rel.relatedSlug);
+    }
+
     const posts = rawPosts.map((post) => {
       let parsedTags = [];
       try {
@@ -40,6 +58,7 @@ export async function GET() {
         ...post,
         tags: parsedTags,
         images: parsedImages,
+        relatedPosts: relationsMap[post.id] || [],
       };
     });
 

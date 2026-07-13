@@ -33,6 +33,15 @@ export async function ensureDbInitialized(): Promise<void> {
           images TEXT NOT NULL DEFAULT '[]'
         );
       `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS related_microblogs (
+          microblog_id TEXT NOT NULL,
+          related_microblog_id TEXT NOT NULL,
+          score INTEGER NOT NULL DEFAULT 0,
+          PRIMARY KEY (microblog_id, related_microblog_id)
+        );
+      `);
       
       // Add images column to existing installations dynamically
       try {

@@ -1,4 +1,4 @@
-import { getMicroblogById } from "@/features/microblog/actions";
+import { getMicroblogById, fetchRelatedPosts } from "@/features/microblog/actions";
 import { MicroblogEditor } from "@/features/microblog/MicroblogEditor";
 import { notFound } from "next/navigation";
 
@@ -16,5 +16,7 @@ export default async function EditMicroblogPage({
     notFound();
   }
 
-  return <MicroblogEditor initialData={post} />;
+  const related = await fetchRelatedPosts(id);
+
+  return <MicroblogEditor initialData={post} initialRelatedPosts={related} />;
 }

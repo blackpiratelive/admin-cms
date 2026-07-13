@@ -9,9 +9,10 @@ import { Save, Eye, Trash2, Globe, FileEdit, Archive, Upload, Image as ImageIcon
 
 interface MicroblogEditorProps {
   initialData?: Microblog | null;
+  initialRelatedPosts?: any[];
 }
 
-export function MicroblogEditor({ initialData }: MicroblogEditorProps) {
+export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: MicroblogEditorProps) {
   const router = useRouter();
   const [id] = useState<string | undefined>(initialData?.id);
   const [contentMarkdown, setContentMarkdown] = useState<string>(initialData?.contentMarkdown || "");
@@ -26,6 +27,7 @@ export function MicroblogEditor({ initialData }: MicroblogEditorProps) {
   const [images, setImages] = useState<string[]>(
     initialData?.images ? JSON.parse(initialData.images) : []
   );
+  const [relatedPosts, setRelatedPosts] = useState<any[]>(initialRelatedPosts);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"write" | "preview">("write");
   const [showUploader, setShowUploader] = useState(false);
@@ -49,6 +51,9 @@ export function MicroblogEditor({ initialData }: MicroblogEditorProps) {
       });
 
       if (result.success) {
+        if (result.relatedPosts) {
+          setRelatedPosts(result.relatedPosts);
+        }
         if (!id) {
           router.push(`/microblog/${result.id}`);
         } else {
@@ -281,6 +286,61 @@ export function MicroblogEditor({ initialData }: MicroblogEditorProps) {
                       COVER
                     </span>
                   )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Related Posts */}
+      <div style={{ background: "var(--bg-card)", padding: "12px", border: "1px solid var(--border-color)", display: "flex", flexDirection: "column", gap: "10px" }}>
+        <div style={{ fontWeight: "bold", fontSize: "13px" }}>
+          Related Posts ({relatedPosts.length})
+        </div>
+        {relatedPosts.length === 0 ? (
+          <div style={{ color: "var(--text-muted)", fontSize: "12px", fontStyle: "italic" }}>
+            No related posts identified yet. (Links will build automatically based on shared keywords/tags when you save).
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {relatedPosts.map((post) => {
+              const snippet = post.contentMarkdown.length > 80
+                ? post.contentMarkdown.slice(0, 80) + "..."
+                : post.contentMarkdown;
+              return (
+                <div
+                  key={post.id}
+                  style={{
+                    background: "var(--bg-sidebar)",
+                    border: "1px solid var(--border-color)",
+                    padding: "8px 12px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1 }}>
+                    <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-primary)" }}>
+                      {snippet}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+                      /{post.slug} • Match Score: {post.score}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span className={`status-badge status-${post.status}`}>
+                      {post.status}
+                    </span>
+                    <a
+                      href={`/microblog/${post.id}`}
+                      className="btn btn-sm"
+                      title="Edit Related Post"
+                    >
+                      Edit
+                    </a>
+                  </div>
                 </div>
               );
             })}

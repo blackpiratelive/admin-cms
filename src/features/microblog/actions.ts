@@ -6,6 +6,7 @@ import { eq, like, and, desc } from "drizzle-orm";
 import { generateSlug, microblogInputSchema, type MicroblogFormInput } from "./schema";
 import { triggerVercelDeployHook } from "@/lib/deploy-hook";
 import { revalidatePath } from "next/cache";
+import { updateRelatedPosts, getRelatedPosts } from "./related";
 
 export async function getMicroblogs(filters?: { search?: string; status?: string }) {
   try {
@@ -85,13 +86,21 @@ export async function saveMicroblog(input: MicroblogFormInput) {
     });
   }
 
+  let updatedRelated: any[] = [];
+  try {
+    await updateRelatedPosts(id, validated.tags, validated.contentMarkdown);
+    updatedRelated = await getRelatedPosts(id);
+  } catch (err) {
+    console.error("Error updating related posts:", err);
+  }
+
   if (validated.status === "published") {
     await triggerVercelDeployHook();
   }
 
   revalidatePath("/microblog");
   revalidatePath("/");
-  return { success: true, id, slug };
+  return { success: true, id, slug, relatedPosts: updatedRelated };
 }
 
 export async function deleteMicroblog(id: string) {
@@ -131,4 +140,14 @@ export async function setMicroblogStatus(id: string, status: "draft" | "publishe
   revalidatePath("/microblog");
   revalidatePath("/");
   return { success: true };
+}
+
+export async function fetchRelatedPosts(postId: string) {
+  try {
+    await ensureDbInitialized();
+    return await getRelatedPosts(postId);
+  } catch (err) {
+    console.error("Error fetching related posts:", err);
+    return [];
+  }
 }
