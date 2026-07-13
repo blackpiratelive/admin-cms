@@ -86,7 +86,8 @@ admin-cms/
 
 - **Single Password**: Defined by `ADMIN_PASSWORD` env variable (fallback `admin123` in dev).
 - **Session**: Enthralling JWT stored in `cms_session` HTTP-only cookie signed with `jose`.
-- **Middleware**: Intercepts request paths except `/login` and static assets. Redirects unauthorized requests to `/login`.
+- **Middleware**: Intercepts request paths except `/login`, public Hugo Content Adapter APIs (`/api/microblogs`, `/api/gallery`), and static assets. Redirects unauthorized requests to `/login`.
+
 
 ---
 
