@@ -166,6 +166,25 @@ To configure Cloudflare R2 in Vercel:
 
 ---
 
+## 8. RapidLink URL Shortener & Pastebin Integration
+
+The `/links` management tab in the CMS connects exclusively via HTTP REST API to your standalone `minimal-url-shortner` deployment.
+
+To connect your deployed `minimal-url-shortner` instance, add these Environment Variables in Vercel:
+
+| Variable | Description / Example |
+| --- | --- |
+| `RAPIDLINK_API_URL` | Base URL of your deployed shortener (e.g., `https://rapidlink.example.com`) |
+| `RAPIDLINK_API_KEY` | Dashboard secret password configured as `DASHBOARD_PASSWORD` in your shortener app |
+
+The CMS communicates with the following endpoints using `Authorization: Bearer <RAPIDLINK_API_KEY>` headers:
+- `GET /api/links` / `POST /api/shorten` / `PUT /api/links` / `DELETE /api/links`
+- `GET /api/pastes` / `POST /api/create-paste` / `DELETE /api/pastes`
+- `GET /api/domains` / `POST /api/add-domain` / `DELETE /api/domains`
+
+
+---
+
 ## 8. How to Run Commands & Tests
 
 - **Development Server**: `npm run dev`

@@ -37,12 +37,17 @@ interface LinksDashboardProps {
   initialLinks: ShortLink[];
   initialPastes: PasteItem[];
   initialDomains: ShortDomain[];
+  apiStatus?: {
+    isConfigured: boolean;
+    baseUrl: string | null;
+  };
 }
 
 export function LinksDashboard({
   initialLinks,
   initialPastes,
   initialDomains,
+  apiStatus,
 }: LinksDashboardProps) {
   const [activeTab, setActiveTab] = useState<"links" | "pastes" | "domains">("links");
   const [linksList, setLinksList] = useState<ShortLink[]>(initialLinks);
@@ -346,10 +351,25 @@ export function LinksDashboard({
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {/* Header & Quick Action */}
       <div className="page-header">
-        <h1 className="page-title">
-          <Link2 size={20} />
-          <span>URL Shortener & Pastebin Manager</span>
-        </h1>
+        <div>
+          <h1 className="page-title">
+            <Link2 size={20} />
+            <span>URL Shortener & Pastebin Manager</span>
+          </h1>
+          {apiStatus && (
+            <div style={{ marginTop: "4px", fontSize: "12px" }}>
+              {apiStatus.isConfigured ? (
+                <span className="status-badge status-published" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                  <Globe size={12} /> Connected to Remote Service API: <code>{apiStatus.baseUrl}</code>
+                </span>
+              ) : (
+                <span className="status-badge status-draft" style={{ background: "#fff3e0", color: "#e65100", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                  Local DB Fallback (Set <code>RAPIDLINK_API_URL</code> & <code>RAPIDLINK_API_KEY</code> in Vercel to sync with your deployment)
+                </span>
+              )}
+            </div>
+          )}
+        </div>
         <div style={{ display: "flex", gap: "8px" }}>
           {activeTab === "links" && (
             <button

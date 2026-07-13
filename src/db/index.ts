@@ -77,45 +77,6 @@ export async function ensureDbInitialized(): Promise<void> {
         );
       `);
 
-      await client.execute(`
-        CREATE TABLE IF NOT EXISTS links (
-          slug TEXT PRIMARY KEY,
-          url TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          click_count INTEGER NOT NULL DEFAULT 0,
-          hostname TEXT NOT NULL,
-          password TEXT
-        );
-      `);
-
-      await client.execute(`
-        CREATE TABLE IF NOT EXISTS domains (
-          hostname TEXT PRIMARY KEY,
-          added_at TEXT NOT NULL
-        );
-      `);
-
-      await client.execute(`
-        CREATE TABLE IF NOT EXISTS pastes (
-          slug TEXT PRIMARY KEY,
-          content TEXT NOT NULL,
-          hostname TEXT NOT NULL,
-          password TEXT,
-          expires_at TEXT,
-          created_at TEXT NOT NULL
-        );
-      `);
-
-      // Seed default domain if domains table is empty
-      const existingDomains = await client.execute(`SELECT COUNT(*) as count FROM domains;`);
-      if (existingDomains.rows[0]?.count === 0) {
-        const defaultHost = process.env.SHORTNER_DEFAULT_DOMAIN || "lnk.to";
-        await client.execute({
-          sql: `INSERT INTO domains (hostname, added_at) VALUES (?, ?);`,
-          args: [defaultHost, new Date().toISOString()],
-        });
-      }
-
       // Add images column to existing installations dynamically
       try {
         await client.execute(`ALTER TABLE microblogs ADD COLUMN images TEXT NOT NULL DEFAULT '[]';`);

@@ -1,29 +1,85 @@
 "use server";
 
-import { db, ensureDbInitialized } from "@/db";
-import { links, domains, pastes, type ShortLink, type ShortDomain, type PasteItem } from "@/db/schema";
-import { eq, desc, count } from "drizzle-orm";
+import { type ShortLink, type ShortDomain, type PasteItem } from "@/db/schema";
 import { revalidatePath } from "next/cache";
-import bcrypt from "bcryptjs";
 
-// Helper to generate a 7-character random slug
-function generateShortSlug(length = 7): string {
-  const chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  let result = "";
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+// Helper to get RapidLink remote API configuration
+function getRapidLinkApiConfig() {
+  const baseUrl = process.env.RAPIDLINK_API_URL || process.env.SHORTNER_API_URL || process.env.URL_SHORTENER_API_URL;
+  const apiKey = process.env.RAPIDLINK_API_KEY || process.env.SHORTNER_API_KEY || process.env.DASHBOARD_PASSWORD;
+
+  if (!baseUrl) return null;
+  return {
+    baseUrl: baseUrl.replace(/\/$/, ""),
+    apiKey: apiKey || "",
+  };
+}
+
+export async function checkRapidLinkApiStatus() {
+  const config = getRapidLinkApiConfig();
+  return {
+    isConfigured: Boolean(config),
+    baseUrl: config?.baseUrl || null,
+  };
+}
+
+async function fetchFromRapidLinkApi(endpoint: string, options: RequestInit = {}) {
+  const config = getRapidLinkApiConfig();
+  if (!config) {
+    throw new Error(
+      "RapidLink service API URL is not configured. Please set RAPIDLINK_API_URL and RAPIDLINK_API_KEY in environment variables."
+    );
   }
-  return result;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (config.apiKey) {
+    headers["Authorization"] = `Bearer ${config.apiKey}`;
+  }
+
+  const url = `${config.baseUrl}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+  const response = await fetch(url, {
+    ...options,
+    headers,
+    cache: "no-store",
+  });
+
+  const text = await response.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { error: text || `HTTP ${response.status} Error` };
+  }
+
+  if (!response.ok) {
+    throw new Error(data.error || `Request failed with status ${response.status}`);
+  }
+
+  return data;
 }
 
 // --- SHORT LINKS ---
 
 export async function getShortLinks(): Promise<ShortLink[]> {
   try {
-    await ensureDbInitialized();
-    return await db.select().from(links).orderBy(desc(links.createdAt));
+    const rawLinks = await fetchFromRapidLinkApi("/api/links", { method: "GET" });
+    if (Array.isArray(rawLinks)) {
+      return rawLinks.map((item: any) => ({
+        slug: item.slug,
+        url: item.url,
+        createdAt: item.created_at || item.createdAt || new Date().toISOString(),
+        clickCount: Number(item.click_count ?? item.clickCount ?? 0),
+        hostname: item.hostname || "lnk.to",
+        password: item.password || null,
+      }));
+    }
+    return [];
   } catch (error) {
-    console.error("Error fetching short links:", error);
+    console.error("Error fetching short links from RapidLink API:", error);
     return [];
   }
 }
@@ -37,56 +93,22 @@ export interface CreateShortLinkInput {
 
 export async function createShortLink(input: CreateShortLinkInput) {
   try {
-    await ensureDbInitialized();
-    let { url, slug, hostname, password } = input;
-    url = url.trim();
-    hostname = hostname.trim();
-
-    if (!url || !hostname) {
-      return { success: false, error: "Destination URL and domain are required." };
-    }
-
-    let finalSlug = slug ? slug.trim() : "";
-    if (finalSlug) {
-      const existing = await db.select().from(links).where(eq(links.slug, finalSlug));
-      if (existing.length > 0) {
-        return { success: false, error: `Slug "${finalSlug}" is already in use.` };
-      }
-    } else {
-      let attempts = 0;
-      do {
-        finalSlug = generateShortSlug(7);
-        const existing = await db.select().from(links).where(eq(links.slug, finalSlug));
-        if (existing.length === 0) break;
-        attempts++;
-      } while (attempts < 10);
-    }
-
-    let hashedPassword: string | null = null;
-    if (password && password.trim() !== "") {
-      const salt = bcrypt.genSaltSync(10);
-      hashedPassword = bcrypt.hashSync(password.trim(), salt);
-    }
-
-    const now = new Date().toISOString();
-    await db.insert(links).values({
-      slug: finalSlug,
-      url,
-      hostname,
-      password: hashedPassword,
-      clickCount: 0,
-      createdAt: now,
+    const res = await fetchFromRapidLinkApi("/api/shorten", {
+      method: "POST",
+      body: JSON.stringify({
+        url: input.url.trim(),
+        slug: input.slug?.trim() || undefined,
+        hostname: input.hostname.trim(),
+        password: input.password?.trim() || undefined,
+      }),
     });
-
     revalidatePath("/links");
-    return {
-      success: true,
-      shortUrl: `https://${hostname}/${finalSlug}`,
-      slug: finalSlug,
-    };
+    const shortUrl = res.shortUrl || `https://${input.hostname.trim()}/${input.slug || ""}`;
+    const slugMatch = shortUrl.split("/").pop() || input.slug || "";
+    return { success: true, shortUrl, slug: slugMatch };
   } catch (error: any) {
-    console.error("Error creating short link:", error);
-    return { success: false, error: error.message || "Failed to create short link." };
+    console.error("Error creating short link via RapidLink API:", error);
+    return { success: false, error: error.message || "Failed to create short link via API." };
   }
 }
 
@@ -95,64 +117,43 @@ export interface UpdateShortLinkInput {
   newSlug?: string;
   url: string;
   hostname?: string;
-  password?: string | null; // null to clear, string to set, undefined to keep existing
+  password?: string | null;
 }
 
 export async function updateShortLink(input: UpdateShortLinkInput) {
   try {
-    await ensureDbInitialized();
-    const { originalSlug, newSlug, url, hostname, password } = input;
-
-    if (!originalSlug || !url) {
-      return { success: false, error: "Original slug and URL are required." };
-    }
-
-    const targetSlug = newSlug && newSlug.trim() !== "" ? newSlug.trim() : originalSlug;
-
-    if (targetSlug !== originalSlug) {
-      const existing = await db.select().from(links).where(eq(links.slug, targetSlug));
-      if (existing.length > 0) {
-        return { success: false, error: `Slug "${targetSlug}" is already in use.` };
-      }
-    }
-
-    const updateData: Partial<typeof links.$inferInsert> = {
-      url: url.trim(),
-      slug: targetSlug,
+    const payload: any = {
+      originalSlug: input.originalSlug,
+      newSlug: input.newSlug?.trim() || input.originalSlug,
+      destinationUrl: input.url.trim(),
+      hostname: input.hostname?.trim(),
     };
-
-    if (hostname) {
-      updateData.hostname = hostname.trim();
+    if (input.password !== undefined) {
+      payload.password = input.password;
     }
-
-    if (password !== undefined) {
-      if (password && password.trim() !== "") {
-        const salt = bcrypt.genSaltSync(10);
-        updateData.password = bcrypt.hashSync(password.trim(), salt);
-      } else {
-        updateData.password = null;
-      }
-    }
-
-    await db.update(links).set(updateData).where(eq(links.slug, originalSlug));
-
+    await fetchFromRapidLinkApi("/api/links", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
     revalidatePath("/links");
-    return { success: true, slug: targetSlug };
+    return { success: true, slug: payload.newSlug };
   } catch (error: any) {
-    console.error("Error updating short link:", error);
-    return { success: false, error: error.message || "Failed to update short link." };
+    console.error("Error updating short link via RapidLink API:", error);
+    return { success: false, error: error.message || "Failed to update short link via API." };
   }
 }
 
 export async function deleteShortLink(slug: string) {
   try {
-    await ensureDbInitialized();
-    await db.delete(links).where(eq(links.slug, slug));
+    await fetchFromRapidLinkApi("/api/links", {
+      method: "DELETE",
+      body: JSON.stringify({ slug }),
+    });
     revalidatePath("/links");
     return { success: true };
   } catch (error: any) {
-    console.error("Error deleting short link:", error);
-    return { success: false, error: error.message || "Failed to delete link." };
+    console.error("Error deleting short link via RapidLink API:", error);
+    return { success: false, error: error.message || "Failed to delete link via API." };
   }
 }
 
@@ -160,10 +161,20 @@ export async function deleteShortLink(slug: string) {
 
 export async function getPastes(): Promise<PasteItem[]> {
   try {
-    await ensureDbInitialized();
-    return await db.select().from(pastes).orderBy(desc(pastes.createdAt));
+    const rawPastes = await fetchFromRapidLinkApi("/api/pastes", { method: "GET" });
+    if (Array.isArray(rawPastes)) {
+      return rawPastes.map((item: any) => ({
+        slug: item.slug,
+        content: item.content || `[Markdown Paste /p/${item.slug}]`,
+        hostname: item.hostname || "lnk.to",
+        password: item.hasPassword || item.password ? "hashed" : null,
+        expiresAt: item.expiresAt || item.expires_at || null,
+        createdAt: item.createdAt || item.created_at || new Date().toISOString(),
+      }));
+    }
+    return [];
   } catch (error) {
-    console.error("Error fetching pastes:", error);
+    console.error("Error fetching pastes from RapidLink API:", error);
     return [];
   }
 }
@@ -178,75 +189,36 @@ export interface CreatePasteInput {
 
 export async function createPaste(input: CreatePasteInput) {
   try {
-    await ensureDbInitialized();
-    const { content, hostname, slug, password, expires } = input;
-
-    if (!content || !content.trim() || !hostname) {
-      return { success: false, error: "Content and domain are required." };
-    }
-
-    let finalSlug = slug ? slug.trim() : "";
-    if (finalSlug) {
-      const existing = await db.select().from(pastes).where(eq(pastes.slug, finalSlug));
-      if (existing.length > 0) {
-        return { success: false, error: `Paste slug "${finalSlug}" is already in use.` };
-      }
-    } else {
-      let attempts = 0;
-      do {
-        finalSlug = generateShortSlug(10).toLowerCase();
-        const existing = await db.select().from(pastes).where(eq(pastes.slug, finalSlug));
-        if (existing.length === 0) break;
-        attempts++;
-      } while (attempts < 10);
-    }
-
-    let hashedPassword: string | null = null;
-    if (password && password.trim() !== "") {
-      const salt = bcrypt.genSaltSync(10);
-      hashedPassword = bcrypt.hashSync(password.trim(), salt);
-    }
-
-    let expiresAt: string | null = null;
-    if (expires && expires !== "never") {
-      const now = new Date();
-      if (expires === "1hour") now.setHours(now.getHours() + 1);
-      if (expires === "1day") now.setDate(now.getDate() + 1);
-      if (expires === "1week") now.setDate(now.getDate() + 7);
-      expiresAt = now.toISOString();
-    }
-
-    const now = new Date().toISOString();
-    await db.insert(pastes).values({
-      slug: finalSlug,
-      content,
-      hostname: hostname.trim(),
-      password: hashedPassword,
-      expiresAt,
-      createdAt: now,
+    const res = await fetchFromRapidLinkApi("/api/create-paste", {
+      method: "POST",
+      body: JSON.stringify({
+        content: input.content,
+        hostname: input.hostname.trim(),
+        password: input.password?.trim() || undefined,
+        expires: input.expires || "never",
+      }),
     });
-
     revalidatePath("/links");
-    return {
-      success: true,
-      pasteUrl: `https://${hostname.trim()}/p/${finalSlug}`,
-      slug: finalSlug,
-    };
+    const pasteUrl = res.pasteUrl || `https://${input.hostname.trim()}/p/${input.slug || ""}`;
+    const slugMatch = pasteUrl.split("/").pop() || input.slug || "";
+    return { success: true, pasteUrl, slug: slugMatch };
   } catch (error: any) {
-    console.error("Error creating paste:", error);
-    return { success: false, error: error.message || "Failed to create paste." };
+    console.error("Error creating paste via RapidLink API:", error);
+    return { success: false, error: error.message || "Failed to create paste via API." };
   }
 }
 
 export async function deletePaste(slug: string) {
   try {
-    await ensureDbInitialized();
-    await db.delete(pastes).where(eq(pastes.slug, slug));
+    await fetchFromRapidLinkApi("/api/pastes", {
+      method: "DELETE",
+      body: JSON.stringify({ slug }),
+    });
     revalidatePath("/links");
     return { success: true };
   } catch (error: any) {
-    console.error("Error deleting paste:", error);
-    return { success: false, error: error.message || "Failed to delete paste." };
+    console.error("Error deleting paste via RapidLink API:", error);
+    return { success: false, error: error.message || "Failed to delete paste via API." };
   }
 }
 
@@ -254,59 +226,45 @@ export async function deletePaste(slug: string) {
 
 export async function getDomains(): Promise<ShortDomain[]> {
   try {
-    await ensureDbInitialized();
-    const result = await db.select().from(domains).orderBy(domains.addedAt);
-    if (result.length === 0) {
-      const defaultHost = process.env.SHORTNER_DEFAULT_DOMAIN || "lnk.to";
-      const now = new Date().toISOString();
-      await db.insert(domains).values({ hostname: defaultHost, addedAt: now });
-      return [{ hostname: defaultHost, addedAt: now }];
+    const rawDomains = await fetchFromRapidLinkApi("/api/domains", { method: "GET" });
+    if (Array.isArray(rawDomains)) {
+      return rawDomains.map((item: any) => ({
+        hostname: typeof item === "string" ? item : item.hostname,
+        addedAt: item.addedAt || item.added_at || new Date().toISOString(),
+      }));
     }
-    return result;
+    return [];
   } catch (error) {
-    console.error("Error fetching domains:", error);
+    console.error("Error fetching domains from RapidLink API:", error);
     return [{ hostname: "lnk.to", addedAt: new Date().toISOString() }];
   }
 }
 
 export async function addDomain(hostname: string) {
   try {
-    await ensureDbInitialized();
     const cleanHost = hostname.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
-    if (!cleanHost) {
-      return { success: false, error: "Invalid domain name." };
-    }
-
-    const existing = await db.select().from(domains).where(eq(domains.hostname, cleanHost));
-    if (existing.length > 0) {
-      return { success: false, error: `Domain "${cleanHost}" already exists.` };
-    }
-
-    const now = new Date().toISOString();
-    await db.insert(domains).values({ hostname: cleanHost, addedAt: now });
-
+    await fetchFromRapidLinkApi("/api/add-domain", {
+      method: "POST",
+      body: JSON.stringify({ hostname: cleanHost }),
+    });
     revalidatePath("/links");
     return { success: true, hostname: cleanHost };
   } catch (error: any) {
-    console.error("Error adding domain:", error);
-    return { success: false, error: error.message || "Failed to add domain." };
+    console.error("Error adding domain via RapidLink API:", error);
+    return { success: false, error: error.message || "Failed to add domain via API." };
   }
 }
 
 export async function deleteDomain(hostname: string) {
   try {
-    await ensureDbInitialized();
-    const domainCount = await db.select({ value: count() }).from(domains);
-    if (domainCount[0]?.value <= 1) {
-      return { success: false, error: "Cannot delete the last domain." };
-    }
-
-    await db.delete(domains).where(eq(domains.hostname, hostname));
-
+    await fetchFromRapidLinkApi("/api/domains", {
+      method: "DELETE",
+      body: JSON.stringify({ hostname }),
+    });
     revalidatePath("/links");
     return { success: true };
   } catch (error: any) {
-    console.error("Error deleting domain:", error);
-    return { success: false, error: error.message || "Failed to delete domain." };
+    console.error("Error deleting domain via RapidLink API:", error);
+    return { success: false, error: error.message || "Failed to delete domain via API." };
   }
 }
