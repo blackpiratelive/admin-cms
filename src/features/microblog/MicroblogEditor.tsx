@@ -206,7 +206,6 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
       const res = await createShortLink({
         url: postTargetUrl,
         slug: shortSlugInput.trim() || undefined,
-        hostname: window.location.hostname,
       });
 
       if (res.success && res.shortUrl) {

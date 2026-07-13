@@ -184,6 +184,10 @@ The CMS communicates with the following endpoints using `Authorization: Bearer <
 - `GET /api/pastes` / `POST /api/create-paste` / `DELETE /api/pastes`
 - `GET /api/domains` / `POST /api/add-domain` / `DELETE /api/domains`
 
+### Public Gallery Share Links (`/gallery/[slug]`)
+- Clicking **"Shorten URL"** or **"Share"** in the Photo Gallery constructs the target public view URL (`https://admin.blackpiratex.com/gallery/[slug]`), shortens it via `RAPIDLINK_API_URL`, and automatically saves `shortUrl` to the CMS Turso DB (`gallery` table).
+- The `/gallery/[slug]` route is configured as a public, unauthenticated viewer route in `src/middleware.ts`, displaying full high-res photographs, EXIF metadata, camera settings, and location details without requiring login.
+
 
 ---
 

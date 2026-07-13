@@ -205,6 +205,17 @@ export async function getGalleryPhotoById(id: string): Promise<GalleryPhoto | nu
   }
 }
 
+export async function getGalleryPhotoBySlug(slug: string): Promise<GalleryPhoto | null> {
+  try {
+    await ensureDbInitialized();
+    const results = await db.select().from(gallery).where(eq(gallery.slug, slug));
+    return results[0] || null;
+  } catch (error) {
+    console.error("Error fetching gallery photo by slug:", error);
+    return null;
+  }
+}
+
 export async function deleteGalleryPhoto(id: string) {
   try {
     await ensureDbInitialized();

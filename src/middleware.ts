@@ -11,6 +11,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/api/microblogs") ||
     pathname.startsWith("/api/gallery") ||
+    (pathname.startsWith("/gallery/") && pathname.split("/").filter(Boolean).length === 2) ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon.ico")
   ) {

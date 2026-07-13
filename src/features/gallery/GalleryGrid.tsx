@@ -109,15 +109,66 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
     setIsPhotoShortening(true);
     try {
       const { createShortLink } = await import("@/features/links/actions");
-      const photoShareTarget = editingPhoto.largeUrl || editingPhoto.originalUrl;
+      const currentHost = typeof window !== "undefined" ? window.location.host : "admin.blackpiratex.com";
+      const publicPhotoUrl = `https://${currentHost}/gallery/${editForm.slug || editingPhoto.slug}`;
+
       const res = await createShortLink({
-        url: photoShareTarget,
+        url: publicPhotoUrl,
         slug: editForm.shortSlug.trim() || undefined,
-        hostname: window.location.hostname,
       });
 
       if (res.success && res.shortUrl) {
         setEditForm((prev) => ({ ...prev, shortUrl: res.shortUrl }));
+
+        // Auto-save generated shortUrl into the CMS Database immediately
+        const tagsArray = editForm.tags
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean);
+
+        const saveRes = await saveGalleryPhoto({
+          id: editingPhoto.id,
+          title: editForm.title,
+          slug: editForm.slug || generatePhotoSlug(editForm.title),
+          description: editForm.description || null,
+          originalUrl: editingPhoto.originalUrl,
+          largeUrl: editingPhoto.largeUrl,
+          mediumUrl: editingPhoto.mediumUrl,
+          thumbnailUrl: editingPhoto.thumbnailUrl,
+          width: editingPhoto.width,
+          height: editingPhoto.height,
+          fileSize: editingPhoto.fileSize,
+          mimeType: editingPhoto.mimeType,
+          camera: editForm.camera || null,
+          lens: editForm.lens || null,
+          focalLength: editForm.focalLength || null,
+          aperture: editForm.aperture || null,
+          shutterSpeed: editForm.shutterSpeed || null,
+          iso: editForm.iso ? Number(editForm.iso) : null,
+          takenAt: editForm.takenAt || null,
+          latitude: editForm.latitude ? Number(editForm.latitude) : null,
+          longitude: editForm.longitude ? Number(editForm.longitude) : null,
+          locationName: editForm.locationName || null,
+          visibility: editForm.visibility,
+          featured: editForm.featured,
+          processingStatus: editingPhoto.processingStatus as any,
+          tags: tagsArray,
+          album: editForm.album || null,
+          shortUrl: res.shortUrl,
+        });
+
+        if (saveRes.success) {
+          const updatedRecord: GalleryPhoto = {
+            ...editingPhoto,
+            shortUrl: res.shortUrl,
+          };
+          setPhotos((prev) =>
+            prev.map((p) => (p.id === editingPhoto.id ? { ...p, shortUrl: res.shortUrl } : p))
+          );
+          if (selectedPhoto?.id === editingPhoto.id) {
+            setSelectedPhoto((prev) => (prev ? { ...prev, shortUrl: res.shortUrl } : null));
+          }
+        }
       } else {
         alert(res.error || "Failed to generate short link.");
       }

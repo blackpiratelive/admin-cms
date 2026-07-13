@@ -87,23 +87,34 @@ export async function getShortLinks(): Promise<ShortLink[]> {
 export interface CreateShortLinkInput {
   url: string;
   slug?: string;
-  hostname: string;
+  hostname?: string;
   password?: string;
 }
 
 export async function createShortLink(input: CreateShortLinkInput) {
   try {
+    const config = getRapidLinkApiConfig();
+    let effectiveHost = input.hostname?.trim();
+    if (!effectiveHost && config?.baseUrl) {
+      try {
+        effectiveHost = new URL(config.baseUrl).hostname;
+      } catch {
+        effectiveHost = config.baseUrl.replace(/^https?:\/\//, "").split("/")[0];
+      }
+    }
+    if (!effectiveHost) effectiveHost = "admin.blackpiratex.com";
+
     const res = await fetchFromRapidLinkApi("/api/shorten", {
       method: "POST",
       body: JSON.stringify({
         url: input.url.trim(),
         slug: input.slug?.trim() || undefined,
-        hostname: input.hostname.trim(),
+        hostname: effectiveHost,
         password: input.password?.trim() || undefined,
       }),
     });
     revalidatePath("/links");
-    const shortUrl = res.shortUrl || `https://${input.hostname.trim()}/${input.slug || ""}`;
+    const shortUrl = res.shortUrl || `https://${effectiveHost}/${input.slug || ""}`;
     const slugMatch = shortUrl.split("/").pop() || input.slug || "";
     return { success: true, shortUrl, slug: slugMatch };
   } catch (error: any) {
