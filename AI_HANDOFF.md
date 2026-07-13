@@ -62,6 +62,22 @@ admin-cms/
 - `updatedAt` (text, ISO timestamp)
 - `publishedAt` (text, nullable ISO timestamp)
 
+### `gallery`
+- `id` (text, primary key): UUID string
+- `title` (text, not null): Photo title
+- `slug` (text, unique, not null): URL slug
+- `description` (text, nullable): Caption or notes
+- `originalUrl`, `largeUrl`, `mediumUrl`, `thumbnailUrl` (text, not null): Cloudflare R2 / local derivative URLs
+- `width`, `height`, `fileSize`, `mimeType` (number/string, nullable): Image file specifications
+- `camera`, `lens`, `focalLength`, `aperture`, `shutterSpeed`, `iso`, `takenAt` (nullable EXIF technical metadata)
+- `latitude`, `longitude`, `locationName` (nullable GPS location metadata)
+- `visibility` (enum: `'public' | 'private' | 'unlisted'`, default `'public'`)
+- `featured` (integer: `1` or `0`, default `0`)
+- `tags` (text, JSON array string): Filter tags
+- `album` (text, nullable): Portfolio collection/album name
+- `createdAt`, `updatedAt` (ISO timestamps)
+
+
 ---
 
 ## 4. Auth & Middleware Design

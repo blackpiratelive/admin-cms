@@ -499,17 +499,7 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
 
       {/* Main Upload Desktop Queue & Metadata Inspector */}
       {queue.length > 0 && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "320px 1fr",
-            gap: "20px",
-            background: "var(--bg-card)",
-            border: "1px solid var(--border-color)",
-            borderRadius: "4px",
-            padding: "16px",
-          }}
-        >
+        <div className="gallery-desktop-container">
           {/* Left Column: Queue List */}
           <div
             style={{
@@ -520,6 +510,7 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
               paddingRight: "16px",
               maxHeight: "650px",
               overflowY: "auto",
+              minWidth: 0,
             }}
           >
             <div
@@ -550,6 +541,7 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
                     border: isSelected ? "1px solid var(--accent)" : "1px solid var(--border-color)",
                     backgroundColor: isSelected ? "var(--bg-hover)" : "var(--bg-card)",
                     cursor: "pointer",
+                    minWidth: 0,
                   }}
                 >
                   <img
@@ -627,7 +619,7 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
 
           {/* Right Column: Selected File Metadata & Progress Inspector */}
           {activeItem ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px", minWidth: 0 }}>
               <div
                 style={{
                   display: "flex",
@@ -635,10 +627,21 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
                   justifyContent: "space-between",
                   paddingBottom: "12px",
                   borderBottom: "1px solid var(--border-color)",
+                  flexWrap: "wrap",
+                  gap: "12px",
+                  minWidth: 0,
                 }}
               >
-                <div>
-                  <h3 style={{ fontSize: "16px", fontWeight: "bold" }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <h3
+                    style={{
+                      fontSize: "16px",
+                      fontWeight: "bold",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
                     {activeItem.form.title || activeItem.file.name}
                   </h3>
                   <div style={{ fontSize: "12px", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
@@ -646,7 +649,7 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
                   </div>
                 </div>
 
-                <div style={{ display: "flex", gap: "8px" }}>
+                <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
                   {activeItem.status === "ERROR" && (
                     <button
                       type="button"
@@ -723,9 +726,9 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
               </div>
 
               {/* Form & EXIF Metadata Section */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+              <div className="gallery-form-grid">
                 {/* General Metadata Form */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px", minWidth: 0 }}>
                   <h4 style={{ fontSize: "13px", fontWeight: 700, borderBottom: "1px solid var(--border-color)", paddingBottom: "4px" }}>
                     Photo Information
                   </h4>
@@ -775,8 +778,8 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
                     />
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                    <div className="form-group">
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", minWidth: 0 }}>
+                    <div className="form-group" style={{ minWidth: 0 }}>
                       <label className="form-label">Album / Collection</label>
                       <input
                         type="text"
@@ -792,7 +795,7 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
                       />
                     </div>
 
-                    <div className="form-group">
+                    <div className="form-group" style={{ minWidth: 0 }}>
                       <label className="form-label">Tags (comma separated)</label>
                       <input
                         type="text"
@@ -809,7 +812,7 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", gap: "16px", alignItems: "center", marginTop: "4px" }}>
+                  <div style={{ display: "flex", gap: "16px", alignItems: "center", marginTop: "4px", flexWrap: "wrap" }}>
                     <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px" }}>
                       <input
                         type="checkbox"
@@ -845,7 +848,7 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
                 </div>
 
                 {/* Camera EXIF Technical Details Form */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px", minWidth: 0 }}>
                   <h4 style={{ fontSize: "13px", fontWeight: 700, borderBottom: "1px solid var(--border-color)", paddingBottom: "4px" }}>
                     EXIF Technical Metadata
                   </h4>
@@ -882,8 +885,8 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
                     />
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px" }}>
-                    <div className="form-group">
+                  <div className="gallery-technical-grid">
+                    <div className="form-group" style={{ minWidth: 0 }}>
                       <label className="form-label">Focal</label>
                       <input
                         type="text"
@@ -899,7 +902,7 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
                       />
                     </div>
 
-                    <div className="form-group">
+                    <div className="form-group" style={{ minWidth: 0 }}>
                       <label className="form-label">Aperture</label>
                       <input
                         type="text"
@@ -915,7 +918,7 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
                       />
                     </div>
 
-                    <div className="form-group">
+                    <div className="form-group" style={{ minWidth: 0 }}>
                       <label className="form-label">Shutter</label>
                       <input
                         type="text"
@@ -931,7 +934,7 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
                       />
                     </div>
 
-                    <div className="form-group">
+                    <div className="form-group" style={{ minWidth: 0 }}>
                       <label className="form-label">ISO</label>
                       <input
                         type="text"

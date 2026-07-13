@@ -28,10 +28,11 @@
 
 ## 2. Next.js CMS REST API Quick Reference
 
-The CMS exposes a public endpoint:
-- **Endpoint**: `https://<YOUR_CMS_DOMAIN>/api/microblogs`
-- **Method**: `GET`
-- **Response Format**:
+- **Endpoints**:
+  - `https://<YOUR_CMS_DOMAIN>/api/microblogs` (Microblogs)
+  - `https://<YOUR_CMS_DOMAIN>/api/gallery` (Photo Gallery)
+
+### A. `/api/microblogs` Response Format:
 ```json
 {
   "posts": [
@@ -51,6 +52,45 @@ The CMS exposes a public endpoint:
   ]
 }
 ```
+
+### B. `/api/gallery` Response Format:
+```json
+{
+  "photos": [
+    {
+      "id": "uuid-string",
+      "title": "Sunrise at Puri Beach",
+      "slug": "sunrise-at-puri-beach",
+      "description": "Golden light rising over Puri sea beach",
+      "originalUrl": "https://media.yourdomain.com/gallery/2026/07/sunrise-at-puri-beach/original.jpg",
+      "largeUrl": "https://media.yourdomain.com/gallery/2026/07/sunrise-at-puri-beach/large.webp",
+      "mediumUrl": "https://media.yourdomain.com/gallery/2026/07/sunrise-at-puri-beach/medium.webp",
+      "thumbnailUrl": "https://media.yourdomain.com/gallery/2026/07/sunrise-at-puri-beach/thumb.webp",
+      "width": 2560,
+      "height": 1440,
+      "fileSize": 2150400,
+      "mimeType": "image/jpeg",
+      "camera": "Sony ILCE-7RM4",
+      "lens": "FE 24-70mm F2.8 GM",
+      "focalLength": "35mm",
+      "aperture": "f/2.8",
+      "shutterSpeed": "1/500s",
+      "iso": 100,
+      "takenAt": "2026-07-13T12:00:00Z",
+      "latitude": 19.8,
+      "longitude": 85.8,
+      "locationName": "Puri Beach, Odisha",
+      "visibility": "public",
+      "featured": true,
+      "tags": ["landscape", "sunrise", "puri"],
+      "album": "Travel 2026",
+      "createdAt": "2026-07-13T22:00:00Z",
+      "updatedAt": "2026-07-13T22:00:00Z"
+    }
+  ]
+}
+```
+
 
 ---
 
@@ -120,6 +160,55 @@ Create the file `content/_content.gotmpl` inside your Hugo repository root or co
   {{ end }}
 {{ end }}
 ```
+
+#### Photo Gallery Adapter (`content/photos/_content.gotmpl`):
+
+```gotmpl
+{{/* Fetch public gallery photos directly from Next.js CMS API */}}
+{{ $apiUrl := getenv "CMS_API_URL" | default site.Params.cms_api_url }}
+{{ $endpoint := printf "%s/api/gallery" (strings.TrimSuffix "/" $apiUrl) }}
+
+{{ with resources.GetRemote $endpoint }}
+  {{ with .Err }}
+    {{ errorf "Failed to fetch gallery photos from CMS API: %s" . }}
+  {{ else }}
+    {{ $json := .Content | transform.Unmarshal }}
+    {{ $photos := $json.photos }}
+
+    {{ range $photos }}
+      {{ $slug := .slug }}
+      {{ $pageData := dict
+          "title" .title
+          "description" .description
+          "date" (time.AsTime .createdAt)
+          "params" (dict
+              "slug" $slug
+              "original_url" .originalUrl
+              "large_url" .largeUrl
+              "medium_url" .mediumUrl
+              "thumbnail_url" .thumbnailUrl
+              "width" .width
+              "height" .height
+              "camera" .camera
+              "lens" .lens
+              "focal_length" .focalLength
+              "aperture" .aperture
+              "shutter_speed" .shutterSpeed
+              "iso" .iso
+              "taken_at" .takenAt
+              "tags" .tags
+              "album" .album
+              "featured" .featured
+          )
+      }}
+
+      {{/* Construct Hugo Page under /photos/<slug>/ */}}
+      {{ $.AddPage $pageData (printf "photos/%s.md" $slug) }}
+    {{ end }}
+  {{ end }}
+{{ end }}
+```
+
 
 ---
 

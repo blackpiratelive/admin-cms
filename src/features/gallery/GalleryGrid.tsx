@@ -2,8 +2,16 @@
 
 import React, { useState } from "react";
 import { type GalleryPhoto } from "@/db/schema";
-import { deleteGalleryPhoto } from "./actions";
-import { Trash2, Camera, Eye, MapPin, Tag, Calendar, Sparkles, AlertCircle } from "lucide-react";
+import { deleteGalleryPhoto, saveGalleryPhoto } from "./actions";
+import { generatePhotoSlug } from "./schema";
+import {
+  Trash2,
+  Camera,
+  Edit3,
+  Check,
+  X,
+  Sparkles,
+} from "lucide-react";
 
 interface GalleryGridProps {
   initialPhotos: GalleryPhoto[];
@@ -13,8 +21,31 @@ interface GalleryGridProps {
 export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
   const [photos, setPhotos] = useState<GalleryPhoto[]>(initialPhotos);
   const [selectedPhoto, setSelectedPhoto] = useState<GalleryPhoto | null>(null);
+  const [editingPhoto, setEditingPhoto] = useState<GalleryPhoto | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [albumFilter, setAlbumFilter] = useState("all");
+
+  // Form state for editing existing photo
+  const [editForm, setEditForm] = useState({
+    title: "",
+    slug: "",
+    description: "",
+    album: "",
+    tags: "",
+    visibility: "public" as "public" | "private" | "unlisted",
+    featured: false,
+    camera: "",
+    lens: "",
+    focalLength: "",
+    aperture: "",
+    shutterSpeed: "",
+    iso: "",
+    takenAt: "",
+    latitude: "",
+    longitude: "",
+    locationName: "",
+  });
 
   const filteredPhotos = photos.filter((p) => {
     const matchesSearch =
@@ -30,12 +61,125 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
 
   const albums = Array.from(new Set(photos.map((p) => p.album).filter(Boolean)));
 
+  const handleOpenEdit = (photo: GalleryPhoto) => {
+    let tagsStr = "";
+    try {
+      const parsed = JSON.parse(photo.tags);
+      if (Array.isArray(parsed)) tagsStr = parsed.join(", ");
+    } catch {
+      tagsStr = photo.tags || "";
+    }
+
+    setEditingPhoto(photo);
+    setEditForm({
+      title: photo.title,
+      slug: photo.slug,
+      description: photo.description || "",
+      album: photo.album || "",
+      tags: tagsStr,
+      visibility: (photo.visibility as any) || "public",
+      featured: photo.featured === 1,
+      camera: photo.camera || "",
+      lens: photo.lens || "",
+      focalLength: photo.focalLength || "",
+      aperture: photo.aperture || "",
+      shutterSpeed: photo.shutterSpeed || "",
+      iso: photo.iso ? String(photo.iso) : "",
+      takenAt: photo.takenAt || "",
+      latitude: photo.latitude ? String(photo.latitude) : "",
+      longitude: photo.longitude ? String(photo.longitude) : "",
+      locationName: photo.locationName || "",
+    });
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPhoto) return;
+
+    setIsSaving(true);
+    try {
+      const tagsArray = editForm.tags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+      const res = await saveGalleryPhoto({
+        id: editingPhoto.id,
+        title: editForm.title,
+        slug: editForm.slug || generatePhotoSlug(editForm.title),
+        description: editForm.description || null,
+        originalUrl: editingPhoto.originalUrl,
+        largeUrl: editingPhoto.largeUrl,
+        mediumUrl: editingPhoto.mediumUrl,
+        thumbnailUrl: editingPhoto.thumbnailUrl,
+        width: editingPhoto.width,
+        height: editingPhoto.height,
+        fileSize: editingPhoto.fileSize,
+        mimeType: editingPhoto.mimeType,
+        camera: editForm.camera || null,
+        lens: editForm.lens || null,
+        focalLength: editForm.focalLength || null,
+        aperture: editForm.aperture || null,
+        shutterSpeed: editForm.shutterSpeed || null,
+        iso: editForm.iso ? Number(editForm.iso) : null,
+        takenAt: editForm.takenAt || null,
+        latitude: editForm.latitude ? Number(editForm.latitude) : null,
+        longitude: editForm.longitude ? Number(editForm.longitude) : null,
+        locationName: editForm.locationName || null,
+        visibility: editForm.visibility,
+        featured: editForm.featured,
+        processingStatus: editingPhoto.processingStatus as any,
+        tags: tagsArray,
+        album: editForm.album || null,
+      });
+
+      if (res.success) {
+        const updatedPhotoRecord: GalleryPhoto = {
+          ...editingPhoto,
+          title: editForm.title,
+          slug: editForm.slug,
+          description: editForm.description || null,
+          album: editForm.album || null,
+          tags: JSON.stringify(tagsArray),
+          visibility: editForm.visibility,
+          featured: editForm.featured ? 1 : 0,
+          camera: editForm.camera || null,
+          lens: editForm.lens || null,
+          focalLength: editForm.focalLength || null,
+          aperture: editForm.aperture || null,
+          shutterSpeed: editForm.shutterSpeed || null,
+          iso: editForm.iso ? Number(editForm.iso) : null,
+          takenAt: editForm.takenAt || null,
+          latitude: editForm.latitude ? Number(editForm.latitude) : null,
+          longitude: editForm.longitude ? Number(editForm.longitude) : null,
+          locationName: editForm.locationName || null,
+        };
+
+        setPhotos((prev) =>
+          prev.map((p) => (p.id === editingPhoto.id ? updatedPhotoRecord : p))
+        );
+        if (selectedPhoto?.id === editingPhoto.id) {
+          setSelectedPhoto(updatedPhotoRecord);
+        }
+        setEditingPhoto(null);
+        if (onRefresh) onRefresh();
+      } else {
+        alert(res.error || "Failed to update photo.");
+      }
+    } catch (err: any) {
+      alert(err.message || "Error updating photo.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm("Permanently delete this photo entry from the gallery?")) return;
     const res = await deleteGalleryPhoto(id);
     if (res.success) {
       setPhotos((prev) => prev.filter((p) => p.id !== id));
       if (selectedPhoto?.id === id) setSelectedPhoto(null);
+      if (editingPhoto?.id === id) setEditingPhoto(null);
       if (onRefresh) onRefresh();
     } else {
       alert(res.error || "Failed to delete photo.");
@@ -178,6 +322,17 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
+                          handleOpenEdit(photo);
+                        }}
+                        className="btn btn-sm"
+                        title="Edit photo metadata"
+                      >
+                        <Edit3 size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           handleDelete(photo.id);
                         }}
                         className="btn btn-sm btn-danger"
@@ -194,8 +349,8 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
         </div>
       )}
 
-      {/* Selected Lightbox / Metadata Preview Modal */}
-      {selectedPhoto && (
+      {/* Lightbox Modal */}
+      {selectedPhoto && !editingPhoto && (
         <div
           onClick={() => setSelectedPhoto(null)}
           style={{
@@ -204,7 +359,7 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.8)",
+            backgroundColor: "rgba(0,0,0,0.85)",
             backdropFilter: "blur(4px)",
             zIndex: 1000,
             display: "flex",
@@ -233,14 +388,24 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
                 alt={selectedPhoto.title}
                 style={{ maxHeight: "60vh", maxWidth: "100%", objectFit: "contain" }}
               />
-              <button
-                type="button"
-                onClick={() => setSelectedPhoto(null)}
-                className="btn btn-sm"
-                style={{ position: "absolute", top: "12px", right: "12px" }}
-              >
-                Close
-              </button>
+              <div style={{ position: "absolute", top: "12px", right: "12px", display: "flex", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleOpenEdit(selectedPhoto);
+                  }}
+                  className="btn btn-sm"
+                >
+                  <Edit3 size={14} /> Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPhoto(null)}
+                  className="btn btn-sm"
+                >
+                  Close
+                </button>
+              </div>
             </div>
 
             <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -263,6 +428,246 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Photo Edit Modal */}
+      {editingPhoto && (
+        <div
+          onClick={() => setEditingPhoto(null)}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.85)",
+            backdropFilter: "blur(4px)",
+            zIndex: 1010,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+          }}
+        >
+          <form
+            onSubmit={handleSaveEdit}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              borderRadius: "4px",
+              maxWidth: "850px",
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              padding: "20px",
+              gap: "16px",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-color)", paddingBottom: "12px" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "bold" }}>Edit Photo: {editingPhoto.title}</h3>
+              <button
+                type="button"
+                onClick={() => setEditingPhoto(null)}
+                className="btn btn-sm"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="gallery-form-grid">
+              {/* General Metadata */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", minWidth: 0 }}>
+                <h4 style={{ fontSize: "13px", fontWeight: 700, borderBottom: "1px solid var(--border-color)", paddingBottom: "4px" }}>
+                  General Information
+                </h4>
+
+                <div className="form-group">
+                  <label className="form-label">Title</label>
+                  <input
+                    type="text"
+                    className="text-input"
+                    value={editForm.title}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        title: e.target.value,
+                        slug: generatePhotoSlug(e.target.value),
+                      }))
+                    }
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Slug</label>
+                  <input
+                    type="text"
+                    className="text-input"
+                    value={editForm.slug}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, slug: e.target.value }))}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Description</label>
+                  <textarea
+                    className="text-input"
+                    rows={3}
+                    value={editForm.description}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
+                  />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", minWidth: 0 }}>
+                  <div className="form-group" style={{ minWidth: 0 }}>
+                    <label className="form-label">Album / Collection</label>
+                    <input
+                      type="text"
+                      className="text-input"
+                      value={editForm.album}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, album: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ minWidth: 0 }}>
+                    <label className="form-label">Tags (comma separated)</label>
+                    <input
+                      type="text"
+                      className="text-input"
+                      value={editForm.tags}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, tags: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: "16px", alignItems: "center", marginTop: "4px", flexWrap: "wrap" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px" }}>
+                    <input
+                      type="checkbox"
+                      checked={editForm.featured}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, featured: e.target.checked }))}
+                    />
+                    <span>Featured Photo</span>
+                  </label>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span className="form-label">Visibility:</span>
+                    <select
+                      className="select-input"
+                      value={editForm.visibility}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, visibility: e.target.value as any }))}
+                    >
+                      <option value="public">Public</option>
+                      <option value="private">Private</option>
+                      <option value="unlisted">Unlisted</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Technical EXIF */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", minWidth: 0 }}>
+                <h4 style={{ fontSize: "13px", fontWeight: 700, borderBottom: "1px solid var(--border-color)", paddingBottom: "4px" }}>
+                  Technical & Camera EXIF
+                </h4>
+
+                <div className="form-group">
+                  <label className="form-label">Camera</label>
+                  <input
+                    type="text"
+                    className="text-input"
+                    value={editForm.camera}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, camera: e.target.value }))}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Lens</label>
+                  <input
+                    type="text"
+                    className="text-input"
+                    value={editForm.lens}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, lens: e.target.value }))}
+                  />
+                </div>
+
+                <div className="gallery-technical-grid">
+                  <div className="form-group" style={{ minWidth: 0 }}>
+                    <label className="form-label">Focal</label>
+                    <input
+                      type="text"
+                      className="text-input"
+                      value={editForm.focalLength}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, focalLength: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ minWidth: 0 }}>
+                    <label className="form-label">Aperture</label>
+                    <input
+                      type="text"
+                      className="text-input"
+                      value={editForm.aperture}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, aperture: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ minWidth: 0 }}>
+                    <label className="form-label">Shutter</label>
+                    <input
+                      type="text"
+                      className="text-input"
+                      value={editForm.shutterSpeed}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, shutterSpeed: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ minWidth: 0 }}>
+                    <label className="form-label">ISO</label>
+                    <input
+                      type="text"
+                      className="text-input"
+                      value={editForm.iso}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, iso: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Capture Date</label>
+                  <input
+                    type="text"
+                    className="text-input"
+                    value={editForm.takenAt}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, takenAt: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", paddingTop: "12px", borderTop: "1px solid var(--border-color)" }}>
+              <button
+                type="button"
+                onClick={() => setEditingPhoto(null)}
+                className="btn"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={isSaving}
+              >
+                <Check size={16} />
+                <span>{isSaving ? "Saving..." : "Save Changes"}</span>
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>
