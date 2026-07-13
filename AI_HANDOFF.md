@@ -67,6 +67,7 @@ admin-cms/
 - `createdAt` (text, ISO timestamp)
 - `updatedAt` (text, ISO timestamp)
 - `publishedAt` (text, nullable ISO timestamp)
+- Both `createdAt` and `publishedAt` can be adjusted in the Microblog editor using native browser `datetime-local` controls. Values are stored as ISO timestamps.
 
 ### `gallery`
 - `id` (text, primary key): UUID string

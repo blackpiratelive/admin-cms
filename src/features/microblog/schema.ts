@@ -7,6 +7,7 @@ export const microblogInputSchema = z.object({
   slug: z.string().optional(),
   contentMarkdown: z.string().min(1, "Content cannot be empty"),
   status: microblogStatusSchema.default("draft"),
+  createdAt: z.string().nullable().optional(),
   publishedAt: z.string().nullable().optional(),
   tags: z.union([z.array(z.string()), z.string()]).transform((val) => {
     if (Array.isArray(val)) return val;

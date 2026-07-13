@@ -60,11 +60,9 @@ export async function saveMicroblog(input: MicroblogFormInput) {
 
   const existing = validated.id ? await getMicroblogById(validated.id) : null;
 
-  let publishedAt = existing?.publishedAt || validated.publishedAt;
+  let publishedAt = validated.publishedAt ?? existing?.publishedAt ?? null;
   if (validated.status === "published" && !publishedAt) {
     publishedAt = now;
-  } else if (validated.status !== "published") {
-    publishedAt = null;
   }
 
   const recordData = {
@@ -77,6 +75,7 @@ export async function saveMicroblog(input: MicroblogFormInput) {
     shortUrl: validated.shortUrl || null,
     images: JSON.stringify(validated.images),
     updatedAt: now,
+    createdAt: validated.createdAt || existing?.createdAt || now,
     publishedAt,
   };
 
@@ -85,7 +84,6 @@ export async function saveMicroblog(input: MicroblogFormInput) {
   } else {
     await db.insert(microblogs).values({
       ...recordData,
-      createdAt: now,
     });
   }
 

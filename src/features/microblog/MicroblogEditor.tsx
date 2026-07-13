@@ -12,6 +12,17 @@ interface MicroblogEditorProps {
   initialRelatedPosts?: any[];
 }
 
+function toDateTimeLocal(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
+function toIsoDateTime(value: string) {
+  return value ? new Date(value).toISOString() : null;
+}
+
 export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: MicroblogEditorProps) {
   const router = useRouter();
   const [id, setId] = useState<string | undefined>(initialData?.id);
@@ -20,6 +31,8 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
   const [status, setStatus] = useState<"draft" | "published" | "scheduled" | "archived">(
     (initialData?.status as any) || "draft"
   );
+  const [createdAt, setCreatedAt] = useState(toDateTimeLocal(initialData?.createdAt));
+  const [publishedAt, setPublishedAt] = useState(toDateTimeLocal(initialData?.publishedAt));
   const [tags, setTags] = useState<string>(
     initialData?.tags ? JSON.parse(initialData.tags).join(", ") : ""
   );
@@ -34,6 +47,8 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
     tags: initialData?.tags ? JSON.parse(initialData.tags).join(", ") : "",
     coverImageUrl: initialData?.coverImageUrl || "",
     images: initialData?.images ? JSON.parse(initialData.images) : [],
+    createdAt: toDateTimeLocal(initialData?.createdAt),
+    publishedAt: toDateTimeLocal(initialData?.publishedAt),
   });
   const [lastAutosavedTime, setLastAutosavedTime] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -56,6 +71,8 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
         slug,
         contentMarkdown,
         status: finalStatus,
+        createdAt: toIsoDateTime(createdAt),
+        publishedAt: toIsoDateTime(publishedAt),
         tags,
         coverImageUrl: coverImageUrl || null,
         images,
@@ -69,6 +86,8 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
           tags,
           coverImageUrl,
           images,
+          createdAt,
+          publishedAt,
         });
         if (result.relatedPosts) {
           setRelatedPosts(result.relatedPosts);
@@ -146,7 +165,9 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
           slug !== last.slug ||
           tags !== last.tags ||
           coverImageUrl !== last.coverImageUrl ||
-          JSON.stringify(images) !== JSON.stringify(last.images)
+          JSON.stringify(images) !== JSON.stringify(last.images) ||
+          createdAt !== last.createdAt ||
+          publishedAt !== last.publishedAt
         ) {
           changed = true;
         }
@@ -163,6 +184,8 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
           slug,
           contentMarkdown,
           status: autosaveStatus,
+          createdAt: toIsoDateTime(createdAt),
+          publishedAt: toIsoDateTime(publishedAt),
           tags,
           coverImageUrl: coverImageUrl || null,
           images,
@@ -176,6 +199,8 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
             tags,
             coverImageUrl,
             images,
+            createdAt,
+            publishedAt,
           });
           setLastAutosavedTime(new Date().toLocaleTimeString());
           if (result.relatedPosts) {
@@ -191,7 +216,7 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [contentMarkdown, slug, tags, coverImageUrl, images, id, status, isSaving, router]);
+  }, [contentMarkdown, slug, tags, coverImageUrl, images, createdAt, publishedAt, id, status, isSaving, router]);
 
   const [shortUrl, setShortUrl] = useState<string>(initialData?.shortUrl || "");
   const [shortSlugInput, setShortSlugInput] = useState<string>("");
@@ -216,6 +241,8 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
           slug,
           contentMarkdown,
           status,
+          createdAt: toIsoDateTime(createdAt),
+          publishedAt: toIsoDateTime(publishedAt),
           tags,
           coverImageUrl: coverImageUrl || null,
           shortUrl: res.shortUrl,
@@ -258,6 +285,8 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
         slug,
         contentMarkdown,
         status,
+        createdAt: toIsoDateTime(createdAt),
+        publishedAt: toIsoDateTime(publishedAt),
         tags,
         coverImageUrl: coverImageUrl || null,
         shortUrl: null,
@@ -351,6 +380,26 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
             <option value="scheduled">Scheduled</option>
             <option value="archived">Archived</option>
           </select>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Created date and time</label>
+          <input
+            type="datetime-local"
+            className="text-input"
+            value={createdAt}
+            onChange={(e) => setCreatedAt(e.target.value)}
+          />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Published date and time</label>
+          <input
+            type="datetime-local"
+            className="text-input"
+            value={publishedAt}
+            onChange={(e) => setPublishedAt(e.target.value)}
+          />
         </div>
 
         <div className="form-group">
