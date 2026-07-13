@@ -80,9 +80,9 @@ export async function getCloudinaryResources() {
 
   try {
     const credentials = Buffer.from(`${apiKey}:${apiSecret}`).toString("base64");
-    // Fetch up to 100 images
+    // Fetch up to 500 images
     const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudName}/resources/image?max_results=100`,
+      `https://api.cloudinary.com/v1_1/${cloudName}/resources/image?max_results=500`,
       {
         headers: {
           Authorization: `Basic ${credentials}`,

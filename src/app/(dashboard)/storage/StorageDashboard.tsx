@@ -33,6 +33,12 @@ export function StorageDashboard({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const pagedResources = resources.slice(startIndex, endIndex);
 
   const formatBytes = (bytes: number) => {
     if (!bytes) return "0 Bytes";
@@ -216,6 +222,7 @@ export function StorageDashboard({
             No media files found in Cloudinary or credentials missing.
           </div>
         ) : (
+          <>
           <div
             style={{
               display: "grid",
@@ -223,7 +230,7 @@ export function StorageDashboard({
               gap: "14px",
             }}
           >
-            {resources.map((res) => (
+            {pagedResources.map((res) => (
               <div
                 key={res.public_id}
                 style={{
@@ -347,6 +354,66 @@ export function StorageDashboard({
               </div>
             ))}
           </div>
+          
+          {/* Pagination controls */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginTop: "20px",
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              padding: "10px 14px",
+              flexWrap: "wrap",
+              gap: "12px",
+            }}
+          >
+            <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+              Showing {startIndex + 1} - {Math.min(endIndex, resources.length)} of {resources.length} files
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px" }}>
+                <span>Show:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="text-input"
+                  style={{ width: "70px", padding: "4px 8px", fontSize: "12px" }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+              <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                >
+                  Previous
+                </button>
+                <span style={{ fontSize: "12px", padding: "0 8px" }}>
+                  Page {currentPage} of {Math.ceil(resources.length / pageSize) || 1}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  disabled={currentPage >= Math.ceil(resources.length / pageSize)}
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+          </>
         )}
       </div>
     </div>

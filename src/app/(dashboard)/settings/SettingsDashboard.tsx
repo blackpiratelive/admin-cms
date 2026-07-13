@@ -64,6 +64,41 @@ export function SettingsDashboard({ cloudinaryImages }: SettingsDashboardProps) 
     localStorage.setItem("cms_autosave_enabled", enabled ? "true" : "false");
   };
 
+  const handleAssociateImage = (postIndex: number, imgName: string, selectedUrl: string) => {
+    if (!selectedUrl) return;
+
+    setParsedPosts((prev) => {
+      const updated = [...prev];
+      const post = { ...updated[postIndex] };
+
+      post.detectedImages = post.detectedImages.map((img) => {
+        if (img.name === imgName) {
+          return { ...img, found: true, url: selectedUrl };
+        }
+        return img;
+      });
+
+      const newImages = [...post.images];
+      if (!newImages.includes(selectedUrl)) {
+        newImages.push(selectedUrl);
+      }
+      post.images = newImages;
+
+      if (!post.coverImageUrl && newImages.length > 0) {
+        post.coverImageUrl = newImages[0];
+      }
+
+      const remainingErrors = post.errorMessages.filter(
+        (err) => !err.includes(`'${imgName}'`)
+      );
+      post.errorMessages = remainingErrors;
+      post.isValid = remainingErrors.length === 0;
+
+      updated[postIndex] = post;
+      return updated;
+    });
+  };
+
   // Helper to extract image names from content
   const extractImageNames = (content: string): string[] => {
     const filenames: string[] = [];
@@ -102,17 +137,25 @@ export function SettingsDashboard({ cloudinaryImages }: SettingsDashboardProps) 
     const tomlMatch = text.match(/^\+\+\+\r?\n([\s\S]*?)\r?\n\+\+\+/);
 
     let frontMatterRaw = "";
-    let contentMarkdown = text;
+    let rawContentMarkdown = text;
     let isYaml = true;
 
     if (yamlMatch) {
       frontMatterRaw = yamlMatch[1];
-      contentMarkdown = text.substring(yamlMatch[0].length).trim();
+      rawContentMarkdown = text.substring(yamlMatch[0].length).trim();
     } else if (tomlMatch) {
       frontMatterRaw = tomlMatch[1];
-      contentMarkdown = text.substring(tomlMatch[0].length).trim();
+      rawContentMarkdown = text.substring(tomlMatch[0].length).trim();
       isYaml = false;
     }
+
+    // Clean rawContentMarkdown by removing all image shortcodes and markdown images
+    let contentMarkdown = rawContentMarkdown;
+    contentMarkdown = contentMarkdown.replace(/\{\{<\s*(?:image|img|figure)\s+[^>]*src="([^"]+)"[^>]*\}\}/gi, "");
+    contentMarkdown = contentMarkdown.replace(/\{\{[<%]\s*img\s+"([^"]+)"\s*[%>]\}\}/gi, "");
+    contentMarkdown = contentMarkdown.replace(/\{\{[<%]\s*(?:image|img|figure)[^%]*?\}\}/gi, "");
+    contentMarkdown = contentMarkdown.replace(/!\[.*?\]\((.*?)\)/gi, "");
+    contentMarkdown = contentMarkdown.replace(/\r?\n{3,}/g, "\n\n").trim();
 
     let dateStr = "";
     let lastmodStr = "";
@@ -572,22 +615,40 @@ export function SettingsDashboard({ cloudinaryImages }: SettingsDashboardProps) 
 
                     {/* Images Validation List */}
                     {post.detectedImages.length > 0 && (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "4px", background: "var(--bg-sidebar)", padding: "8px", fontSize: "11px" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "8px", background: "var(--bg-sidebar)", padding: "8px", fontSize: "11px" }}>
                         <div style={{ fontWeight: "bold", marginBottom: "2px" }}>Detected Image Assets:</div>
                         {post.detectedImages.map((img, i) => (
-                          <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <div key={i} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                             {img.found ? (
-                              <>
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                                 <Check size={12} style={{ color: "#2e7d32" }} />
-                                <span>Attached: <code>microblog/{img.name}</code></span>
-                              </>
+                                <span>Attached: <code>{img.name}</code></span>
+                              </div>
                             ) : (
-                              <>
-                                <AlertTriangle size={12} style={{ color: "#c62828" }} />
-                                <span style={{ color: "#c62828" }}>
-                                  Missing: <code>microblog/{img.name}</code> not found in Cloudinary
-                                </span>
-                              </>
+                              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                  <AlertTriangle size={12} style={{ color: "#c62828" }} />
+                                  <span style={{ color: "#c62828", fontWeight: "600" }}>
+                                    Missing: <code>{img.name}</code> not found in Cloudinary
+                                  </span>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", paddingLeft: "18px" }}>
+                                  <span style={{ color: "var(--text-muted)", fontSize: "10px" }}>Associate manually:</span>
+                                  <select
+                                    className="text-input"
+                                    style={{ fontSize: "10px", padding: "2px 6px", height: "auto", width: "240px" }}
+                                    onChange={(e) => handleAssociateImage(idx, img.name, e.target.value)}
+                                    defaultValue=""
+                                  >
+                                    <option value="">-- Choose image from Cloudinary --</option>
+                                    {cloudinaryImages.map((c) => (
+                                      <option key={c.public_id} value={c.secure_url}>
+                                        {c.public_id}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
                             )}
                           </div>
                         ))}
