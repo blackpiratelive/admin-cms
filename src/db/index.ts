@@ -43,6 +43,40 @@ export async function ensureDbInitialized(): Promise<void> {
         );
       `);
       
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS gallery (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          slug TEXT NOT NULL UNIQUE,
+          description TEXT,
+          original_url TEXT NOT NULL,
+          large_url TEXT NOT NULL,
+          medium_url TEXT NOT NULL,
+          thumbnail_url TEXT NOT NULL,
+          width INTEGER,
+          height INTEGER,
+          file_size INTEGER,
+          mime_type TEXT,
+          camera TEXT,
+          lens TEXT,
+          focal_length TEXT,
+          aperture TEXT,
+          shutter_speed TEXT,
+          iso INTEGER,
+          taken_at TEXT,
+          latitude REAL,
+          longitude REAL,
+          location_name TEXT,
+          visibility TEXT NOT NULL DEFAULT 'public',
+          featured INTEGER NOT NULL DEFAULT 0,
+          processing_status TEXT NOT NULL DEFAULT 'ready',
+          tags TEXT NOT NULL DEFAULT '[]',
+          album TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
       // Add images column to existing installations dynamically
       try {
         await client.execute(`ALTER TABLE microblogs ADD COLUMN images TEXT NOT NULL DEFAULT '[]';`);
