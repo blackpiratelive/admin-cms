@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateSlug, microblogInputSchema } from "@/features/microblog/schema";
+import { hasImages } from "@/features/microblog/MicroblogList";
 
 describe("Microblog Schema & Slugs", () => {
   it("generates valid slug from markdown content", () => {
@@ -60,3 +61,35 @@ describe("Microblog Schema & Slugs", () => {
     }).toThrow();
   });
 });
+
+describe("MicroblogList Helpers", () => {
+  it("correctly identifies microblogs with images attached", () => {
+    const basePost = {
+      id: "1",
+      slug: "test-post",
+      contentMarkdown: "Content",
+      createdAt: "2026-01-01",
+      updatedAt: "2026-01-01",
+      publishedAt: null,
+      status: "draft" as const,
+      tags: "[]",
+      coverImageUrl: null,
+      images: "[]",
+    };
+
+    // No images
+    expect(hasImages(basePost)).toBe(false);
+
+    // With cover image
+    expect(hasImages({ ...basePost, coverImageUrl: "https://example.com/cover.jpg" })).toBe(true);
+
+    // With images JSON array
+    expect(
+      hasImages({ ...basePost, images: JSON.stringify(["https://example.com/photo.jpg"]) })
+    ).toBe(true);
+
+    // With empty images JSON array
+    expect(hasImages({ ...basePost, images: "[]" })).toBe(false);
+  });
+});
+

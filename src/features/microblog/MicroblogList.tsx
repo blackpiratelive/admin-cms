@@ -1,13 +1,30 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { type Microblog } from "@/db/schema";
 import { setMicroblogStatus, deleteMicroblog, deleteMicroblogsBatch } from "./actions";
-import { Search, Plus, Edit3, Trash2, Calendar, Tag } from "lucide-react";
+import { Search, Plus, Edit3, Trash2, Image as ImageIcon, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 
 interface MicroblogListProps {
   initialItems: Microblog[];
+}
+
+export function hasImages(item: Microblog): boolean {
+  if (item.coverImageUrl && item.coverImageUrl.trim() !== "") {
+    return true;
+  }
+  if (item.images) {
+    try {
+      const parsed = JSON.parse(item.images);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return true;
+      }
+    } catch (e) {
+      // Ignore JSON parse errors
+    }
+  }
+  return false;
 }
 
 export function MicroblogList({ initialItems }: MicroblogListProps) {
@@ -17,6 +34,11 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Pagination states (default 50 per page, configurable)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+
+  // Filter items based on status and search query
   const filteredItems = items.filter((item) => {
     const matchesStatus = statusFilter === "all" || item.status === statusFilter;
     const matchesSearch =
@@ -25,6 +47,24 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
       item.slug.toLowerCase().includes(search.toLowerCase());
     return matchesStatus && matchesSearch;
   });
+
+  // Reset page to 1 when filters or page size change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter, pageSize]);
+
+  // Calculate pagination boundaries
+  const totalItems = filteredItems.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  const startIndex = (safeCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const paginatedItems = filteredItems.slice(startIndex, endIndex);
+
+  const isAllCurrentPageSelected =
+    paginatedItems.length > 0 &&
+    paginatedItems.every((item) => selectedIds.includes(item.id));
 
   const handleStatusChange = async (id: string, newStatus: any) => {
     await setMicroblogStatus(id, newStatus);
@@ -42,9 +82,11 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      setSelectedIds(filteredItems.map((item) => item.id));
+      const pageIds = paginatedItems.map((item) => item.id);
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...pageIds])));
     } else {
-      setSelectedIds([]);
+      const pageIds = new Set(paginatedItems.map((item) => item.id));
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
     }
   };
 
@@ -56,7 +98,11 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
 
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
-    if (!confirm(`Are you sure you want to permanently delete the ${selectedIds.length} selected microblog posts?`)) {
+    if (
+      !confirm(
+        `Are you sure you want to permanently delete the ${selectedIds.length} selected microblog posts?`
+      )
+    ) {
       return;
     }
     setIsDeleting(true);
@@ -89,7 +135,7 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <div className="page-header">
-        <h1 className="page-title">Microblog Posts ({filteredItems.length})</h1>
+        <h1 className="page-title">Microblog Posts ({totalItems})</h1>
         <div style={{ display: "flex", gap: "8px" }}>
           {selectedIds.length > 0 && (
             <button
@@ -112,7 +158,7 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
 
       {/* Filter and Search Toolbar */}
       <div className="filter-bar">
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, minWidth: "200px" }}>
           <Search size={16} style={{ color: "var(--text-muted)" }} />
           <input
             type="text"
@@ -124,17 +170,39 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
           />
         </div>
 
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="select-input"
-        >
-          <option value="all">All Statuses</option>
-          <option value="draft">Draft</option>
-          <option value="published">Published</option>
-          <option value="scheduled">Scheduled</option>
-          <option value="archived">Archived</option>
-        </select>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <label style={{ fontSize: "12px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+            Status:
+          </label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="select-input"
+          >
+            <option value="all">All Statuses</option>
+            <option value="draft">Draft</option>
+            <option value="published">Published</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="archived">Archived</option>
+          </select>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <label style={{ fontSize: "12px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+            Per page:
+          </label>
+          <select
+            value={pageSize}
+            onChange={(e) => setPageSize(Number(e.target.value))}
+            className="select-input"
+            aria-label="Items per page"
+          >
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50 (Default)</option>
+            <option value={100}>100</option>
+          </select>
+        </div>
       </div>
 
       {/* Data Table */}
@@ -145,7 +213,7 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
               <th style={{ width: "40px", paddingRight: 0 }}>
                 <input
                   type="checkbox"
-                  checked={filteredItems.length > 0 && selectedIds.length === filteredItems.length}
+                  checked={isAllCurrentPageSelected}
                   onChange={handleSelectAll}
                 />
               </th>
@@ -158,18 +226,23 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
             </tr>
           </thead>
           <tbody>
-            {filteredItems.length === 0 ? (
+            {paginatedItems.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ textAlign: "center", padding: "24px", color: "var(--text-muted)" }}>
+                <td
+                  colSpan={7}
+                  style={{ textAlign: "center", padding: "24px", color: "var(--text-muted)" }}
+                >
                   No microblog posts found.
                 </td>
               </tr>
             ) : (
-              filteredItems.map((item) => {
+              paginatedItems.map((item) => {
                 const snippet =
                   item.contentMarkdown.length > 60
                     ? item.contentMarkdown.slice(0, 60) + "..."
                     : item.contentMarkdown;
+
+                const postHasImages = hasImages(item);
 
                 return (
                   <tr key={item.id}>
@@ -181,13 +254,34 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
                       />
                     </td>
                     <td>
-                      <Link
-                        href={`/microblog/${item.id}`}
-                        style={{ fontWeight: 600, textDecoration: "none" }}
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <Link
+                          href={`/microblog/${item.id}`}
+                          style={{ fontWeight: 600, textDecoration: "none" }}
+                        >
+                          {snippet || item.slug}
+                        </Link>
+                        {postHasImages && (
+                          <span
+                            title="Has image attachments"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              color: "var(--accent)",
+                              lineHeight: 1,
+                            }}
+                          >
+                            <ImageIcon size={14} />
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          color: "var(--text-muted)",
+                          fontFamily: "var(--font-mono)",
+                        }}
                       >
-                        {snippet || item.slug}
-                      </Link>
-                      <div style={{ fontSize: "11px", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
                         /{item.slug}
                       </div>
                     </td>
@@ -196,13 +290,22 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
                         {item.status}
                       </span>
                     </td>
-                    <td className="hide-on-mobile" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                    <td
+                      className="hide-on-mobile"
+                      style={{ fontSize: "12px", color: "var(--text-secondary)" }}
+                    >
                       {formatDate(item.createdAt)}
                     </td>
-                    <td className="hide-on-mobile" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                    <td
+                      className="hide-on-mobile"
+                      style={{ fontSize: "12px", color: "var(--text-secondary)" }}
+                    >
                       {formatDate(item.publishedAt)}
                     </td>
-                    <td className="hide-on-mobile" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                    <td
+                      className="hide-on-mobile"
+                      style={{ fontSize: "12px", color: "var(--text-secondary)" }}
+                    >
                       {formatDate(item.updatedAt)}
                     </td>
                     <td style={{ textAlign: "right" }}>
@@ -227,6 +330,75 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Controls Footer */}
+      {totalItems > 0 && (
+        <div
+          className="pagination-controls"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "8px 4px",
+            fontSize: "13px",
+            color: "var(--text-secondary)",
+            flexWrap: "wrap",
+            gap: "12px",
+          }}
+        >
+          <div>
+            Showing <strong>{startIndex + 1}</strong> to <strong>{endIndex}</strong> of{" "}
+            <strong>{totalItems}</strong> entries
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => setCurrentPage(1)}
+              disabled={safeCurrentPage === 1}
+              title="First Page"
+            >
+              <ChevronsLeft size={14} />
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={safeCurrentPage === 1}
+              title="Previous Page"
+            >
+              <ChevronLeft size={14} />
+              <span>Prev</span>
+            </button>
+
+            <span style={{ padding: "0 8px", fontWeight: 500 }}>
+              Page {safeCurrentPage} of {totalPages}
+            </span>
+
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safeCurrentPage === totalPages}
+              title="Next Page"
+            >
+              <span>Next</span>
+              <ChevronRight size={14} />
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={safeCurrentPage === totalPages}
+              title="Last Page"
+            >
+              <ChevronsRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
