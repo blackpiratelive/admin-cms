@@ -108,7 +108,7 @@ admin-cms/
 ### `projects` and `todos` (Personal task management)
 - `projects`: `id`, unique `name`, optional `description`, and creation/update timestamps.
 - `todos`: `id`, required `title`, optional `description` and `dueDate`, priority (`low`, `medium`, or `high`), `completed` integer flag, optional `projectId`, JSON-string `tags`, and creation/update timestamps.
-- The Todo dashboard at `/todos` supports task creation/editing, completion, deletion, project creation/deletion, tag suggestions, and filtering by completion state, project, and tag. Deleting a project leaves its tasks intact but unassigned.
+- The Todo dashboard at `/todos` supports task creation/editing, completion, deletion, project creation/deletion, tag suggestions, and filtering by completion state, project, and tag. Its composer initially shows only the “What needs doing?” input and expands to show task options when text is entered. Deleting a project leaves its tasks intact but unassigned.
 
 
 

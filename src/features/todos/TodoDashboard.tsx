@@ -3,7 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import type { Project, Todo } from "@/db/schema";
 import { deleteProject, deleteTodo, saveProject, saveTodo, setTodoCompleted } from "./actions";
-import { Check, ChevronDown, FolderPlus, Pencil, Plus, Tag, Trash2 } from "lucide-react";
+import { Check, FolderPlus, Pencil, Plus, Tag, Trash2 } from "lucide-react";
 
 type TodoForm = {
   title: string; description: string; dueDate: string; priority: "low" | "medium" | "high"; projectId: string; tags: string;
@@ -20,6 +20,7 @@ export function TodoDashboard({ initialTodos, initialProjects }: { initialTodos:
   const [projects, setProjects] = useState(initialProjects);
   const [form, setForm] = useState<TodoForm>(blankTodo);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isComposerExpanded, setIsComposerExpanded] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
   const [showProjectForm, setShowProjectForm] = useState(false);
@@ -51,7 +52,7 @@ export function TodoDashboard({ initialTodos, initialProjects }: { initialTodos:
     } else {
       setTodos((current) => [{ id: result.id!, title: form.title.trim(), description: form.description.trim() || null, dueDate: form.dueDate || null, priority: form.priority, projectId: form.projectId || null, tags: JSON.stringify(tags), completed: 0, createdAt: now, updatedAt: now }, ...current]);
     }
-    setForm(blankTodo); setEditingId(null);
+    setForm(blankTodo); setEditingId(null); setIsComposerExpanded(false);
   }
 
   async function submitProject(event: FormEvent) {
@@ -84,6 +85,7 @@ export function TodoDashboard({ initialTodos, initialProjects }: { initialTodos:
 
   function beginEdit(todo: Todo) {
     setEditingId(todo.id);
+    setIsComposerExpanded(true);
     setForm({ title: todo.title, description: todo.description || "", dueDate: todo.dueDate || "", priority: todo.priority, projectId: todo.projectId || "", tags: tagsFor(todo).join(", ") });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -92,16 +94,18 @@ export function TodoDashboard({ initialTodos, initialProjects }: { initialTodos:
     <div className="page-header"><h1 className="page-title"><Check size={20} /> Todo list</h1><span style={{ color: "var(--text-muted)" }}>{todos.filter((todo) => !todo.completed).length} open tasks</span></div>
     <div className="todo-layout">
       <form className="todo-card" onSubmit={submitTodo}>
-        <h2>{editingId ? "Edit task" : "Add task"}</h2>
-        <label className="form-group"><span className="form-label">Task</span><input autoFocus className="text-input" value={form.title} onChange={(e) => updateForm("title", e.target.value)} placeholder="What needs doing?" required /></label>
-        <label className="form-group"><span className="form-label">Description</span><textarea className="text-input todo-textarea" value={form.description} onChange={(e) => updateForm("description", e.target.value)} placeholder="Add useful context…" /></label>
-        <div className="todo-form-grid">
-          <label className="form-group"><span className="form-label">Due date</span><input className="text-input" type="date" value={form.dueDate} onChange={(e) => updateForm("dueDate", e.target.value)} /></label>
-          <label className="form-group"><span className="form-label">Priority</span><select className="select-input" value={form.priority} onChange={(e) => updateForm("priority", e.target.value)}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
-        </div>
-        <label className="form-group"><span className="form-label">Project</span><select className="select-input" value={form.projectId} onChange={(e) => updateForm("projectId", e.target.value)}><option value="">No project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
-        <label className="form-group"><span className="form-label">Tags</span><input className="text-input" list="todo-tags" value={form.tags} onChange={(e) => updateForm("tags", e.target.value)} placeholder="work, home, urgent" /><datalist id="todo-tags">{knownTags.map((tag) => <option value={tag} key={tag} />)}</datalist><small>Separate tags with commas.</small></label>
-        <div style={{ display: "flex", gap: 8 }}><button className="btn btn-primary" disabled={isSaving}>{isSaving ? "Saving…" : <><Plus size={16} /> {editingId ? "Save task" : "Add task"}</>}</button>{editingId && <button type="button" className="btn" onClick={() => { setEditingId(null); setForm(blankTodo); }}>Cancel</button>}</div>
+        {isComposerExpanded && <h2>{editingId ? "Edit task" : "Add task"}</h2>}
+        <label className={isComposerExpanded ? "form-group" : "todo-quick-input"}><span className="form-label">Task</span><input autoFocus={isComposerExpanded} className="text-input" value={form.title} onChange={(e) => { updateForm("title", e.target.value); if (e.target.value) setIsComposerExpanded(true); }} placeholder="What needs doing?" required /></label>
+        {isComposerExpanded && <>
+          <label className="form-group"><span className="form-label">Description</span><textarea className="text-input todo-textarea" value={form.description} onChange={(e) => updateForm("description", e.target.value)} placeholder="Add useful context…" /></label>
+          <div className="todo-form-grid">
+            <label className="form-group"><span className="form-label">Due date</span><input className="text-input" type="date" value={form.dueDate} onChange={(e) => updateForm("dueDate", e.target.value)} /></label>
+            <label className="form-group"><span className="form-label">Priority</span><select className="select-input" value={form.priority} onChange={(e) => updateForm("priority", e.target.value)}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+          </div>
+          <label className="form-group"><span className="form-label">Project</span><select className="select-input" value={form.projectId} onChange={(e) => updateForm("projectId", e.target.value)}><option value="">No project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
+          <label className="form-group"><span className="form-label">Tags</span><input className="text-input" list="todo-tags" value={form.tags} onChange={(e) => updateForm("tags", e.target.value)} placeholder="work, home, urgent" /><datalist id="todo-tags">{knownTags.map((tag) => <option value={tag} key={tag} />)}</datalist><small>Separate tags with commas.</small></label>
+          <div style={{ display: "flex", gap: 8 }}><button className="btn btn-primary" disabled={isSaving}>{isSaving ? "Saving…" : <><Plus size={16} /> {editingId ? "Save task" : "Add task"}</>}</button><button type="button" className="btn" onClick={() => { setEditingId(null); setForm(blankTodo); setIsComposerExpanded(false); }}>Cancel</button></div>
+        </>}
       </form>
       <aside className="todo-card"><div className="todo-section-heading"><h2>Projects</h2><button type="button" className="btn btn-sm" onClick={() => setShowProjectForm((value) => !value)}><FolderPlus size={14} /> Add</button></div>
         {showProjectForm && <form onSubmit={submitProject} className="project-form"><input className="text-input" value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="Project name" required /><input className="text-input" value={projectDescription} onChange={(e) => setProjectDescription(e.target.value)} placeholder="Short description (optional)" /><button className="btn btn-primary btn-sm">Create project</button></form>}
