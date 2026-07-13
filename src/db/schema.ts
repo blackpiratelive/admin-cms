@@ -59,3 +59,36 @@ export type NewMicroblog = typeof microblogs.$inferInsert;
 export type GalleryPhoto = typeof gallery.$inferSelect;
 export type NewGalleryPhoto = typeof gallery.$inferInsert;
 
+export const links = sqliteTable("links", {
+  slug: text("slug").primaryKey(),
+  url: text("url").notNull(),
+  createdAt: text("created_at").notNull(),
+  clickCount: integer("click_count").notNull().default(0),
+  hostname: text("hostname").notNull(),
+  password: text("password"),
+});
+
+export const domains = sqliteTable("domains", {
+  hostname: text("hostname").primaryKey(),
+  addedAt: text("added_at").notNull(),
+});
+
+export const pastes = sqliteTable("pastes", {
+  slug: text("slug").primaryKey(),
+  content: text("content").notNull(),
+  hostname: text("hostname").notNull(),
+  password: text("password"),
+  expiresAt: text("expires_at"),
+  createdAt: text("created_at").notNull(),
+});
+
+export type ShortLink = typeof links.$inferSelect;
+export type NewShortLink = typeof links.$inferInsert;
+
+export type ShortDomain = typeof domains.$inferSelect;
+export type NewShortDomain = typeof domains.$inferInsert;
+
+export type PasteItem = typeof pastes.$inferSelect;
+export type NewPasteItem = typeof pastes.$inferInsert;
+
+

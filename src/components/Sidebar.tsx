@@ -189,7 +189,6 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
           >
             <Link2 size={16} />
             <span>Links</span>
-            <span className="badge-placeholder">soon</span>
           </Link>
         </div>
 

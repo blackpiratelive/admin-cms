@@ -1,11 +1,25 @@
-import { PlaceholderModule } from "@/components/PlaceholderModule";
+import { getShortLinks, getPastes, getDomains } from "@/features/links/actions";
+import { LinksDashboard } from "@/features/links/LinksDashboard";
 
-export default function LinksPlaceholderPage() {
+export const dynamic = "force-dynamic";
+
+export const metadata = {
+  title: "Links & URL Shortener | Personal CMS",
+  description: "Manage short URLs, markdown pastes, and custom domains.",
+};
+
+export default async function LinksPage() {
+  const [links, pastes, domains] = await Promise.all([
+    getShortLinks(),
+    getPastes(),
+    getDomains(),
+  ]);
+
   return (
-    <PlaceholderModule
-      title="Link Roll & Social Links"
-      description="Manage public linkroll, social media links, and RSS feeds."
-      category="Collections"
+    <LinksDashboard
+      initialLinks={links}
+      initialPastes={pastes}
+      initialDomains={domains}
     />
   );
 }

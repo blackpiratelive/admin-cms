@@ -80,6 +80,27 @@ admin-cms/
 - `album` (text, nullable): Portfolio collection/album name
 - `createdAt`, `updatedAt` (ISO timestamps)
 
+### `links` (RapidLink URL Shortener)
+- `slug` (text, primary key): Short URL path identifier (e.g. `my-link`)
+- `url` (text, not null): Destination target URL
+- `createdAt` (text, ISO timestamp)
+- `clickCount` (integer, default `0`): Aggregated redirection clicks
+- `hostname` (text, not null): Configured custom domain
+- `password` (text, nullable): Optional bcrypt-hashed protection password
+
+### `domains`
+- `hostname` (text, primary key): Custom domain name (e.g. `lnk.to`)
+- `addedAt` (text, ISO timestamp)
+
+### `pastes` (Markdown Pastebin)
+- `slug` (text, primary key): Unique paste path identifier (e.g. `p/abc123xyz`)
+- `content` (text, not null): Markdown or plain text code content
+- `hostname` (text, not null): Configured domain
+- `password` (text, nullable): Optional bcrypt-hashed password
+- `expiresAt` (text, nullable ISO timestamp): Automatic expiry timestamp
+- `createdAt` (text, ISO timestamp)
+
+
 
 ---
 
