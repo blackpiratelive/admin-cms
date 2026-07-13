@@ -180,27 +180,14 @@ export function SettingsDashboard({ cloudinaryImages }: SettingsDashboardProps) 
     const findCloudinaryMatch = (imgName: string): CloudinaryResource | null => {
       const cleanName = imgName.trim().toLowerCase();
       const basename = cleanName.split("/").pop() || cleanName;
-      const hasExtension = basename.includes(".");
+      const queryNameNoExt = basename.replace(/\.[^/.]+$/, "").trim();
 
       for (const res of cloudinaryImages) {
-        const secureUrlLower = res.secure_url.toLowerCase();
         const publicIdLower = res.public_id.toLowerCase();
+        const assetBasename = publicIdLower.split("/").pop() || publicIdLower;
 
-        if (hasExtension) {
-          // If the shortcode includes an extension, match it against the end of the secure URL path
-          if (
-            secureUrlLower.endsWith("/" + basename) ||
-            secureUrlLower.includes("/" + basename + "/") ||
-            secureUrlLower.includes("/" + basename + "?") ||
-            secureUrlLower.includes("/" + basename)
-          ) {
-            return res;
-          }
-        } else {
-          // Fallback if no extension, match public_id
-          if (publicIdLower === basename || publicIdLower.endsWith("/" + basename)) {
-            return res;
-          }
+        if (assetBasename.startsWith(queryNameNoExt)) {
+          return res;
         }
       }
       return null;
