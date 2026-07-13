@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { compressImageLocally } from "@/lib/image-compressor";
 import { uploadDirectToCloudinary } from "@/lib/cloudinary";
-import { Upload, Image as ImageIcon, Check, Settings, Copy, RefreshCw, Layers } from "lucide-react";
+import { Upload, Image as ImageIcon, Copy } from "lucide-react";
 
 interface CloudinaryImageUploaderProps {
   onImageUploaded: (url: string) => void;
@@ -21,30 +21,9 @@ export function CloudinaryImageUploader({
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
 
-  // Cloudinary credentials state
-  const [cloudName, setCloudName] = useState<string>("");
-  const [uploadPreset, setUploadPreset] = useState<string>("");
-  const [showConfig, setShowConfig] = useState<boolean>(false);
-
-  useEffect(() => {
-    const envCloud = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "";
-    const envPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "";
-    const savedCloud = localStorage.getItem("cloudinary-cloud-name") || envCloud;
-    const savedPreset = localStorage.getItem("cloudinary-upload-preset") || envPreset;
-
-    setCloudName(savedCloud);
-    setUploadPreset(savedPreset);
-
-    if (!savedCloud || !savedPreset) {
-      setShowConfig(true);
-    }
-  }, []);
-
-  const saveConfig = () => {
-    localStorage.setItem("cloudinary-cloud-name", cloudName.trim());
-    localStorage.setItem("cloudinary-upload-preset", uploadPreset.trim());
-    setShowConfig(false);
-  };
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+  const isConfigured = !!cloudName && !!uploadPreset;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -77,11 +56,7 @@ export function CloudinaryImageUploader({
       }
 
       setUploadStatus("Uploading directly to Cloudinary...");
-      const result = await uploadDirectToCloudinary(
-        fileToUpload,
-        cloudName || undefined,
-        uploadPreset || undefined
-      );
+      const result = await uploadDirectToCloudinary(fileToUpload);
 
       setUploadedUrl(result.secure_url);
       setUploadStatus(`Uploaded successfully! (${Math.round(result.bytes / 1024)} KB)`);
@@ -100,6 +75,25 @@ export function CloudinaryImageUploader({
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
+  if (!isConfigured) {
+    return (
+      <div
+        style={{
+          background: "var(--bg-card)",
+          border: "1px dashed #d32f2f",
+          padding: "14px",
+          color: "#c62828",
+          fontSize: "12px",
+          borderRadius: "2px",
+        }}
+      >
+        <span style={{ fontWeight: "bold" }}>Cloudinary is not configured.</span> Please define{" "}
+        <code>NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME</code> and{" "}
+        <code>NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET</code> in your <code>.env</code> file to enable direct uploads.
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -116,60 +110,7 @@ export function CloudinaryImageUploader({
           <ImageIcon size={16} />
           <span>Cloudinary Media Direct Upload</span>
         </div>
-        <button
-          type="button"
-          className="btn btn-sm"
-          onClick={() => setShowConfig(!showConfig)}
-          title="Cloudinary Credentials Settings"
-        >
-          <Settings size={14} />
-          <span>Config</span>
-        </button>
       </div>
-
-      {/* Credentials Configuration Form */}
-      {showConfig && (
-        <div
-          style={{
-            background: "var(--bg-sidebar)",
-            border: "1px solid var(--border-color)",
-            padding: "10px",
-            fontSize: "12px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "8px",
-          }}
-        >
-          <div style={{ fontWeight: "bold" }}>Cloudinary Credentials (Direct Unsigned Upload)</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-            <div>
-              <label style={{ fontSize: "11px", display: "block" }}>Cloud Name</label>
-              <input
-                type="text"
-                className="text-input"
-                style={{ width: "100%", fontSize: "12px" }}
-                value={cloudName}
-                onChange={(e) => setCloudName(e.target.value)}
-                placeholder="e.g. my-cloud-name"
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: "11px", display: "block" }}>Upload Preset</label>
-              <input
-                type="text"
-                className="text-input"
-                style={{ width: "100%", fontSize: "12px" }}
-                value={uploadPreset}
-                onChange={(e) => setUploadPreset(e.target.value)}
-                placeholder="e.g. my_unsigned_preset"
-              />
-            </div>
-          </div>
-          <button type="button" className="btn btn-sm btn-primary" onClick={saveConfig} style={{ alignSelf: "flex-end" }}>
-            Save Credentials
-          </button>
-        </div>
-      )}
 
       {/* Compression Toggle & File Selection */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px" }}>

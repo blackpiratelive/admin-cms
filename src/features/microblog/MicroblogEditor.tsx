@@ -67,9 +67,7 @@ export function MicroblogEditor({ initialData }: MicroblogEditorProps) {
   };
 
   const handleImageUploaded = (url: string) => {
-    if (!coverImageUrl) {
-      setCoverImageUrl(url);
-    }
+    setCoverImageUrl(url);
   };
 
   const handleInsertMarkdown = (snippet: string) => {

@@ -13,9 +13,15 @@ export async function uploadDirectToCloudinary(
   uploadPreset?: string
 ): Promise<CloudinaryUploadResult> {
   const activeCloudName =
-    cloudName || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "demo";
+    cloudName || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
   const activePreset =
-    uploadPreset || process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "unsigned_preset";
+    uploadPreset || process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+
+  if (!activeCloudName || !activePreset) {
+    throw new Error(
+      "Cloudinary configuration is missing. Ensure NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME and NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET are set."
+    );
+  }
 
   const url = `https://api.cloudinary.com/v1_1/${activeCloudName}/image/upload`;
 
