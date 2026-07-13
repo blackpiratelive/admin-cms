@@ -193,6 +193,53 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
     return () => clearInterval(interval);
   }, [contentMarkdown, slug, tags, coverImageUrl, images, id, status, isSaving, router]);
 
+  const [shortUrl, setShortUrl] = useState<string>(initialData?.shortUrl || "");
+  const [shortSlugInput, setShortSlugInput] = useState<string>("");
+  const [isShortening, setIsShortening] = useState(false);
+  const [copiedShortUrl, setCopiedShortUrl] = useState(false);
+
+  const handleGenerateShortUrl = async () => {
+    setIsShortening(true);
+    try {
+      const { createShortLink } = await import("@/features/links/actions");
+      const postTargetUrl = `${window.location.origin}/microblog/${slug || id || "post"}`;
+      const res = await createShortLink({
+        url: postTargetUrl,
+        slug: shortSlugInput.trim() || undefined,
+        hostname: window.location.hostname,
+      });
+
+      if (res.success && res.shortUrl) {
+        setShortUrl(res.shortUrl);
+        // Save shortUrl to microblog record in DB
+        await saveMicroblog({
+          id,
+          slug,
+          contentMarkdown,
+          status,
+          tags,
+          coverImageUrl: coverImageUrl || null,
+          shortUrl: res.shortUrl,
+          images,
+        });
+      } else {
+        alert(res.error || "Failed to generate short link via RapidLink.");
+      }
+    } catch (err: any) {
+      alert("Error generating short link: " + (err.message || String(err)));
+    } finally {
+      setIsShortening(false);
+    }
+  };
+
+  const handleCopyShortUrl = () => {
+    if (!shortUrl) return;
+    navigator.clipboard.writeText(shortUrl);
+    setCopiedShortUrl(true);
+    setTimeout(() => setCopiedShortUrl(false), 2000);
+  };
+
+  // Settings Grid
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       {/* Editor Top Bar Actions */}
@@ -284,6 +331,53 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
             onChange={(e) => setTags(e.target.value)}
             placeholder="hugo, thoughts, dev"
           />
+        </div>
+      </div>
+
+      {/* RapidLink Short URL Widget */}
+      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", padding: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+          <label className="form-label" style={{ margin: 0, fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>
+            <Globe size={14} style={{ color: "var(--accent)" }} />
+            <span>RapidLink Short URL</span>
+          </label>
+
+          {shortUrl && (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ fontSize: "12px", fontFamily: "var(--font-mono)", color: "var(--accent)", fontWeight: "bold" }}>
+                {shortUrl}
+              </span>
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={handleCopyShortUrl}
+                style={{ padding: "2px 6px" }}
+              >
+                {copiedShortUrl ? <span style={{ color: "#2e7d32", fontSize: "11px" }}>Copied!</span> : "Copy"}
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            type="text"
+            className="text-input"
+            style={{ flex: 1, minWidth: "180px" }}
+            placeholder="Custom slug (optional)..."
+            value={shortSlugInput}
+            onChange={(e) => setShortSlugInput(e.target.value)}
+          />
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            onClick={handleGenerateShortUrl}
+            disabled={isShortening}
+            style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
+          >
+            {isShortening ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
+            <span>{isShortening ? "Generating..." : shortUrl ? "Regenerate Short URL" : "Generate Short URL"}</span>
+          </button>
         </div>
       </div>
 

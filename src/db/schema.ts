@@ -11,6 +11,7 @@ export const microblogs = sqliteTable("microblogs", {
   tags: text("tags").notNull().default("[]"),
   coverImageUrl: text("cover_image_url"),
   images: text("images").notNull().default("[]"),
+  shortUrl: text("short_url"),
 });
 
 export const relatedMicroblogs = sqliteTable("related_microblogs", {
@@ -49,6 +50,7 @@ export const gallery = sqliteTable("gallery", {
   processingStatus: text("processing_status", { enum: ["pending", "processing", "ready", "failed"] }).notNull().default("ready"),
   tags: text("tags").notNull().default("[]"),
   album: text("album"),
+  shortUrl: text("short_url"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });

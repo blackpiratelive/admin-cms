@@ -77,12 +77,18 @@ export async function ensureDbInitialized(): Promise<void> {
         );
       `);
 
-      // Add images column to existing installations dynamically
+      // Add columns to existing installations dynamically
       try {
         await client.execute(`ALTER TABLE microblogs ADD COLUMN images TEXT NOT NULL DEFAULT '[]';`);
-      } catch (err) {
-        // Column already exists or table alteration not needed
-      }
+      } catch (err) {}
+
+      try {
+        await client.execute(`ALTER TABLE microblogs ADD COLUMN short_url TEXT;`);
+      } catch (err) {}
+
+      try {
+        await client.execute(`ALTER TABLE gallery ADD COLUMN short_url TEXT;`);
+      } catch (err) {}
     } catch (err) {
       console.error("Auto DB initialization error:", err);
       // Reset promise to allow retrying on error

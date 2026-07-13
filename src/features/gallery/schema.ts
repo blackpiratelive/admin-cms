@@ -34,6 +34,7 @@ export const galleryPhotoInputSchema = z.object({
     return [];
   }),
   album: z.string().optional().nullable(),
+  shortUrl: z.string().optional().nullable(),
 });
 
 export type GalleryPhotoInput = z.infer<typeof galleryPhotoInputSchema>;

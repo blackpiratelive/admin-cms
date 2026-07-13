@@ -157,6 +157,7 @@ export async function saveGalleryPhoto(input: GalleryPhotoInput) {
       processingStatus: validated.processingStatus,
       tags: JSON.stringify(validated.tags),
       album: validated.album || null,
+      shortUrl: validated.shortUrl || null,
       updatedAt: now,
     };
 

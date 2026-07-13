@@ -13,6 +13,7 @@ import {
   Sparkles,
   MapPin,
   Loader2,
+  Globe,
 } from "lucide-react";
 
 interface GalleryGridProps {
@@ -48,6 +49,8 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
     latitude: "",
     longitude: "",
     locationName: "",
+    shortUrl: "",
+    shortSlug: "",
   });
 
   const filteredPhotos = photos.filter((p) => {
@@ -93,7 +96,42 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
       latitude: photo.latitude ? String(photo.latitude) : "",
       longitude: photo.longitude ? String(photo.longitude) : "",
       locationName: photo.locationName || "",
+      shortUrl: photo.shortUrl || "",
+      shortSlug: "",
     });
+  };
+
+  const [isPhotoShortening, setIsPhotoShortening] = useState(false);
+  const [photoCopiedShortUrl, setPhotoCopiedShortUrl] = useState(false);
+
+  const handleGeneratePhotoShortLink = async () => {
+    if (!editingPhoto) return;
+    setIsPhotoShortening(true);
+    try {
+      const { createShortLink } = await import("@/features/links/actions");
+      const photoShareTarget = editingPhoto.largeUrl || editingPhoto.originalUrl;
+      const res = await createShortLink({
+        url: photoShareTarget,
+        slug: editForm.shortSlug.trim() || undefined,
+        hostname: window.location.hostname,
+      });
+
+      if (res.success && res.shortUrl) {
+        setEditForm((prev) => ({ ...prev, shortUrl: res.shortUrl }));
+      } else {
+        alert(res.error || "Failed to generate short link.");
+      }
+    } catch (err: any) {
+      alert("Error generating short URL: " + (err.message || String(err)));
+    } finally {
+      setIsPhotoShortening(false);
+    }
+  };
+
+  const handleCopyPhotoShortUrl = (url: string) => {
+    navigator.clipboard.writeText(url);
+    setPhotoCopiedShortUrl(true);
+    setTimeout(() => setPhotoCopiedShortUrl(false), 2000);
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
@@ -135,6 +173,7 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
         processingStatus: editingPhoto.processingStatus as any,
         tags: tagsArray,
         album: editForm.album || null,
+        shortUrl: editForm.shortUrl || null,
       });
 
       if (res.success) {
@@ -157,6 +196,7 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
           latitude: editForm.latitude ? Number(editForm.latitude) : null,
           longitude: editForm.longitude ? Number(editForm.longitude) : null,
           locationName: editForm.locationName || null,
+          shortUrl: editForm.shortUrl || null,
         };
 
         setPhotos((prev) =>
@@ -461,6 +501,24 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
                   </span>
                 </div>
               )}
+
+              {selectedPhoto.shortUrl && (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", background: "var(--bg-sidebar)", padding: "8px 12px", borderRadius: "4px" }}>
+                  <Globe size={14} style={{ color: "var(--accent)" }} />
+                  <span>
+                    <strong>RapidLink Short URL:</strong>{" "}
+                    <code style={{ color: "var(--accent)", fontWeight: "bold" }}>{selectedPhoto.shortUrl}</code>
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => handleCopyPhotoShortUrl(selectedPhoto.shortUrl!)}
+                    style={{ marginLeft: "auto", padding: "2px 8px" }}
+                  >
+                    {photoCopiedShortUrl ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -599,8 +657,52 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
                     >
                       <option value="public">Public</option>
                       <option value="private">Private</option>
-                      <option value="unlisted">Unlisted</option>
+                      <option value="unlisted">Unlisted (Shareable Short Link)</option>
                     </select>
+                  </div>
+                </div>
+
+                {/* RapidLink Short URL for Photo / Unlisted Sharing */}
+                <div style={{ background: "var(--bg-sidebar)", border: "1px solid var(--border-color)", padding: "10px", borderRadius: "4px", marginTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "6px" }}>
+                    <span style={{ fontSize: "12px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <Globe size={13} style={{ color: "var(--accent)" }} /> Shareable Short URL
+                    </span>
+                    {editForm.shortUrl && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                        <code style={{ fontSize: "11px", color: "var(--accent)", fontWeight: "bold" }}>
+                          {editForm.shortUrl}
+                        </code>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={() => handleCopyPhotoShortUrl(editForm.shortUrl)}
+                          style={{ padding: "1px 6px" }}
+                        >
+                          {photoCopiedShortUrl ? "Copied!" : "Copy"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <input
+                      type="text"
+                      className="text-input"
+                      style={{ flex: 1, fontSize: "11px" }}
+                      placeholder="Custom slug (optional)..."
+                      value={editForm.shortSlug}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, shortSlug: e.target.value }))}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      onClick={handleGeneratePhotoShortLink}
+                      disabled={isPhotoShortening}
+                    >
+                      {isPhotoShortening ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
+                      <span>{isPhotoShortening ? "Generating..." : editForm.shortUrl ? "Regenerate" : "Shorten URL"}</span>
+                    </button>
                   </div>
                 </div>
               </div>

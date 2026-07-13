@@ -61,6 +61,7 @@ admin-cms/
 - `status` (text, enum: `'draft' | 'published' | 'scheduled' | 'archived'`): Status state
 - `tags` (text, default `'[]'`): JSON string array of tags
 - `coverImageUrl` (text, nullable): External URL for cover media
+- `shortUrl` (text, nullable): RapidLink short URL generated for post
 - `createdAt` (text, ISO timestamp)
 - `updatedAt` (text, ISO timestamp)
 - `publishedAt` (text, nullable ISO timestamp)
@@ -78,6 +79,7 @@ admin-cms/
 - `featured` (integer: `1` or `0`, default `0`)
 - `tags` (text, JSON array string): Filter tags
 - `album` (text, nullable): Portfolio collection/album name
+- `shortUrl` (text, nullable): RapidLink short URL generated for photo (especially useful for unlisted photos)
 - `createdAt`, `updatedAt` (ISO timestamps)
 
 ### `links` (RapidLink URL Shortener)
