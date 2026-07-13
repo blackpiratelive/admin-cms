@@ -13,6 +13,8 @@ This repository is **`admin-cms`**, a private, single-user administrative dashbo
 - **Strict Separation of Concerns**: Hugo site is read-only static; CMS is the sole writer to Turso.
 - **Content Delivery**: Hugo fetches directly from Turso using Hugo Content Adapters at build time. No markdown files or JSON files are output to disk or committed to Git.
 - **Workflow**: Create/Edit Post -> Save to Turso -> Status set to `published` -> Trigger `VERCEL_DEPLOY_HOOK` -> Hugo site rebuilds automatically.
+- **UI & UX Highlights**: Responsive layouts, loading state spinners across all saving/publishing/deleting actions, Location metadata support (Name, Lat, Long) stored in Turso DB, public REST endpoints (`/api/microblogs`, `/api/gallery`), and live active Gallery management.
+
 
 ---
 

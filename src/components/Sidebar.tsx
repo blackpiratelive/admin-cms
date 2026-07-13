@@ -150,7 +150,6 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
           >
             <Image size={16} />
             <span>Gallery</span>
-            <span className="badge-placeholder">soon</span>
           </Link>
           <Link
             href="/uploads"

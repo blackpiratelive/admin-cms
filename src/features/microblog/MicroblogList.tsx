@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { type Microblog } from "@/db/schema";
 import { setMicroblogStatus, deleteMicroblog, deleteMicroblogsBatch } from "./actions";
-import { Search, Plus, Edit3, Trash2, Image as ImageIcon, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Search, Plus, Edit3, Trash2, Image as ImageIcon, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from "lucide-react";
 
 interface MicroblogListProps {
   initialItems: Microblog[];
@@ -33,6 +33,8 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
   // Pagination states (default 50 per page, configurable)
   const [currentPage, setCurrentPage] = useState(1);
@@ -67,17 +69,27 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
     paginatedItems.every((item) => selectedIds.includes(item.id));
 
   const handleStatusChange = async (id: string, newStatus: any) => {
-    await setMicroblogStatus(id, newStatus);
-    setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, status: newStatus } : item))
-    );
+    setUpdatingStatusId(id);
+    try {
+      await setMicroblogStatus(id, newStatus);
+      setItems((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, status: newStatus } : item))
+      );
+    } finally {
+      setUpdatingStatusId(null);
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this microblog entry?")) return;
-    await deleteMicroblog(id);
-    setItems((prev) => prev.filter((item) => item.id !== id));
-    setSelectedIds((prev) => prev.filter((item) => item !== id));
+    setDeletingId(id);
+    try {
+      await deleteMicroblog(id);
+      setItems((prev) => prev.filter((item) => item.id !== id));
+      setSelectedIds((prev) => prev.filter((item) => item !== id));
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,7 +157,7 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
               disabled={isDeleting}
               style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
             >
-              <Trash2 size={16} />
+              {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
               <span>Delete Selected ({selectedIds.length})</span>
             </button>
           )}
@@ -318,8 +330,13 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
                           onClick={() => handleDelete(item.id)}
                           className="btn btn-sm btn-danger"
                           title="Delete"
+                          disabled={deletingId === item.id}
                         >
-                          <Trash2 size={14} />
+                          {deletingId === item.id ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={14} />
+                          )}
                         </button>
                       </div>
                     </td>

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { saveMicroblog, deleteMicroblog, recalculateRelatedAction } from "./actions";
 import { type Microblog } from "@/db/schema";
 import { CloudinaryImageUploader } from "@/features/media/CloudinaryImageUploader";
-import { Save, Eye, Trash2, Globe, FileEdit, Archive, Upload, Image as ImageIcon, RefreshCw } from "lucide-react";
+import { Save, Eye, Trash2, Globe, FileEdit, Archive, Upload, Image as ImageIcon, RefreshCw, Loader2 } from "lucide-react";
 
 interface MicroblogEditorProps {
   initialData?: Microblog | null;
@@ -37,6 +37,7 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
   });
   const [lastAutosavedTime, setLastAutosavedTime] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [savingAction, setSavingAction] = useState<"draft" | "published" | "delete" | null>(null);
   const [isRefreshingRelated, setIsRefreshingRelated] = useState(false);
   const [activeTab, setActiveTab] = useState<"write" | "preview">("write");
   const [showUploader, setShowUploader] = useState(false);
@@ -46,8 +47,9 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
   const wordCount = contentMarkdown.trim() ? contentMarkdown.trim().split(/\s+/).length : 0;
 
   const handleSubmit = async (targetStatus?: "draft" | "published" | "archived") => {
-    setIsSaving(true);
     const finalStatus = targetStatus || status;
+    setIsSaving(true);
+    setSavingAction(finalStatus === "published" ? "published" : "draft");
     try {
       const result = await saveMicroblog({
         id,
@@ -81,6 +83,7 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
       alert("Error saving microblog post.");
     } finally {
       setIsSaving(false);
+      setSavingAction(null);
     }
   };
 
@@ -88,8 +91,14 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
     if (!id) return;
     if (!confirm("Are you sure you want to delete this microblog post?")) return;
     setIsSaving(true);
-    await deleteMicroblog(id);
-    router.push("/microblog");
+    setSavingAction("delete");
+    try {
+      await deleteMicroblog(id);
+      router.push("/microblog");
+    } finally {
+      setIsSaving(false);
+      setSavingAction(null);
+    }
   };
 
   const handleImageUploaded = (url: string) => {
@@ -202,8 +211,12 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
         <div style={{ display: "flex", gap: "8px" }}>
           {id && (
             <button type="button" onClick={handleDelete} className="btn btn-danger btn-sm" disabled={isSaving}>
-              <Trash2 size={14} />
-              <span>Delete</span>
+              {isSaving && savingAction === "delete" ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Trash2 size={14} />
+              )}
+              <span>{isSaving && savingAction === "delete" ? "Deleting..." : "Delete"}</span>
             </button>
           )}
           <button
@@ -212,8 +225,12 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
             className="btn btn-sm"
             disabled={isSaving}
           >
-            <Save size={14} />
-            <span>Save Draft</span>
+            {isSaving && savingAction === "draft" ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Save size={14} />
+            )}
+            <span>{isSaving && savingAction === "draft" ? "Saving..." : "Save Draft"}</span>
           </button>
           <button
             type="button"
@@ -221,8 +238,12 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
             className="btn btn-primary btn-sm"
             disabled={isSaving}
           >
-            <Globe size={14} />
-            <span>Publish Post</span>
+            {isSaving && savingAction === "published" ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Globe size={14} />
+            )}
+            <span>{isSaving && savingAction === "published" ? "Publishing..." : "Publish Post"}</span>
           </button>
         </div>
       </div>

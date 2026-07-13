@@ -22,6 +22,7 @@ import {
   Sliders,
   CheckCircle2,
   Trash2,
+  Loader2,
 } from "lucide-react";
 
 export type UploadStatus =
@@ -679,12 +680,21 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
                       type="button"
                       onClick={() => handleSavePhotoMetadata(activeItem)}
                       disabled={
-                        activeItem.status !== "UPLOADS_COMPLETE" && activeItem.status !== "THUMBNAIL_READY"
+                        (activeItem.status !== "UPLOADS_COMPLETE" && activeItem.status !== "THUMBNAIL_READY") ||
+                        (activeItem.status as string) === "SAVING_METADATA"
                       }
                       className="btn btn-primary"
                     >
-                      <Check size={16} />
-                      <span>Confirm & Save Photo Metadata</span>
+                      {(activeItem.status as string) === "SAVING_METADATA" ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Check size={16} />
+                      )}
+                      <span>
+                        {(activeItem.status as string) === "SAVING_METADATA"
+                          ? "Saving Photo Metadata..."
+                          : "Confirm & Save Photo Metadata"}
+                      </span>
                     </button>
                   )}
                 </div>
@@ -965,6 +975,56 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
                         }))
                       }
                     />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Location Name</label>
+                    <input
+                      type="text"
+                      className="text-input"
+                      placeholder="e.g. Puri Beach, Odisha"
+                      value={activeItem.form.locationName}
+                      onChange={(e) =>
+                        updateItem(activeItem.id, (prev) => ({
+                          ...prev,
+                          form: { ...prev.form, locationName: e.target.value },
+                        }))
+                      }
+                    />
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", minWidth: 0 }}>
+                    <div className="form-group" style={{ minWidth: 0 }}>
+                      <label className="form-label">Latitude</label>
+                      <input
+                        type="text"
+                        className="text-input"
+                        placeholder="19.8135"
+                        value={activeItem.form.latitude}
+                        onChange={(e) =>
+                          updateItem(activeItem.id, (prev) => ({
+                            ...prev,
+                            form: { ...prev.form, latitude: e.target.value },
+                          }))
+                        }
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ minWidth: 0 }}>
+                      <label className="form-label">Longitude</label>
+                      <input
+                        type="text"
+                        className="text-input"
+                        placeholder="85.8312"
+                        value={activeItem.form.longitude}
+                        onChange={(e) =>
+                          updateItem(activeItem.id, (prev) => ({
+                            ...prev,
+                            form: { ...prev.form, longitude: e.target.value },
+                          }))
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

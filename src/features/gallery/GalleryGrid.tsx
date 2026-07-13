@@ -11,6 +11,8 @@ import {
   Check,
   X,
   Sparkles,
+  MapPin,
+  Loader2,
 } from "lucide-react";
 
 interface GalleryGridProps {
@@ -23,6 +25,7 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
   const [selectedPhoto, setSelectedPhoto] = useState<GalleryPhoto | null>(null);
   const [editingPhoto, setEditingPhoto] = useState<GalleryPhoto | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [albumFilter, setAlbumFilter] = useState("all");
 
@@ -53,6 +56,7 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
       p.title.toLowerCase().includes(search.toLowerCase()) ||
       p.slug.toLowerCase().includes(search.toLowerCase()) ||
       (p.camera && p.camera.toLowerCase().includes(search.toLowerCase())) ||
+      (p.locationName && p.locationName.toLowerCase().includes(search.toLowerCase())) ||
       (p.description && p.description.toLowerCase().includes(search.toLowerCase()));
 
     const matchesAlbum = albumFilter === "all" || p.album === albumFilter;
@@ -175,14 +179,19 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Permanently delete this photo entry from the gallery?")) return;
-    const res = await deleteGalleryPhoto(id);
-    if (res.success) {
-      setPhotos((prev) => prev.filter((p) => p.id !== id));
-      if (selectedPhoto?.id === id) setSelectedPhoto(null);
-      if (editingPhoto?.id === id) setEditingPhoto(null);
-      if (onRefresh) onRefresh();
-    } else {
-      alert(res.error || "Failed to delete photo.");
+    setDeletingId(id);
+    try {
+      const res = await deleteGalleryPhoto(id);
+      if (res.success) {
+        setPhotos((prev) => prev.filter((p) => p.id !== id));
+        if (selectedPhoto?.id === id) setSelectedPhoto(null);
+        if (editingPhoto?.id === id) setEditingPhoto(null);
+        if (onRefresh) onRefresh();
+      } else {
+        alert(res.error || "Failed to delete photo.");
+      }
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -193,7 +202,7 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
         <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, minWidth: "200px" }}>
           <input
             type="text"
-            placeholder="Search photo titles, cameras, descriptions, slugs..."
+            placeholder="Search photo titles, cameras, locations, descriptions, slugs..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="search-input"
@@ -312,6 +321,15 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
                     </div>
                   )}
 
+                  {photo.locationName && (
+                    <div style={{ fontSize: "11px", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <MapPin size={11} />
+                      <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {photo.locationName}
+                      </span>
+                    </div>
+                  )}
+
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "auto", paddingTop: "8px" }}>
                     <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
                       {photo.width && photo.height ? `${photo.width} × ${photo.height}` : ""}
@@ -337,8 +355,13 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
                         }}
                         className="btn btn-sm btn-danger"
                         title="Delete photo"
+                        disabled={deletingId === photo.id}
                       >
-                        <Trash2 size={13} />
+                        {deletingId === photo.id ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={13} />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -426,6 +449,18 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
                   <strong>ISO:</strong> {selectedPhoto.iso || "N/A"}
                 </div>
               </div>
+
+              {(selectedPhoto.locationName || selectedPhoto.latitude || selectedPhoto.longitude) && (
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "var(--text-secondary)" }}>
+                  <MapPin size={14} style={{ color: "var(--accent)" }} />
+                  <span>
+                    <strong>Location:</strong> {selectedPhoto.locationName || "N/A"}
+                    {selectedPhoto.latitude && selectedPhoto.longitude
+                      ? ` (${selectedPhoto.latitude}, ${selectedPhoto.longitude})`
+                      : ""}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -570,7 +605,7 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
                 </div>
               </div>
 
-              {/* Technical EXIF */}
+              {/* Technical EXIF & Location */}
               <div style={{ display: "flex", flexDirection: "column", gap: "12px", minWidth: 0 }}>
                 <h4 style={{ fontSize: "13px", fontWeight: 700, borderBottom: "1px solid var(--border-color)", paddingBottom: "4px" }}>
                   Technical & Camera EXIF
@@ -647,6 +682,41 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
                     onChange={(e) => setEditForm((prev) => ({ ...prev, takenAt: e.target.value }))}
                   />
                 </div>
+
+                <div className="form-group">
+                  <label className="form-label">Location Name</label>
+                  <input
+                    type="text"
+                    className="text-input"
+                    placeholder="e.g. Puri Beach, Odisha"
+                    value={editForm.locationName}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, locationName: e.target.value }))}
+                  />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", minWidth: 0 }}>
+                  <div className="form-group" style={{ minWidth: 0 }}>
+                    <label className="form-label">Latitude</label>
+                    <input
+                      type="text"
+                      className="text-input"
+                      placeholder="19.8135"
+                      value={editForm.latitude}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, latitude: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ minWidth: 0 }}>
+                    <label className="form-label">Longitude</label>
+                    <input
+                      type="text"
+                      className="text-input"
+                      placeholder="85.8312"
+                      value={editForm.longitude}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, longitude: e.target.value }))}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -663,7 +733,11 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
                 className="btn btn-primary"
                 disabled={isSaving}
               >
-                <Check size={16} />
+                {isSaving ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Check size={16} />
+                )}
                 <span>{isSaving ? "Saving..." : "Save Changes"}</span>
               </button>
             </div>
@@ -673,3 +747,4 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
     </div>
   );
 }
+
