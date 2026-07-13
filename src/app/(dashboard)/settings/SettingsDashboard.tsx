@@ -225,7 +225,7 @@ export function SettingsDashboard({ cloudinaryImages }: SettingsDashboardProps) 
       .replace(/\s+/g, "-");
 
     // Extract and validate images
-    const rawImageNames = extractImageNames(contentMarkdown);
+    const rawImageNames = extractImageNames(rawContentMarkdown);
     const uniqueImageNames = Array.from(new Set(rawImageNames));
     
     const detectedImages: ParsedImportPost["detectedImages"] = [];
