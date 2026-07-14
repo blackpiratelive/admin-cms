@@ -1,0 +1,1098 @@
+# Architecture Evolution: Transform the Personal CMS into a Personal Knowledge Platform
+
+## Objective
+
+This document describes the next architectural evolution of the Personal CMS.
+
+The CMS is no longer just a content management system for a Hugo website.
+
+It should evolve into a **Personal Knowledge Platform** that manages, connects, enriches and publishes every aspect of my digital life while maintaining strict ownership boundaries between provider-owned data and personal metadata.
+
+The CMS should remain modular, scalable, provider-based, and entity-driven.
+
+The current architecture (Microblogs, Gallery, Sync Center, Libraries, Hugo Content Adapters, Turso, Cloudflare R2, Trakt, Last.fm, etc.) should remain unchanged unless specifically mentioned below.
+
+Everything in this document extends the existing architecture.
+Make sure no data loss from the database occurs. add migration scripts wherever necessary.
+
+---
+
+# Vision
+
+The CMS should become my personal operating system.
+
+External services remain the source of truth.
+
+The CMS imports, enriches, relates and publishes data.
+
+```text
+External Services
+
+Trakt
+Last.fm
+GitHub
+Steam
+Hevy
+OpenLibrary
+Garmin
+Future Providers
+
+↓
+
+Sync Center
+
+↓
+
+Normalize
+
+↓
+
+Turso
+
+↓
+
+Relationships
+
+↓
+
+Hugo Content Adapters
+
+↓
+
+Website
+```
+
+The website is only one consumer of the data.
+
+The CMS itself is the primary product.
+
+---
+
+# Core Design Philosophy
+
+Instead of building isolated modules, build interconnected entities.
+
+Current architecture:
+
+```text
+Gallery
+
+Movies
+
+Music
+
+Microblogs
+```
+
+Future architecture:
+
+```text
+Core Entities
+
+↓
+
+Content Modules
+
+↓
+
+Imported Libraries
+
+↓
+
+Relationships
+
+↓
+
+Website
+```
+
+Everything should connect naturally.
+
+---
+
+# Introduce Core Entities
+
+The following should become reusable entities shared across the CMS.
+
+## Location
+
+A reusable location object.
+
+Not just a string.
+
+Stores:
+
+* Name
+* Slug
+* Country
+* State
+* City
+* Latitude
+* Longitude
+* Elevation
+* Timezone
+* First Visited
+* Last Visited
+* Visit Count
+* Private Notes
+* Public Description
+* Tags
+* Visibility
+* Favorite
+
+Future metadata:
+
+Photography notes
+
+Parking
+
+Walking difficulty
+
+Weather notes
+
+Best season
+
+Best time of day
+
+Camera recommendations
+
+Personal rating
+
+---
+
+## Trip
+
+Trips group locations.
+
+Example:
+
+Japan 2028
+
+↓
+
+Contains
+
+Tokyo
+
+Kyoto
+
+Osaka
+
+Trips should connect to:
+
+Locations
+
+Photos
+
+Microblogs
+
+Notes
+
+Projects
+
+Future travel statistics.
+
+---
+
+## Project
+
+Projects become first-class entities.
+
+Metadata:
+
+Title
+
+Slug
+
+Description
+
+Repository
+
+Website
+
+Status
+
+Technologies
+
+Started
+
+Completed
+
+Visibility
+
+Connections:
+
+Microblogs
+
+Photos
+
+Blog Posts
+
+Deployments
+
+Notes
+
+Collections
+
+---
+
+## Collection
+
+Generic collections.
+
+A collection can contain:
+
+Movies
+
+TV Shows
+
+Books
+
+Artists
+
+Albums
+
+Tracks
+
+Photos
+
+Projects
+
+Notes
+
+Bookmarks
+
+Future entities
+
+Examples:
+
+Studio Ghibli
+
+Photography
+
+Top Movies
+
+Coding Music
+
+Favorites
+
+Collections must be reusable across all modules.
+
+---
+
+## Person
+
+Future reusable entity.
+
+Can represent:
+
+Authors
+
+Directors
+
+Actors
+
+Musicians
+
+Photographers
+
+Developers
+
+Should be referenced instead of duplicated.
+
+---
+
+## Tags
+
+Tags become shared entities.
+
+Not JSON arrays.
+
+A tag should connect multiple content types.
+
+Example:
+
+Photography
+
+↓
+
+Photos
+
+↓
+
+Microblogs
+
+↓
+
+Projects
+
+↓
+
+Notes
+
+↓
+
+Bookmarks
+
+↓
+
+Blog Posts
+
+---
+
+# Relationship Engine
+
+Avoid creating dozens of join tables.
+
+Instead introduce a generic relationship engine.
+
+Schema:
+
+relationships
+
+id
+
+source_type
+
+source_id
+
+target_type
+
+target_id
+
+relationship
+
+Examples:
+
+Photo
+
+taken_at
+
+Location
+
+Movie
+
+watched_at
+
+Location
+
+Photo
+
+belongs_to
+
+Project
+
+Microblog
+
+mentions
+
+Movie
+
+Book
+
+contains
+
+Quote
+
+Artist
+
+related_to
+
+Project
+
+Project
+
+references
+
+Blog
+
+The relationship engine should allow future entity types without schema redesign.
+
+---
+
+# Universal Activity Engine
+
+Every action performed inside the CMS should generate an activity.
+
+Examples:
+
+Microblog Published
+
+Photo Uploaded
+
+Movie Watched
+
+TV Show Completed
+
+Book Finished
+
+Artist Favorited
+
+Project Updated
+
+Collection Created
+
+Review Written
+
+Bookmark Added
+
+Location Created
+
+Trip Completed
+
+Deployment Triggered
+
+Sync Completed
+
+Activities should later power:
+
+Homepage timeline
+
+Dashboard widgets
+
+RSS feeds
+
+Public activity pages
+
+Future notifications
+
+---
+
+# Attachment System
+
+Replace module-specific image fields with a reusable attachment model.
+
+attachments
+
+id
+
+entity_type
+
+entity_id
+
+kind
+
+url
+
+mime
+
+width
+
+height
+
+metadata
+
+Examples:
+
+Project screenshots
+
+Movie custom poster
+
+Book cover override
+
+Blog hero image
+
+Gallery image
+
+Future videos
+
+Future PDFs
+
+The Gallery remains the media manager.
+
+The attachment system references media.
+
+---
+
+# Event Bus
+
+Move towards event-driven architecture.
+
+Instead of modules directly triggering actions.
+
+Example:
+
+Gallery Upload
+
+↓
+
+Event
+
+↓
+
+Deploy Hook
+
+↓
+
+Activity Log
+
+↓
+
+Search Index
+
+↓
+
+Notifications
+
+↓
+
+Analytics
+
+The event bus should remain internal.
+
+Future modules should publish events instead of directly calling dependent services.
+
+---
+
+# Job Queue
+
+Long-running tasks should become jobs.
+
+Examples:
+
+Sync Providers
+
+Image Processing
+
+Metadata Extraction
+
+Search Indexing
+
+Future AI tasks
+
+Deployments
+
+Future architecture:
+
+User
+
+↓
+
+Create Job
+
+↓
+
+Worker
+
+↓
+
+Database
+
+↓
+
+Completion Event
+
+Support:
+
+Queued
+
+Running
+
+Completed
+
+Failed
+
+Cancelled
+
+Retry
+
+Progress
+
+---
+
+# Search System
+
+Global search should search everything.
+
+Ctrl + K
+
+Search:
+
+Microblogs
+
+Gallery
+
+Movies
+
+TV Shows
+
+Books
+
+Artists
+
+Albums
+
+Tracks
+
+Projects
+
+Locations
+
+Trips
+
+Collections
+
+Quotes
+
+Notes
+
+Bookmarks
+
+Use fuzzy search.
+
+Results grouped by entity type.
+
+---
+
+# Command Palette
+
+Keyboard shortcut:
+
+Ctrl + K
+
+Actions:
+
+Create Microblog
+
+Upload Photos
+
+Sync Providers
+
+Deploy Website
+
+Create Project
+
+Create Collection
+
+Open Settings
+
+Open Locations
+
+Search Everything
+
+The CMS should be keyboard friendly.
+
+---
+
+# Settings Architecture
+
+Instead of feature-specific settings.
+
+Create a central Settings area.
+
+Sections:
+
+General
+
+Appearance
+
+Providers
+
+Storage
+
+Deployments
+
+Security
+
+Media
+
+Search
+
+Advanced
+
+Future modules plug into Settings instead of creating independent pages.
+
+---
+
+# Dashboard Evolution
+
+The Dashboard becomes the control center.
+
+Widgets:
+
+Deploy Status
+
+Storage Usage
+
+Sync Status
+
+Recent Activity
+
+Current Project
+
+Recently Uploaded Photos
+
+Recently Watched
+
+Currently Reading
+
+Currently Watching
+
+Recently Played
+
+Upcoming Tasks
+
+Recent Deployments
+
+Recent Errors
+
+Future analytics
+
+Widgets should be modular.
+
+---
+
+# Provider Philosophy
+
+External providers remain authoritative.
+
+Examples:
+
+Trakt
+
+Movies
+
+TV Shows
+
+Last.fm
+
+Music
+
+Hevy
+
+Workouts
+
+GitHub
+
+Repositories
+
+Steam
+
+Games
+
+Never duplicate provider logic.
+
+Store local copies.
+
+Allow CMS metadata.
+
+Never overwrite personal metadata during sync.
+
+---
+
+# Locations Everywhere
+
+Every module should optionally reference locations.
+
+Examples:
+
+Gallery
+
+↓
+
+Location
+
+Movie
+
+↓
+
+Location Watched
+
+Microblog
+
+↓
+
+Location
+
+Project
+
+↓
+
+Location
+
+Workout
+
+↓
+
+Gym
+
+Trip
+
+↓
+
+Locations
+
+Location becomes one of the most important entities in the system.
+
+---
+
+# Future Health Module
+
+Design with future support for:
+
+Hevy
+
+Workout history
+
+Exercises
+
+Sets
+
+Reps
+
+Personal Records
+
+Nutrition
+
+Daily summaries
+
+Calories
+
+Protein
+
+Carbs
+
+Fat
+
+Weight
+
+This module remains mostly private.
+
+---
+
+# Libraries Philosophy
+
+Libraries are not CRUD systems.
+
+They are personal knowledge libraries.
+
+Movies
+
+TV Shows
+
+Music
+
+Books
+
+Provider data is read-only.
+
+Only personal metadata is editable.
+
+Reviews
+
+Notes
+
+Tags
+
+Collections
+
+Visibility
+
+Favorites
+
+Connections
+
+---
+
+# Public vs Private
+
+Every module should support:
+
+Public
+
+Private
+
+Unlisted
+
+The CMS should manage both public website content and private personal knowledge.
+
+Not every module needs to appear on the public website.
+
+---
+
+# Cross-Module Connections
+
+Everything should be able to connect.
+
+Examples:
+
+Movie
+
+↓
+
+Location
+
+↓
+
+Trip
+
+↓
+
+Photos
+
+↓
+
+Microblog
+
+↓
+
+Review
+
+Artist
+
+↓
+
+Album
+
+↓
+
+Track
+
+↓
+
+Microblog
+
+↓
+
+Project
+
+↓
+
+Collection
+
+Photo
+
+↓
+
+Project
+
+↓
+
+Location
+
+↓
+
+Trip
+
+↓
+
+Microblog
+
+↓
+
+Camera
+
+↓
+
+Lens
+
+Project
+
+↓
+
+Repository
+
+↓
+
+Microblogs
+
+↓
+
+Deployments
+
+↓
+
+Gallery
+
+↓
+
+Notes
+
+↓
+
+Blog Posts
+
+These relationships should emerge naturally through the relationship engine.
+
+---
+
+# Scalability Goals
+
+The architecture should comfortably support:
+
+100,000+ Last.fm scrobbles
+
+Thousands of movies
+
+Thousands of TV episodes
+
+Tens of thousands of photos
+
+Thousands of notes
+
+Thousands of bookmarks
+
+Large project histories
+
+Many future providers
+
+The design should avoid assumptions that only a few hundred records will exist.
+
+---
+
+# Development Principles
+
+Always prefer:
+
+Reusable abstractions
+
+Entity-driven architecture
+
+Provider separation
+
+Strong typing
+
+Composition over duplication
+
+Event-driven workflows
+
+Background jobs for expensive operations
+
+Keyboard-first UX
+
+Fast search
+
+Dark mode first
+
+Minimal UI
+
+Scalable database design
+
+Avoid feature-specific hacks.
+
+Every new feature should integrate with the existing architecture.
+
+---
+
+# Long-Term Goal
+
+The finished application should not feel like a CMS.
+
+It should feel like a **personal operating system** and **knowledge graph**.
+
+It should know:
+
+* What I created
+* What I watched
+* What I listened to
+* What I photographed
+* Where I traveled
+* What I built
+* What I learned
+* How everything relates to everything else
+
+The Hugo website is simply one way of presenting this information.
+
+The CMS is the canonical source of personal knowledge, relationships, metadata and workflows, built on a clean, modular, extensible architecture that can evolve for many years without major redesigns.
+
+after implementing these you should update the ai handoff document, then commit and push. This you have to do always from now on.

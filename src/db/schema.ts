@@ -58,7 +58,15 @@ export const gallery = sqliteTable("gallery", {
 export const projects = sqliteTable("projects", {
   id: text("id").primaryKey(),
   name: text("name").notNull().unique(),
+  slug: text("slug"),
   description: text("description"),
+  repositoryUrl: text("repository_url"),
+  websiteUrl: text("website_url"),
+  status: text("status", { enum: ["active", "completed", "archived", "on_hold", "planned"] }).notNull().default("active"),
+  technologies: text("technologies").notNull().default("[]"),
+  startDate: text("start_date"),
+  completedDate: text("completed_date"),
+  visibility: text("visibility", { enum: ["public", "private", "unlisted"] }).notNull().default("public"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
@@ -71,6 +79,157 @@ export const todos = sqliteTable("todos", {
   priority: text("priority", { enum: ["low", "medium", "high"] }).notNull().default("medium"),
   completed: integer("completed").notNull().default(0),
   projectId: text("project_id"),
+  tags: text("tags").notNull().default("[]"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+// --- CORE KNOWLEDGE PLATFORM ENTITIES ---
+
+export const locations = sqliteTable("locations", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  country: text("country"),
+  state: text("state"),
+  city: text("city"),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  elevation: real("elevation"),
+  timezone: text("timezone"),
+  firstVisited: text("first_visited"),
+  lastVisited: text("last_visited"),
+  visitCount: integer("visit_count").notNull().default(1),
+  privateNotes: text("private_notes"),
+  publicDescription: text("public_description"),
+  tags: text("tags").notNull().default("[]"),
+  visibility: text("visibility", { enum: ["public", "private", "unlisted"] }).notNull().default("public"),
+  favorite: integer("favorite").notNull().default(0),
+  photographyNotes: text("photography_notes"),
+  parkingNotes: text("parking_notes"),
+  walkingDifficulty: text("walking_difficulty"),
+  weatherNotes: text("weather_notes"),
+  bestSeason: text("best_season"),
+  bestTimeOfDay: text("best_time_of_day"),
+  cameraRecommendations: text("camera_recommendations"),
+  personalRating: real("personal_rating"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const trips = sqliteTable("trips", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  slug: text("slug").notNull().unique(),
+  description: text("description"),
+  startDate: text("start_date"),
+  endDate: text("end_date"),
+  status: text("status", { enum: ["planned", "ongoing", "completed", "cancelled"] }).notNull().default("planned"),
+  visibility: text("visibility", { enum: ["public", "private", "unlisted"] }).notNull().default("public"),
+  favorite: integer("favorite").notNull().default(0),
+  tags: text("tags").notNull().default("[]"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const persons = sqliteTable("persons", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  role: text("role"), // author, director, actor, musician, photographer, developer
+  bio: text("bio"),
+  avatarUrl: text("avatar_url"),
+  websiteUrl: text("website_url"),
+  tags: text("tags").notNull().default("[]"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const tags = sqliteTable("tags", {
+  id: text("id").primaryKey(), // slug identifier
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  color: text("color"),
+  createdAt: text("created_at").notNull(),
+});
+
+export const entityTags = sqliteTable("entity_tags", {
+  id: text("id").primaryKey(), // ${tagId}_${entityType}_${entityId}
+  tagId: text("tag_id").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export const relationships = sqliteTable("relationships", {
+  id: text("id").primaryKey(),
+  sourceType: text("source_type").notNull(),
+  sourceId: text("source_id").notNull(),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id").notNull(),
+  relationship: text("relationship").notNull(), // 'taken_at', 'watched_at', 'belongs_to', 'mentions', 'contains', 'related_to', 'references'
+  createdAt: text("created_at").notNull(),
+});
+
+export const attachments = sqliteTable("attachments", {
+  id: text("id").primaryKey(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  kind: text("kind").notNull(), // 'screenshot', 'poster', 'cover', 'hero', 'gallery_ref', 'video', 'pdf', 'file'
+  url: text("url").notNull(),
+  mime: text("mime"),
+  width: integer("width"),
+  height: integer("height"),
+  metadataJson: text("metadata_json").notNull().default("{}"),
+  createdAt: text("created_at").notNull(),
+});
+
+export const jobs = sqliteTable("jobs", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),
+  payloadJson: text("payload_json").notNull().default("{}"),
+  status: text("status", { enum: ["queued", "running", "completed", "failed", "cancelled"] }).notNull().default("queued"),
+  progress: integer("progress").notNull().default(0),
+  errorMessage: text("error_message"),
+  resultJson: text("result_json").notNull().default("{}"),
+  attempts: integer("attempts").notNull().default(0),
+  maxAttempts: integer("max_attempts").notNull().default(3),
+  createdAt: text("created_at").notNull(),
+  startedAt: text("started_at"),
+  completedAt: text("completed_at"),
+});
+
+export const notes = sqliteTable("notes", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  slug: text("slug").notNull().unique(),
+  contentMarkdown: text("content_markdown").notNull(),
+  visibility: text("visibility", { enum: ["public", "private", "unlisted"] }).notNull().default("private"),
+  favorite: integer("favorite").notNull().default(0),
+  tags: text("tags").notNull().default("[]"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const bookmarks = sqliteTable("bookmarks", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  url: text("url").notNull(),
+  description: text("description"),
+  visibility: text("visibility", { enum: ["public", "private", "unlisted"] }).notNull().default("public"),
+  favorite: integer("favorite").notNull().default(0),
+  tags: text("tags").notNull().default("[]"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const quotes = sqliteTable("quotes", {
+  id: text("id").primaryKey(),
+  quote: text("quote").notNull(),
+  author: text("author"),
+  source: text("source"),
+  visibility: text("visibility", { enum: ["public", "private", "unlisted"] }).notNull().default("public"),
+  favorite: integer("favorite").notNull().default(0),
   tags: text("tags").notNull().default("[]"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
@@ -305,7 +464,7 @@ export const collections = sqliteTable("collections", {
 export const collectionItems = sqliteTable("collection_items", {
   id: text("id").primaryKey(), // ${collectionId}_${itemType}_${itemId}
   collectionId: text("collection_id").notNull(),
-  itemType: text("item_type").notNull(), // 'movie' | 'show' | 'artist' | 'album' | 'track' | 'book' | 'project' | 'photo'
+  itemType: text("item_type").notNull(), // 'movie' | 'show' | 'artist' | 'album' | 'track' | 'book' | 'project' | 'photo' | 'location' | 'trip' | 'note' | 'bookmark' | 'quote'
   itemId: text("item_id").notNull(),
   addedAt: text("added_at").notNull(),
 });
@@ -313,7 +472,7 @@ export const collectionItems = sqliteTable("collection_items", {
 // Activity Timeline Stream
 export const activities = sqliteTable("activities", {
   id: text("id").primaryKey(),
-  action: text("action").notNull(), // 'movie_watched', 'review_written', 'album_favorited', 'artist_tagged', 'show_completed', 'track_loved'
+  action: text("action").notNull(), // 'microblog_published', 'photo_uploaded', 'location_created', 'trip_completed', 'movie_watched', 'review_written', etc.
   entityType: text("entity_type").notNull(),
   entityId: text("entity_id").notNull(),
   title: text("title").notNull(),
@@ -328,6 +487,21 @@ export type GalleryPhoto = typeof gallery.$inferSelect;
 export type NewGalleryPhoto = typeof gallery.$inferInsert;
 export type Project = typeof projects.$inferSelect;
 export type Todo = typeof todos.$inferSelect;
+
+export type LocationRecord = typeof locations.$inferSelect;
+export type NewLocation = typeof locations.$inferInsert;
+export type TripRecord = typeof trips.$inferSelect;
+export type NewTrip = typeof trips.$inferInsert;
+export type PersonRecord = typeof persons.$inferSelect;
+export type NewPerson = typeof persons.$inferInsert;
+export type TagRecord = typeof tags.$inferSelect;
+export type EntityTagRecord = typeof entityTags.$inferSelect;
+export type RelationshipRecord = typeof relationships.$inferSelect;
+export type AttachmentRecord = typeof attachments.$inferSelect;
+export type JobRecord = typeof jobs.$inferSelect;
+export type NoteRecord = typeof notes.$inferSelect;
+export type BookmarkRecord = typeof bookmarks.$inferSelect;
+export type QuoteRecord = typeof quotes.$inferSelect;
 
 export type ProviderRecord = typeof providers.$inferSelect;
 export type SyncLogRecord = typeof syncLogs.$inferSelect;
@@ -370,6 +544,7 @@ export interface PasteItem {
   expiresAt?: string | null;
   createdAt: string;
 }
+
 
 
 

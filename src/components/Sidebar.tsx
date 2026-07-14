@@ -24,6 +24,8 @@ import {
   RefreshCw,
   Music,
   Folder,
+  MapPin,
+  Compass,
 } from "lucide-react";
 
 export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
@@ -241,6 +243,26 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
         </div>
 
         <div className="nav-section">
+          <div className="nav-section-title">Entities</div>
+          <Link
+            href="/locations"
+            className={`nav-link ${isActive("/locations") ? "active" : ""}`}
+            onClick={handleLinkClick}
+          >
+            <MapPin size={16} />
+            <span>Locations</span>
+          </Link>
+          <Link
+            href="/trips"
+            className={`nav-link ${isActive("/trips") ? "active" : ""}`}
+            onClick={handleLinkClick}
+          >
+            <Compass size={16} />
+            <span>Trips</span>
+          </Link>
+        </div>
+
+        <div className="nav-section">
           <Link
             href="/sync"
             className={`nav-link ${isActive("/sync") ? "active" : ""}`}
@@ -259,7 +281,6 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
           >
             <Settings size={16} />
             <span>Settings</span>
-            <span className="badge-placeholder">soon</span>
           </Link>
         </div>
       </div>

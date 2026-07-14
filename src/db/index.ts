@@ -369,6 +369,177 @@ export async function ensureDbInitialized(): Promise<void> {
         );
       `);
 
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS locations (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          slug TEXT NOT NULL UNIQUE,
+          country TEXT,
+          state TEXT,
+          city TEXT,
+          latitude REAL,
+          longitude REAL,
+          elevation REAL,
+          timezone TEXT,
+          first_visited TEXT,
+          last_visited TEXT,
+          visit_count INTEGER NOT NULL DEFAULT 1,
+          private_notes TEXT,
+          public_description TEXT,
+          tags TEXT NOT NULL DEFAULT '[]',
+          visibility TEXT NOT NULL DEFAULT 'public',
+          favorite INTEGER NOT NULL DEFAULT 0,
+          photography_notes TEXT,
+          parking_notes TEXT,
+          walking_difficulty TEXT,
+          weather_notes TEXT,
+          best_season TEXT,
+          best_time_of_day TEXT,
+          camera_recommendations TEXT,
+          personal_rating REAL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS trips (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          slug TEXT NOT NULL UNIQUE,
+          description TEXT,
+          start_date TEXT,
+          end_date TEXT,
+          status TEXT NOT NULL DEFAULT 'planned',
+          visibility TEXT NOT NULL DEFAULT 'public',
+          favorite INTEGER NOT NULL DEFAULT 0,
+          tags TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS persons (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          slug TEXT NOT NULL UNIQUE,
+          role TEXT,
+          bio TEXT,
+          avatar_url TEXT,
+          website_url TEXT,
+          tags TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS tags (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL UNIQUE,
+          description TEXT,
+          color TEXT,
+          created_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS entity_tags (
+          id TEXT PRIMARY KEY,
+          tag_id TEXT NOT NULL,
+          entity_type TEXT NOT NULL,
+          entity_id TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS relationships (
+          id TEXT PRIMARY KEY,
+          source_type TEXT NOT NULL,
+          source_id TEXT NOT NULL,
+          target_type TEXT NOT NULL,
+          target_id TEXT NOT NULL,
+          relationship TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS attachments (
+          id TEXT PRIMARY KEY,
+          entity_type TEXT NOT NULL,
+          entity_id TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          url TEXT NOT NULL,
+          mime TEXT,
+          width INTEGER,
+          height INTEGER,
+          metadata_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS jobs (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL,
+          payload_json TEXT NOT NULL DEFAULT '{}',
+          status TEXT NOT NULL DEFAULT 'queued',
+          progress INTEGER NOT NULL DEFAULT 0,
+          error_message TEXT,
+          result_json TEXT NOT NULL DEFAULT '{}',
+          attempts INTEGER NOT NULL DEFAULT 0,
+          max_attempts INTEGER NOT NULL DEFAULT 3,
+          created_at TEXT NOT NULL,
+          started_at TEXT,
+          completed_at TEXT
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS notes (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          slug TEXT NOT NULL UNIQUE,
+          content_markdown TEXT NOT NULL,
+          visibility TEXT NOT NULL DEFAULT 'private',
+          favorite INTEGER NOT NULL DEFAULT 0,
+          tags TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS bookmarks (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          url TEXT NOT NULL,
+          description TEXT,
+          visibility TEXT NOT NULL DEFAULT 'public',
+          favorite INTEGER NOT NULL DEFAULT 0,
+          tags TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS quotes (
+          id TEXT PRIMARY KEY,
+          quote TEXT NOT NULL,
+          author TEXT,
+          source TEXT,
+          visibility TEXT NOT NULL DEFAULT 'public',
+          favorite INTEGER NOT NULL DEFAULT 0,
+          tags TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
       // Add columns to existing installations dynamically
       try {
         await client.execute(`ALTER TABLE microblogs ADD COLUMN images TEXT NOT NULL DEFAULT '[]';`);
@@ -380,6 +551,31 @@ export async function ensureDbInitialized(): Promise<void> {
 
       try {
         await client.execute(`ALTER TABLE gallery ADD COLUMN short_url TEXT;`);
+      } catch (err) {}
+
+      try {
+        await client.execute(`ALTER TABLE projects ADD COLUMN slug TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE projects ADD COLUMN repository_url TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE projects ADD COLUMN website_url TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE projects ADD COLUMN status TEXT NOT NULL DEFAULT 'active';`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE projects ADD COLUMN technologies TEXT NOT NULL DEFAULT '[]';`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE projects ADD COLUMN start_date TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE projects ADD COLUMN completed_date TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE projects ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public';`);
       } catch (err) {}
     } catch (err) {
       console.error("Auto DB initialization error:", err);

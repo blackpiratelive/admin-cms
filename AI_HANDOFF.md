@@ -1,6 +1,6 @@
-# AI Handoff & Architecture Blueprint
+# AI Handoff & Personal Knowledge Platform Architecture Blueprint
 
-> **Notice to Future AI Assistants**: Read this document first to immediately understand the repository structure, schema, conventions, and design philosophy without spending tokens parsing the entire codebase.
+> **Notice to Future AI Assistants**: Read this document first to immediately understand the repository structure, schema, conventions, and Personal Knowledge Platform (PKP) design philosophy without spending tokens parsing the entire codebase.
 >
 > 📖 **Hugo Integration**: For instructions on plugging Hugo Content Adapters to this CMS, read [HUGO_CONTENT_ADAPTER.md](file:///home/dog/git/admin-cms/HUGO_CONTENT_ADAPTER.md).
 
@@ -8,14 +8,12 @@
 
 ## 1. High-Level Summary
 
-This repository is **`admin-cms`**, a private, single-user administrative dashboard built with Next.js App Router for managing content published to a Hugo website via Turso (libSQL).
+This repository is **`admin-cms`**, a private, single-user **Personal Knowledge Platform** built with Next.js App Router for managing, connecting, enriching, and publishing every aspect of digital life to a Hugo website via Turso (libSQL).
 
-- **Strict Separation of Concerns**: Hugo site is read-only static; CMS is the sole writer to Turso.
-- **Content Delivery**: Hugo fetches directly from Turso using Hugo Content Adapters at build time. No markdown files or JSON files are output to disk or committed to Git.
-- **Workflow**: Create/Edit Post -> Save to Turso -> Status set to `published` -> Trigger `VERCEL_DEPLOY_HOOK` -> Hugo site rebuilds automatically.
-- **UI & UX Highlights**: Responsive layouts, loading state spinners across all saving/publishing/deleting actions, Location metadata support (Name, Lat, Long) stored in Turso DB, public REST endpoints (`/api/microblogs`, `/api/gallery`), live active Gallery management, and real-time Cloudflare R2 storage usage & plan limits monitor on the Settings page.
-
-
+- **Strict Separation of Concerns**: Hugo site is read-only static; CMS is the sole writer to Turso. Provider data (Trakt, Last.fm) is owned by external providers, while CMS personal metadata (ratings, notes, tags, reviews, visibility) belongs exclusively to the CMS.
+- **Entity-Driven Interconnected Architecture**: Reusable core entities (Locations, Trips, Projects, Persons, Tags, Collections) connected seamlessly via a generic Relationship Engine and Attachment System without redundant join tables.
+- **Workflow**: Create/Edit Post or Media -> Save to Turso -> Status set to `published` -> Trigger `VERCEL_DEPLOY_HOOK` -> Hugo site rebuilds automatically.
+- **UI & UX Highlights**: Keyboard-first Command Palette (`Ctrl+K`) for global fuzzy search across all entities and quick actions, central Settings Hub (`/settings`), Locations (`/locations`) & Trips (`/trips`) management, real-time R2 usage monitors, and responsive themes.
 
 ---
 
@@ -27,224 +25,113 @@ admin-cms/
 │   ├── app/
 │   │   ├── (auth)/login/        # Password login page
 │   │   ├── (dashboard)/         # Protected dashboard layout & routes
-│   │   │   ├── page.tsx         # Dashboard overview with metrics
+│   │   │   ├── page.tsx         # Control center overview with modular widgets
 │   │   │   ├── microblog/       # Microblog list & CRUD editor routes
-│   │   │   ├── todos/           # Todo list and project management route
-│   │   │   └── [placeholder]/   # Modular placeholder pages (blog, books, etc.)
+│   │   │   ├── todos/           # Todo list & Project management route
+│   │   │   ├── locations/       # Reusable geographical locations entity page
+│   │   │   ├── trips/           # Travel itineraries and trip grouping route
+│   │   │   ├── settings/        # Centralized Settings Hub (General, Storage, Providers, etc.)
+│   │   │   ├── libraries/       # Personal Media Libraries (Movies, TV, Music, Collections)
+│   │   │   └── sync/            # Sync Center integration hub
 │   │   ├── globals.css          # Design tokens, themes (HN Orange, Dark, Mono, Teal)
 │   │   └── layout.tsx           # Root layout & ThemeProvider
-│   ├── components/              # Shared UI (Header, Sidebar, DeployWidget, etc.)
+│   ├── components/              # Shared UI (Header, Sidebar, CommandPalette, DeployWidget)
 │   ├── db/
-│   │   ├── schema.ts            # Drizzle table schemas (microblogs, etc.)
-│   │   └── index.ts             # Turso / libSQL client & auto-initializer
+│   │   ├── schema.ts            # Drizzle table schemas for all entities and providers
+│   │   └── index.ts             # Turso / libSQL client & auto-initializer DDL
 │   ├── features/
+│   │   ├── activity/            # Universal Activity Engine logging & timeline
+│   │   ├── relationships/       # Generic Relationship Engine (connects any two entities)
+│   │   ├── attachments/         # Reusable Attachment System for media & files
+│   │   ├── jobs/                # Background Job Queue Engine (queued, running, completed)
+│   │   ├── search/              # Universal fuzzy multi-table search engine
+│   │   ├── locations/           # Location CRUD actions & metadata handlers
+│   │   ├── trips/               # Trip management server actions
 │   │   ├── auth/                # Session cookies, password check, login server actions
 │   │   ├── microblog/           # Microblog actions, Zod validation, Editor & List
-│   │   │   ├── todos/           # Todo CRUD actions and TodoDashboard UI
-│   │   ├── media/               # StorageProvider interface (Local, S3, R2, Vercel Blob)
-│   │   └── deploy/              # Manual Vercel deploy trigger action
+   │   ├── libraries/           # Personal media libraries & metadata preservation
+│   │   └── sync/                # Extensible Provider integration registry
 │   ├── lib/
+│   │   ├── event-bus.ts         # Internal event pub-sub bus
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
 ├── tests/                       # Vitest unit test suite
 ├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
-├── drizzle.config.ts            # Drizzle kit configuration
-└── prompt.txt                   # Original prompt & requirements
+├── arch.txt                     # Architecture Evolution Plan
+└── drizzle.config.ts            # Drizzle kit configuration
 ```
 
 ---
 
 ## 3. Database Schema (`src/db/schema.ts`)
 
-### `microblogs`
-- `id` (text, primary key): UUID string
-- `slug` (text, unique, not null): URL slug auto-generated from markdown or custom
-- `contentMarkdown` (text, not null): Raw markdown content
-- `status` (text, enum: `'draft' | 'published' | 'scheduled' | 'archived'`): Status state
-- `tags` (text, default `'[]'`): JSON string array of tags
-- `coverImageUrl` (text, nullable): External URL for cover media
-- `shortUrl` (text, nullable): RapidLink short URL generated for post
-- `createdAt` (text, ISO timestamp)
-- `updatedAt` (text, ISO timestamp)
-- `publishedAt` (text, nullable ISO timestamp)
-- Both `createdAt` and `publishedAt` can be adjusted in the Microblog editor using native browser `datetime-local` controls. Values are stored as ISO timestamps.
+### `locations`
+- `id` (text, primary key): `loc_${timestamp}_${rand}`
+- `name` (text, not null), `slug` (text, unique, not null)
+- `country`, `state`, `city`, `latitude`, `longitude`, `elevation`, `timezone`
+- `firstVisited`, `lastVisited` (ISO timestamp strings), `visitCount` (integer, default 1)
+- `privateNotes`, `publicDescription`, `tags` (JSON string array)
+- `visibility` (`public` | `private` | `unlisted`), `favorite` (0 or 1)
+- `photographyNotes`, `parkingNotes`, `walkingDifficulty`, `weatherNotes`, `bestSeason`, `bestTimeOfDay`, `cameraRecommendations`, `personalRating`
 
-### `gallery`
-- `id` (text, primary key): UUID string
-- `title` (text, not null): Photo title
-- `slug` (text, unique, not null): URL slug
-- `description` (text, nullable): Caption or notes
-- `originalUrl`, `largeUrl`, `mediumUrl`, `thumbnailUrl` (text, not null): Cloudflare R2 / local derivative URLs
-- `width`, `height`, `fileSize`, `mimeType` (number/string, nullable): Image file specifications
-- `camera`, `lens`, `focalLength`, `aperture`, `shutterSpeed`, `iso`, `takenAt` (nullable EXIF technical metadata)
-- `latitude`, `longitude`, `locationName` (nullable GPS location metadata)
-- `visibility` (enum: `'public' | 'private' | 'unlisted'`, default `'public'`)
-- `featured` (integer: `1` or `0`, default `0`)
-- `tags` (text, JSON array string): Filter tags
-- `album` (text, nullable): Portfolio collection/album name
-- `shortUrl` (text, nullable): RapidLink short URL generated for photo (especially useful for unlisted photos)
-- `createdAt`, `updatedAt` (ISO timestamps)
+### `trips`
+- `id` (text, primary key): `trip_${timestamp}_${rand}`
+- `title` (text, not null), `slug` (text, unique, not null), `description`
+- `startDate`, `endDate` (date strings)
+- `status` (`planned` | `ongoing` | `completed` | `cancelled`)
+- `visibility` (`public` | `private` | `unlisted`), `favorite` (0 or 1), `tags` (JSON string array)
 
-### `links` (RapidLink URL Shortener)
-- `slug` (text, primary key): Short URL path identifier (e.g. `my-link`)
-- `url` (text, not null): Destination target URL
-- `createdAt` (text, ISO timestamp)
-- `clickCount` (integer, default `0`): Aggregated redirection clicks
-- `hostname` (text, not null): Configured custom domain
-- `password` (text, nullable): Optional bcrypt-hashed protection password
+### `relationships` (Generic Relationship Engine)
+- `id` (text, primary key): `rel_${timestamp}_${rand}`
+- `sourceType` (text, e.g. `photo`, `movie`, `microblog`)
+- `sourceId` (text)
+- `targetType` (text, e.g. `location`, `project`, `trip`)
+- `targetId` (text)
+- `relationship` (text, e.g. `taken_at`, `watched_at`, `belongs_to`, `mentions`, `contains`, `references`)
 
-### `domains`
-- `hostname` (text, primary key): Custom domain name (e.g. `lnk.to`)
-- `addedAt` (text, ISO timestamp)
+### `attachments` (Reusable Media Attachment System)
+- `id` (text, primary key): `att_${timestamp}_${rand}`
+- `entityType` (text), `entityId` (text)
+- `kind` (text: `screenshot` | `poster` | `cover` | `hero` | `gallery_ref` | `video` | `pdf` | `file`)
+- `url` (text, not null), `mime`, `width`, `height`, `metadataJson`
 
-### `pastes` (Markdown Pastebin)
-- `slug` (text, primary key): Unique paste path identifier (e.g. `p/abc123xyz`)
-- `content` (text, not null): Markdown or plain text code content
-- `hostname` (text, not null): Configured domain
-- `password` (text, nullable): Optional bcrypt-hashed password
-- `expiresAt` (text, nullable ISO timestamp): Automatic expiry timestamp
-- `createdAt` (text, ISO timestamp)
+### `jobs` (Background Task Queue)
+- `id` (text, primary key): `job_${timestamp}_${rand}`
+- `type` (text: `sync_provider` | `image_processing` | `search_indexing` | `deploy_site`)
+- `payloadJson`, `status` (`queued` | `running` | `completed` | `failed` | `cancelled`)
+- `progress` (0-100), `errorMessage`, `resultJson`, `attempts`, `maxAttempts`
 
-### `projects` and `todos` (Personal task management)
-- `projects`: `id`, unique `name`, optional `description`, and creation/update timestamps.
-- `todos`: `id`, required `title`, optional `description` and `dueDate`, priority (`low`, `medium`, or `high`), `completed` integer flag, optional `projectId`, JSON-string `tags`, and creation/update timestamps.
-- The Todo dashboard at `/todos` supports task creation/editing, completion, deletion, project creation/deletion, tag suggestions, and filtering by completion state, project, and tag. Its composer initially shows only the “What needs doing?” input and expands to show task options when text is entered. Deleting a project leaves its tasks intact but unassigned.
+### `projects` and `todos`
+- `projects`: `id`, unique `name`, `slug`, `description`, `repositoryUrl`, `websiteUrl`, `status` (`active` | `completed` | `archived` | `on_hold` | `planned`), `technologies` (JSON array), `startDate`, `completedDate`, `visibility` (`public` | `private` | `unlisted`).
+- `todos`: `id`, required `title`, optional `description` and `dueDate`, priority (`low` | `medium` | `high`), `completed` flag, `projectId`, JSON-string `tags`.
 
-### Sync Center Tables (`providers`, `sync_logs`, Trakt & Last.fm tables)
-- `providers`: `id` (slug primary key), `name`, `slug`, `enabled`, `connected`, `status` (`connected` | `disconnected` | `syncing` | `error` | `disabled`), `lastSync`, `lastSuccess`, `configurationJson`, `createdAt`, `updatedAt`.
-- `sync_logs`: `id`, `provider`, `startedAt`, `finishedAt`, `duration`, `status` (`success` | `failed` | `in_progress` | `partial`), `itemsCreated`, `itemsUpdated`, `itemsDeleted`, `errorMessage`, `metadataJson`.
-- `trakt_movies`: `traktId` (PK), `tmdbId`, `title`, `year`, `overview`, `runtime`, `rating`, `watchedAt`, `genres`, `posterPath`, `backdropPath`. Personal metadata preserved on sync: `favorite`, `notes`, `visibility`, `customTags`, `review`.
-- `trakt_shows`: `traktId` (PK), `tmdbId`, `title`, `overview`, `status`, `year`, `posterPath`, `backdropPath`. Personal metadata preserved on sync: `favorite`, `notes`, `visibility`, `customTags`, `review`.
-- `trakt_episodes`: `id` (PK `${showTraktId}_s${season}_e${ep}`), `showTraktId`, `episodeNumber`, `seasonNumber`, `title`, `watchedAt`, `rating`.
-- `lastfm_scrobbles`: `id` (PK `${uts}_${artist}_${track}`), `lastfmId`, `artist`, `album`, `track`, `playedAt`, `mbid`, `createdAt`.
-- `lastfm_artists`: `artistName` (PK), `playCount`, `lastPlayed`, `firstPlayed`. Personal metadata preserved: `favorite`, `notes`, `tags`, `hidden`, `review`.
-- `lastfm_albums`: `id` (PK `${artist}:::${albumName}`), `albumName`, `artist`, `playCount`. Personal metadata preserved: `favorite`, `notes`, `tags`, `hidden`, `review`.
-- `lastfm_tracks`: `id` (PK `${artist}:::${trackName}`), `trackName`, `artist`, `playCount`. Personal metadata preserved: `favorite`, `notes`, `tags`, `hidden`, `review`.
+### Core Content Tables
+- `microblogs`: `id`, `slug`, `contentMarkdown`, `status`, `tags`, `coverImageUrl`, `images`, `shortUrl`, `createdAt`, `updatedAt`, `publishedAt`.
+- `gallery`: `id`, `title`, `slug`, `description`, `originalUrl`, `largeUrl`, `mediumUrl`, `thumbnailUrl`, `width`, `height`, `fileSize`, `mimeType`, `camera`, `lens`, `focalLength`, `aperture`, `shutterSpeed`, `iso`, `takenAt`, `latitude`, `longitude`, `locationName`, `visibility`, `featured`, `tags`, `album`, `shortUrl`.
 
 ---
 
-## 4. Auth & Middleware Design
+## 4. Universal Search & Command Palette (`Ctrl+K`)
 
-- **Single Password**: Defined by `ADMIN_PASSWORD` env variable (fallback `admin123` in dev).
-- **Session**: Enthralling JWT stored in `cms_session` HTTP-only cookie signed with `jose`.
-- **Middleware**: Intercepts request paths except `/login`, public Hugo Content Adapter APIs (`/api/microblogs`, `/api/gallery`), and static assets. Redirects unauthorized requests to `/login`.
-
----
-
-## 5. Sync Center Architecture (`src/features/sync/`)
-
-The **Sync Center** (`/sync`) manages all external integrations through a provider-based abstraction model.
-
-### Provider Interface (`ISyncProvider`)
-All integrations implement `ISyncProvider` (inheriting from `BaseSyncProvider`):
-- `connect(config)` & `disconnect()`
-- `sync(options)` (supports `incremental`, `full`, and `batch` modes)
-- `cancelSync()` (aborts active sync executions gracefully and updates audit log state)
-- `getStatus()` & `getStatistics()`
-- `validateConfiguration(config)` & `testConnection(config)`
-
-### Provider Registry (`registry.ts`)
-Providers self-register with `syncRegistry`. Adding a future provider (e.g. GitHub, Steam, Hevy, OpenLibrary) requires creating a provider class and registering it in `registry.ts`—no changes to core Sync Center UI or server actions are needed.
-
-### Initial Integration Providers
-1. **🎬 Trakt**: Configured via Trakt Username, Client ID, and Client Secret (obtained from trakt.tv/oauth/applications). Supports **Incremental Sync** (fetching watched summary lists) and **Batch History Backfill** (paginating historical watch activity pages). Uses `onConflictDoNothing()` to prevent duplicate constraint errors. If `TMDB_API_KEY` environment variable is configured in Vercel, the provider automatically fetches canonical poster and backdrop paths from TMDB API (`api.themoviedb.org/3`) using TMDB IDs. Preserves CMS-only personal metadata (`favorite`, `notes`, `visibility`, `customTags`, `review`).
-2. **🎵 Last.fm**: Imports listening history, scrobbles, top artists, top albums, and top tracks. Uses in-memory duplicate tracking sets and Drizzle `onConflictDoNothing()` queries to guarantee zero `SQLITE_CONSTRAINT` unique primary key conflicts during high-volume batch history imports. To accommodate Vercel's 10-second serverless execution limits with large accounts (65k+ scrobbles), Last.fm supports **Incremental Sync** (fetching latest activity) and **Batch History Backfill** (paginated pagination window). Preserves CMS personal metadata (`favorite`, `notes`, `tags`, `hidden`, `review`).
+- Accessible via the top header or keyboard shortcut `Ctrl+K`.
+- Executes fuzzy multi-table searches across Microblogs, Gallery, Movies, TV Shows, Music, Projects, Locations, Trips, Collections, Notes, Bookmarks, Quotes.
+- Offers instant Quick Actions: Create Microblog, Upload Photos, Open Locations, Create Project/Task, Sync Providers, System Settings.
 
 ---
 
-## 6. Personal Libraries System (`src/features/libraries/`)
+## 5. Event Bus & Activity Stream Architecture
 
-The **Libraries** section manages and enriches media synced from external providers (Trakt for Movies & TV Shows, Last.fm for Music).
-
-### Strict Separation Architecture
-- **Provider Data**: `trakt_movies`, `trakt_shows`, `trakt_episodes`, `lastfm_artists`, `lastfm_albums`, `lastfm_tracks`, `lastfm_scrobbles`. Provider tables store canonical data and are updated during syncs.
-- **CMS Metadata Tables**: `movie_metadata`, `tv_show_metadata`, `artist_metadata`, `album_metadata`, `track_metadata`. Personal ratings, notes, reviews, tags, visibility, and favorites belong exclusively to the CMS and can NEVER be overwritten by provider syncs.
-- **Collections System**: `collections` & `collection_items` allow grouping Movies, TV Shows, Artists, Albums, and Tracks into generic curated collections.
-- **Activity Timeline**: `activities` logs action events (`movie_watched`, `review_written`, `album_favorited`, `artist_tagged`, `show_completed`, `track_loved`) for future timeline streams.
-- **Global Search**: Keyboard shortcut `Ctrl + K` triggers fuzzy search across Movies, TV Shows, Artists, Albums, and Tracks.
+- **Internal Event Bus** (`src/lib/event-bus.ts`): Allows modules to publish system events (`entity.created`, `photo.uploaded`, `sync.completed`, etc.) without hard coupling dependencies.
+- **Universal Activity Log** (`src/features/activity/`): Logs user and system activity events automatically for dashboard widgets, timeline feeds, and audit trails.
 
 ---
 
-## 7. Extensibility Guidelines for Future AI Agents
-
-To add a new content type or provider:
-1. **New Content Module**:
-   - Database Schema in `src/db/schema.ts`
-   - Feature folder in `src/features/[feature_name]/`
-   - App Route in `src/app/(dashboard)/[feature_name]/page.tsx`
-2. **New Sync Integration Provider**:
-   - Create provider class in `src/features/sync/providers/[provider_slug]/index.ts` extending `BaseSyncProvider`
-   - Register provider instance in `src/features/sync/registry.ts`
-
----
-
-## 7. Cloudflare R2 Configuration via Vercel Environment Variables
-
-The High-Performance Photo Gallery upload system utilizes browser-side Web Workers to resize photographs and uploads them directly to Cloudflare R2 via pre-signed S3 URLs.
-
-To configure Cloudflare R2 in Vercel:
-
-1. **Obtain Credentials from Cloudflare Dashboard**:
-   - Go to **Cloudflare Dashboard** -> **R2** -> **Manage R2 API Tokens**.
-   - Create an API Token with **Object Read & Write** permissions for your R2 bucket.
-   - Note down the `Access Key ID`, `Secret Access Key`, and your Cloudflare `Account ID` (found in the R2 Overview sidebar).
-
-2. **Add Environment Variables in Vercel**:
-   In your Vercel Project Settings under **Settings** -> **Environment Variables**, add:
-
-   | Variable | Example / Description |
-   | --- | --- |
-   | `R2_ACCOUNT_ID` | `abc123def4567890ghijkl` (Cloudflare Account ID) |
-   | `R2_ACCESS_KEY_ID` | `1a2b3c4d5e6f7g8h9i0j` (R2 API Token Access Key) |
-   | `R2_SECRET_ACCESS_KEY` | `9876543210fedcba` (R2 API Token Secret) |
-   | `R2_BUCKET_NAME` | `gallery` (Name of your Cloudflare R2 bucket) |
-   | `R2_PUBLIC_DOMAIN` | `https://media.yourdomain.com` or `https://pub-id.r2.dev` |
-
-3. **CORS Configuration on R2 Bucket** (Required for Direct Browser Uploads):
-   In Cloudflare R2 -> Select Bucket -> **Settings** -> **CORS Policy**, add:
-   ```json
-   [
-     {
-       "AllowedOrigins": ["https://your-cms.vercel.app", "http://localhost:3000"],
-       "AllowedMethods": ["GET", "PUT", "HEAD"],
-       "AllowedHeaders": ["*"],
-       "ExposeHeaders": ["ETag"],
-       "MaxAgeSeconds": 3600
-     }
-   ]
-   ```
-
-> 💡 **Local Development Fallback**: If R2 environment variables are omitted, the CMS automatically falls back to an authenticated local mock upload endpoint (`/api/gallery/local-upload`) so local testing works out of the box.
-
----
-
-## 8. RapidLink URL Shortener & Pastebin Integration
-
-The `/links` management tab in the CMS connects exclusively via HTTP REST API to your standalone `minimal-url-shortner` deployment.
-
-To connect your deployed `minimal-url-shortner` instance, add these Environment Variables in Vercel:
-
-| Variable | Description / Example |
-| --- | --- |
-| `RAPIDLINK_API_URL` | Base URL of your deployed shortener (e.g., `https://rapidlink.example.com`) |
-| `RAPIDLINK_API_KEY` | Dashboard secret password configured as `DASHBOARD_PASSWORD` in your shortener app |
-
-The CMS communicates with the following endpoints using `Authorization: Bearer <RAPIDLINK_API_KEY>` headers:
-- `GET /api/links` / `POST /api/shorten` / `PUT /api/links` / `DELETE /api/links`
-- `GET /api/pastes` / `POST /api/create-paste` / `DELETE /api/pastes`
-- `GET /api/domains` / `POST /api/add-domain` / `DELETE /api/domains`
-
-### Public Gallery Share Links (`/gallery/[slug]`)
-- Clicking **"Shorten URL"** or **"Share"** in the Photo Gallery constructs the target public view URL (`https://admin.blackpiratex.com/gallery/[slug]`), shortens it via `RAPIDLINK_API_URL`, and automatically saves `shortUrl` to the CMS Turso DB (`gallery` table).
-- The `/gallery/[slug]` route is configured as a public, unauthenticated viewer route in `src/middleware.ts`, displaying full high-res photographs, EXIF metadata, camera settings, and location details without requiring login.
-
-
----
-
-## 9. How to Run Commands & Tests
+## 6. How to Run Commands & Tests
 
 - **Development Server**: `npm run dev`
 - **Build Verification**: `npm run build`
 - **Execute Tests**: `npm run test`
-- **Drizzle DB Push**: `npm run db:push`
+- **Type Check**: `npx tsc --noEmit`
+- **Drizzle DB Schema Push**: `npm run db:push`
+
 

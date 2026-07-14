@@ -59,7 +59,24 @@ export function TodoDashboard({ initialTodos, initialProjects }: { initialTodos:
     event.preventDefault();
     const result = await saveProject({ name: projectName, description: projectDescription });
     if (!result.success) return alert(result.error);
-    setProjects((current) => [...current, { id: "", name: projectName.trim(), description: projectDescription.trim() || null, createdAt: "", updatedAt: "" }]);
+    setProjects((current) => [
+      ...current,
+      {
+        id: "",
+        name: projectName.trim(),
+        slug: null,
+        description: projectDescription.trim() || null,
+        repositoryUrl: null,
+        websiteUrl: null,
+        status: "active",
+        technologies: "[]",
+        startDate: null,
+        completedDate: null,
+        visibility: "public",
+        createdAt: "",
+        updatedAt: "",
+      },
+    ]);
     // Refreshing after a server action supplies the authoritative ID for the next selection.
     window.location.reload();
   }
