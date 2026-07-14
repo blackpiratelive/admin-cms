@@ -8,13 +8,11 @@ import {
   MessageSquareText,
   Upload,
   RefreshCw,
-  Rocket,
   MapPin,
   Compass,
   FolderPlus,
   Settings,
   X,
-  Command,
 } from "lucide-react";
 
 export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
@@ -30,7 +28,6 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
         if (isOpen) {
           onClose();
         } else {
-          // Open palette
           window.dispatchEvent(new CustomEvent("open-command-palette"));
         }
       }
@@ -110,8 +107,8 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
       style={{
         position: "fixed",
         inset: 0,
-        backgroundColor: "rgba(0,0,0,0.6)",
-        backdropFilter: "blur(4px)",
+        backgroundColor: "rgba(0,0,0,0.5)",
+        backdropFilter: "blur(2px)",
         zIndex: 9999,
         display: "flex",
         alignItems: "flex-start",
@@ -123,14 +120,15 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
       <div
         style={{
           width: "100%",
-          maxWidth: "640px",
-          backgroundColor: "var(--card-bg, #1a1a1a)",
-          border: "1px solid var(--border-color, #333)",
-          borderRadius: "12px",
-          boxShadow: "0 20px 25px -5px rgba(0,0,0,0.5)",
+          maxWidth: "600px",
+          backgroundColor: "var(--bg-card)",
+          border: "1px solid var(--border-color)",
+          borderRadius: "4px",
+          boxShadow: "0 10px 25px -5px rgba(0,0,0,0.3)",
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
+          color: "var(--text-primary)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -139,12 +137,12 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
           style={{
             display: "flex",
             alignItems: "center",
-            padding: "14px 16px",
-            borderBottom: "1px solid var(--border-color, #333)",
+            padding: "12px 16px",
+            borderBottom: "1px solid var(--border-color)",
             gap: "12px",
           }}
         >
-          <Search size={18} style={{ color: "var(--text-muted, #888)" }} />
+          <Search size={16} style={{ color: "var(--text-muted)" }} />
           <input
             type="text"
             placeholder="Type a command or search everything (Ctrl+K)..."
@@ -156,8 +154,8 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
               background: "none",
               border: "none",
               outline: "none",
-              color: "var(--text-main, #eee)",
-              fontSize: "15px",
+              color: "var(--text-primary)",
+              fontSize: "14px",
             }}
           />
           <button
@@ -165,32 +163,32 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
             style={{
               background: "none",
               border: "none",
-              color: "var(--text-muted, #888)",
+              color: "var(--text-muted)",
               cursor: "pointer",
             }}
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         </div>
 
         {/* Search Results or Quick Actions */}
-        <div style={{ maxHeight: "380px", overflowY: "auto", padding: "8px 0" }}>
+        <div style={{ maxHeight: "360px", overflowY: "auto", padding: "6px 0" }}>
           {query.trim().length > 0 ? (
             <div>
               <div
                 style={{
                   padding: "6px 16px",
-                  fontSize: "12px",
-                  color: "var(--text-muted, #888)",
+                  fontSize: "11px",
+                  color: "var(--text-muted)",
                   textTransform: "uppercase",
                   letterSpacing: "0.5px",
-                  fontWeight: 600,
+                  fontWeight: 700,
                 }}
               >
                 Search Results {loading && "(searching...)"}
               </div>
               {results.length === 0 && !loading ? (
-                <div style={{ padding: "16px", textAlign: "center", color: "var(--text-muted, #888)" }}>
+                <div style={{ padding: "16px", textAlign: "center", color: "var(--text-muted)", fontSize: "13px" }}>
                   No matching entities found
                 </div>
               ) : (
@@ -201,27 +199,25 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
                     style={{
                       width: "100%",
                       textAlign: "left",
-                      padding: "10px 16px",
+                      padding: "8px 16px",
                       display: "flex",
                       flexDirection: "column",
                       background: "none",
                       border: "none",
-                      color: "var(--text-main, #eee)",
+                      color: "var(--text-primary)",
                       cursor: "pointer",
                       gap: "2px",
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.05)")}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-hover)")}
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 500 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 500, fontSize: "13px" }}>
                       <span
+                        className="status-badge"
                         style={{
-                          fontSize: "10px",
-                          padding: "2px 6px",
-                          borderRadius: "4px",
-                          backgroundColor: "var(--accent-color, #ff6600)",
-                          color: "#fff",
-                          textTransform: "uppercase",
+                          backgroundColor: "var(--accent)",
+                          color: "var(--accent-text)",
+                          fontSize: "9px",
                         }}
                       >
                         {res.type}
@@ -229,7 +225,7 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
                       <span>{res.title}</span>
                     </div>
                     {res.subtitle && (
-                      <span style={{ fontSize: "12px", color: "var(--text-muted, #888)", paddingLeft: "42px" }}>
+                      <span style={{ fontSize: "12px", color: "var(--text-muted)", paddingLeft: "42px" }}>
                         {res.subtitle}
                       </span>
                     )}
@@ -242,11 +238,11 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
               <div
                 style={{
                   padding: "6px 16px",
-                  fontSize: "12px",
-                  color: "var(--text-muted, #888)",
+                  fontSize: "11px",
+                  color: "var(--text-muted)",
                   textTransform: "uppercase",
                   letterSpacing: "0.5px",
-                  fontWeight: 600,
+                  fontWeight: 700,
                 }}
               >
                 Quick Actions & Navigation
@@ -260,20 +256,20 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
                     style={{
                       width: "100%",
                       textAlign: "left",
-                      padding: "10px 16px",
+                      padding: "8px 16px",
                       display: "flex",
                       alignItems: "center",
-                      gap: "12px",
+                      gap: "10px",
                       background: "none",
                       border: "none",
-                      color: "var(--text-main, #eee)",
+                      color: "var(--text-primary)",
                       cursor: "pointer",
-                      fontSize: "14px",
+                      fontSize: "13px",
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.05)")}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-hover)")}
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                   >
-                    <IconComponent size={16} style={{ color: "var(--accent-color, #ff6600)" }} />
+                    <IconComponent size={15} style={{ color: "var(--accent)" }} />
                     <span>{qa.label}</span>
                   </button>
                 );

@@ -51,24 +51,26 @@ export function Header({ onToggleSidebar, sidebarOpen }: HeaderProps) {
               display: "flex",
               alignItems: "center",
               gap: "8px",
-              padding: "6px 12px",
-              borderRadius: "6px",
-              backgroundColor: "rgba(255,255,255,0.06)",
-              border: "1px solid var(--border-color, #333)",
-              color: "var(--text-muted, #888)",
+              padding: "4px 10px",
+              borderRadius: "2px",
+              backgroundColor: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              color: "var(--text-primary)",
               cursor: "pointer",
-              fontSize: "13px",
+              fontSize: "12px",
             }}
           >
-            <Search size={14} />
+            <Search size={13} style={{ color: "var(--text-muted)" }} />
             <span>Search Everything...</span>
             <kbd
               style={{
                 fontSize: "10px",
-                padding: "2px 4px",
-                borderRadius: "3px",
-                backgroundColor: "rgba(255,255,255,0.1)",
-                color: "var(--text-main, #eee)",
+                padding: "1px 4px",
+                borderRadius: "2px",
+                backgroundColor: "var(--bg-sidebar)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-secondary)",
+                fontFamily: "var(--font-mono)",
               }}
             >
               Ctrl+K
