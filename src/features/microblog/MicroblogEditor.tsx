@@ -898,7 +898,7 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
               type="button"
               className={`btn btn-sm ${activeTab === "write" ? "btn-primary" : "btn-secondary"}`}
               onClick={() => setActiveTab("write")}
-              style={{ minHeight: "36px", px: "12px" }}
+              style={{ minHeight: "36px", padding: "0 12px" }}
             >
               <FileEdit size={14} /> Write Content
             </button>
@@ -906,7 +906,7 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
               type="button"
               className={`btn btn-sm ${activeTab === "preview" ? "btn-primary" : "btn-secondary"}`}
               onClick={() => setActiveTab("preview")}
-              style={{ minHeight: "36px", px: "12px" }}
+              style={{ minHeight: "36px", padding: "0 12px" }}
             >
               <Eye size={14} /> Live Preview
             </button>
