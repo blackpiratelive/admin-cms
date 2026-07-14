@@ -102,6 +102,154 @@ export async function ensureDbInitialized(): Promise<void> {
         );
       `);
 
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS providers (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          slug TEXT NOT NULL UNIQUE,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          connected INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'disconnected',
+          last_sync TEXT,
+          last_success TEXT,
+          configuration_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS sync_logs (
+          id TEXT PRIMARY KEY,
+          provider TEXT NOT NULL,
+          started_at TEXT NOT NULL,
+          finished_at TEXT,
+          duration INTEGER,
+          status TEXT NOT NULL,
+          items_created INTEGER NOT NULL DEFAULT 0,
+          items_updated INTEGER NOT NULL DEFAULT 0,
+          items_deleted INTEGER NOT NULL DEFAULT 0,
+          error_message TEXT,
+          metadata_json TEXT NOT NULL DEFAULT '{}'
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS trakt_movies (
+          trakt_id INTEGER PRIMARY KEY,
+          tmdb_id INTEGER,
+          title TEXT NOT NULL,
+          year INTEGER,
+          overview TEXT,
+          runtime INTEGER,
+          rating REAL,
+          watched_at TEXT,
+          genres TEXT NOT NULL DEFAULT '[]',
+          poster_path TEXT,
+          backdrop_path TEXT,
+          favorite INTEGER NOT NULL DEFAULT 0,
+          notes TEXT,
+          visibility TEXT NOT NULL DEFAULT 'public',
+          custom_tags TEXT NOT NULL DEFAULT '[]',
+          review TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS trakt_shows (
+          trakt_id INTEGER PRIMARY KEY,
+          tmdb_id INTEGER,
+          title TEXT NOT NULL,
+          overview TEXT,
+          status TEXT,
+          year INTEGER,
+          poster_path TEXT,
+          backdrop_path TEXT,
+          favorite INTEGER NOT NULL DEFAULT 0,
+          notes TEXT,
+          visibility TEXT NOT NULL DEFAULT 'public',
+          custom_tags TEXT NOT NULL DEFAULT '[]',
+          review TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS trakt_episodes (
+          id TEXT PRIMARY KEY,
+          show_trakt_id INTEGER NOT NULL,
+          episode_number INTEGER NOT NULL,
+          season_number INTEGER NOT NULL,
+          title TEXT,
+          watched_at TEXT,
+          rating REAL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS lastfm_scrobbles (
+          id TEXT PRIMARY KEY,
+          lastfm_id TEXT,
+          artist TEXT NOT NULL,
+          album TEXT,
+          track TEXT NOT NULL,
+          played_at TEXT NOT NULL,
+          duration INTEGER,
+          mbid TEXT,
+          created_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS lastfm_artists (
+          artist_name TEXT PRIMARY KEY,
+          play_count INTEGER NOT NULL DEFAULT 0,
+          last_played TEXT,
+          first_played TEXT,
+          favorite INTEGER NOT NULL DEFAULT 0,
+          notes TEXT,
+          tags TEXT NOT NULL DEFAULT '[]',
+          hidden INTEGER NOT NULL DEFAULT 0,
+          review TEXT,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS lastfm_albums (
+          id TEXT PRIMARY KEY,
+          album_name TEXT NOT NULL,
+          artist TEXT NOT NULL,
+          play_count INTEGER NOT NULL DEFAULT 0,
+          favorite INTEGER NOT NULL DEFAULT 0,
+          notes TEXT,
+          tags TEXT NOT NULL DEFAULT '[]',
+          hidden INTEGER NOT NULL DEFAULT 0,
+          review TEXT,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS lastfm_tracks (
+          id TEXT PRIMARY KEY,
+          track_name TEXT NOT NULL,
+          artist TEXT NOT NULL,
+          play_count INTEGER NOT NULL DEFAULT 0,
+          favorite INTEGER NOT NULL DEFAULT 0,
+          notes TEXT,
+          tags TEXT NOT NULL DEFAULT '[]',
+          hidden INTEGER NOT NULL DEFAULT 0,
+          review TEXT,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
       // Add columns to existing installations dynamically
       try {
         await client.execute(`ALTER TABLE microblogs ADD COLUMN images TEXT NOT NULL DEFAULT '[]';`);

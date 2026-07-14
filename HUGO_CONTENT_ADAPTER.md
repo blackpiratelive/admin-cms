@@ -29,8 +29,8 @@
 ## 2. Next.js CMS REST API Quick Reference
 
 - **Endpoints**:
-  - `https://<YOUR_CMS_DOMAIN>/api/microblogs` (Microblogs)
-  - `https://<YOUR_CMS_DOMAIN>/api/gallery` (Photo Gallery)
+  - `https://admin.blackpiratex.com/api/microblogs` (Microblogs)
+  - `https://admin.blackpiratex.com/api/gallery` (Photo Gallery)
 
 ### A. `/api/microblogs` Response Format:
 ```json
@@ -267,3 +267,5 @@ When assisting with the Hugo integration, ensure:
 1. `CMS_API_URL` is set in Vercel/CI environment variables for the Hugo repository.
 2. `hugo server` or `hugo --gc --minify` completes cleanly.
 3. Microblog pages are accessible at `/microblog/<slug>/`.
+
+

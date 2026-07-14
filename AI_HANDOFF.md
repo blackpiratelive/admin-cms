@@ -110,7 +110,16 @@ admin-cms/
 - `todos`: `id`, required `title`, optional `description` and `dueDate`, priority (`low`, `medium`, or `high`), `completed` integer flag, optional `projectId`, JSON-string `tags`, and creation/update timestamps.
 - The Todo dashboard at `/todos` supports task creation/editing, completion, deletion, project creation/deletion, tag suggestions, and filtering by completion state, project, and tag. Its composer initially shows only the “What needs doing?” input and expands to show task options when text is entered. Deleting a project leaves its tasks intact but unassigned.
 
-
+### Sync Center Tables (`providers`, `sync_logs`, Trakt & Last.fm tables)
+- `providers`: `id` (slug primary key), `name`, `slug`, `enabled`, `connected`, `status` (`connected` | `disconnected` | `syncing` | `error` | `disabled`), `lastSync`, `lastSuccess`, `configurationJson`, `createdAt`, `updatedAt`.
+- `sync_logs`: `id`, `provider`, `startedAt`, `finishedAt`, `duration`, `status` (`success` | `failed` | `in_progress` | `partial`), `itemsCreated`, `itemsUpdated`, `itemsDeleted`, `errorMessage`, `metadataJson`.
+- `trakt_movies`: `traktId` (PK), `tmdbId`, `title`, `year`, `overview`, `runtime`, `rating`, `watchedAt`, `genres`, `posterPath`, `backdropPath`. Personal metadata preserved on sync: `favorite`, `notes`, `visibility`, `customTags`, `review`.
+- `trakt_shows`: `traktId` (PK), `tmdbId`, `title`, `overview`, `status`, `year`, `posterPath`, `backdropPath`. Personal metadata preserved on sync: `favorite`, `notes`, `visibility`, `customTags`, `review`.
+- `trakt_episodes`: `id` (PK `${showTraktId}_s${season}_e${ep}`), `showTraktId`, `episodeNumber`, `seasonNumber`, `title`, `watchedAt`, `rating`.
+- `lastfm_scrobbles`: `id` (PK `${uts}_${artist}_${track}`), `lastfmId`, `artist`, `album`, `track`, `playedAt`, `mbid`, `createdAt`.
+- `lastfm_artists`: `artistName` (PK), `playCount`, `lastPlayed`, `firstPlayed`. Personal metadata preserved: `favorite`, `notes`, `tags`, `hidden`, `review`.
+- `lastfm_albums`: `id` (PK `${artist}:::${albumName}`), `albumName`, `artist`, `playCount`. Personal metadata preserved: `favorite`, `notes`, `tags`, `hidden`, `review`.
+- `lastfm_tracks`: `id` (PK `${artist}:::${trackName}`), `trackName`, `artist`, `playCount`. Personal metadata preserved: `favorite`, `notes`, `tags`, `hidden`, `review`.
 
 ---
 
@@ -120,22 +129,38 @@ admin-cms/
 - **Session**: Enthralling JWT stored in `cms_session` HTTP-only cookie signed with `jose`.
 - **Middleware**: Intercepts request paths except `/login`, public Hugo Content Adapter APIs (`/api/microblogs`, `/api/gallery`), and static assets. Redirects unauthorized requests to `/login`.
 
+---
+
+## 5. Sync Center Architecture (`src/features/sync/`)
+
+The **Sync Center** (`/sync`) manages all external integrations through a provider-based abstraction model.
+
+### Provider Interface (`ISyncProvider`)
+All integrations implement `ISyncProvider` (inheriting from `BaseSyncProvider`):
+- `connect(config)` & `disconnect()`
+- `sync(options)` (supports `incremental`, `full`, and `batch` modes)
+- `getStatus()` & `getStatistics()`
+- `validateConfiguration(config)` & `testConnection(config)`
+
+### Provider Registry (`registry.ts`)
+Providers self-register with `syncRegistry`. Adding a future provider (e.g. GitHub, Steam, Hevy, OpenLibrary) requires creating a provider class and registering it in `registry.ts`—no changes to core Sync Center UI or server actions are needed.
+
+### Initial Integration Providers
+1. **🎬 Trakt**: Imports watched movies, TV shows, and episodes. Only stores TMDB relative image paths (`poster_path`, `backdrop_path`); never hosts posters on R2/Cloudinary. Preserves CMS-only personal metadata (`favorite`, `notes`, `visibility`, `customTags`, `review`).
+2. **🎵 Last.fm**: Imports listening history, scrobbles, top artists, top albums, and top tracks. To accommodate Vercel's 10-second serverless execution limits with large accounts (65k+ scrobbles), Last.fm supports **Incremental Sync** (fetching latest activity) and **Batch History Backfill** (paginated pagination window). Preserves CMS personal metadata (`favorite`, `notes`, `tags`, `hidden`, `review`).
 
 ---
 
-## 5. Extensibility Guidelines for Future AI Agents
+## 6. Extensibility Guidelines for Future AI Agents
 
-To add a new content type (e.g. `Books`, `Blog`, `Quotes`):
-1. **Database Schema**: Add table definition in `src/db/schema.ts` (e.g. `export const books = sqliteTable(...)`).
-2. **Feature Folder**: Create `src/features/[feature_name]/` with:
-   - `schema.ts`: Zod input validation & types.
-   - `actions.ts`: Server actions for CRUD + deploy hook trigger.
-   - `[Feature]Editor.tsx` & `[Feature]List.tsx`: Visual components.
-3. **App Route**: Replace the page in `src/app/(dashboard)/[feature_name]/page.tsx` with the new feature component.
-4. **Tests**: Add unit test in `tests/[feature_name].test.ts`.
-
-### Completed module: Todos
-The Todo module follows this same pattern in `src/features/todos/` and is linked under **Tracking** in the sidebar. Its runtime tables are created by `ensureDbInitialized()` for new or existing deployments; the matching Drizzle migration is `0002_todos.sql`.
+To add a new content type or provider:
+1. **New Content Module**:
+   - Database Schema in `src/db/schema.ts`
+   - Feature folder in `src/features/[feature_name]/`
+   - App Route in `src/app/(dashboard)/[feature_name]/page.tsx`
+2. **New Sync Integration Provider**:
+   - Create provider class in `src/features/sync/providers/[provider_slug]/index.ts` extending `BaseSyncProvider`
+   - Register provider instance in `src/features/sync/registry.ts`
 
 ---
 
@@ -202,9 +227,10 @@ The CMS communicates with the following endpoints using `Authorization: Bearer <
 
 ---
 
-## 8. How to Run Commands & Tests
+## 9. How to Run Commands & Tests
 
 - **Development Server**: `npm run dev`
 - **Build Verification**: `npm run build`
 - **Execute Tests**: `npm run test`
 - **Drizzle DB Push**: `npm run db:push`
+

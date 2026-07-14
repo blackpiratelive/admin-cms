@@ -21,6 +21,7 @@ import {
   Link2,
   Settings,
   CheckSquare,
+  RefreshCw,
 } from "lucide-react";
 
 export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
@@ -203,6 +204,17 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
 
         <div className="nav-section">
           <Link
+            href="/sync"
+            className={`nav-link ${isActive("/sync") ? "active" : ""}`}
+            onClick={handleLinkClick}
+          >
+            <RefreshCw size={16} />
+            <span>Sync Center</span>
+          </Link>
+        </div>
+
+        <div className="nav-section">
+          <Link
             href="/settings"
             className={`nav-link ${isActive("/settings") ? "active" : ""}`}
             onClick={handleLinkClick}
@@ -219,3 +231,4 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
     </aside>
   );
 }
+

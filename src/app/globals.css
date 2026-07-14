@@ -686,3 +686,133 @@ a:hover {
   .todo-form-grid { grid-template-columns: 1fr; }
   .todo-filter { width: 100%; }
 }
+
+/* Sync Center Styling */
+.sync-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.sync-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sync-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.sync-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.sync-card-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.sync-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 8px;
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border-color);
+  padding: 10px;
+  border-radius: 2px;
+}
+
+.sync-stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sync-stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sync-stat-value {
+  font-size: 16px;
+  font-weight: bold;
+  font-family: var(--font-mono);
+}
+
+.sync-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
+}
+
+.status-badge.status-connected {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border: 1px solid #c8e6c9;
+}
+
+.status-badge.status-syncing {
+  background: #fff8e1;
+  color: #f57f17;
+  border: 1px solid #ffe082;
+}
+
+.status-badge.status-error {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ffcdd2;
+}
+
+.status-badge.status-disconnected {
+  background: var(--bg-sidebar);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+/* Modal Overlay & Card UI */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-content {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 20px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
