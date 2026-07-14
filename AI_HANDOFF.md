@@ -148,7 +148,7 @@ Providers self-register with `syncRegistry`. Adding a future provider (e.g. GitH
 
 ### Initial Integration Providers
 1. **🎬 Trakt**: Configured via Trakt Username, Client ID, and Client Secret (obtained from trakt.tv/oauth/applications). Imports watched movies, TV shows, and episodes. Only stores TMDB relative image paths (`poster_path`, `backdrop_path`); never hosts posters on R2/Cloudinary. Preserves CMS-only personal metadata (`favorite`, `notes`, `visibility`, `customTags`, `review`).
-2. **🎵 Last.fm**: Imports listening history, scrobbles, top artists, top albums, and top tracks. To accommodate Vercel's 10-second serverless execution limits with large accounts (65k+ scrobbles), Last.fm supports **Incremental Sync** (fetching latest activity) and **Batch History Backfill** (paginated pagination window). Preserves CMS personal metadata (`favorite`, `notes`, `tags`, `hidden`, `review`).
+2. **🎵 Last.fm**: Imports listening history, scrobbles, top artists, top albums, and top tracks. Uses in-memory duplicate tracking sets and Drizzle `onConflictDoNothing()` queries to guarantee zero `SQLITE_CONSTRAINT` unique primary key conflicts during high-volume batch history imports. To accommodate Vercel's 10-second serverless execution limits with large accounts (65k+ scrobbles), Last.fm supports **Incremental Sync** (fetching latest activity) and **Batch History Backfill** (paginated pagination window). Preserves CMS personal metadata (`favorite`, `notes`, `tags`, `hidden`, `review`).
 
 ---
 

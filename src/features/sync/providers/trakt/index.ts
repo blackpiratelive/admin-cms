@@ -147,15 +147,18 @@ export class TraktSyncProvider extends BaseSyncProvider {
           .where(eq(traktMovies.traktId, traktId));
         itemsUpdated++;
       } else {
-        await db.insert(traktMovies).values({
-          ...movieData,
-          favorite: 0,
-          notes: null,
-          visibility: "public",
-          customTags: "[]",
-          review: null,
-          createdAt: now,
-        });
+        await db
+          .insert(traktMovies)
+          .values({
+            ...movieData,
+            favorite: 0,
+            notes: null,
+            visibility: "public",
+            customTags: "[]",
+            review: null,
+            createdAt: now,
+          })
+          .onConflictDoNothing();
         itemsCreated++;
       }
     }
@@ -201,15 +204,18 @@ export class TraktSyncProvider extends BaseSyncProvider {
           .where(eq(traktShows.traktId, showTraktId));
         itemsUpdated++;
       } else {
-        await db.insert(traktShows).values({
-          ...showData,
-          favorite: 0,
-          notes: null,
-          visibility: "public",
-          customTags: "[]",
-          review: null,
-          createdAt: now,
-        });
+        await db
+          .insert(traktShows)
+          .values({
+            ...showData,
+            favorite: 0,
+            notes: null,
+            visibility: "public",
+            customTags: "[]",
+            review: null,
+            createdAt: now,
+          })
+          .onConflictDoNothing();
         itemsCreated++;
       }
 
@@ -239,10 +245,13 @@ export class TraktSyncProvider extends BaseSyncProvider {
                 await db.update(traktEpisodes).set(epData).where(eq(traktEpisodes.id, epId));
                 itemsUpdated++;
               } else {
-                await db.insert(traktEpisodes).values({
-                  ...epData,
-                  createdAt: now,
-                });
+                await db
+                  .insert(traktEpisodes)
+                  .values({
+                    ...epData,
+                    createdAt: now,
+                  })
+                  .onConflictDoNothing();
                 itemsCreated++;
               }
             }

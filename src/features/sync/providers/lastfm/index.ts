@@ -98,6 +98,8 @@ export class LastfmSyncProvider extends BaseSyncProvider {
     const touchedAlbums = new Map<string, { artistName: string; albumName: string }>();
     const touchedTracks = new Map<string, { artistName: string; trackName: string }>();
 
+    const processedInRun = new Set<string>();
+
     for (let p = 0; p < maxPagesToFetch; p++) {
       this.checkCancelled();
       const pageToFetch = startPage + p;
@@ -140,6 +142,9 @@ export class LastfmSyncProvider extends BaseSyncProvider {
         // Unique Scrobble ID
         const scrobbleId = `${uts}_${artistName.trim().toLowerCase()}_${trackName.trim().toLowerCase()}`;
 
+        if (processedInRun.has(scrobbleId)) continue;
+        processedInRun.add(scrobbleId);
+
         const existing = await db
           .select()
           .from(lastfmScrobbles)
@@ -147,16 +152,19 @@ export class LastfmSyncProvider extends BaseSyncProvider {
           .limit(1);
 
         if (!existing[0]) {
-          await db.insert(lastfmScrobbles).values({
-            id: scrobbleId,
-            lastfmId: uts,
-            artist: artistName.trim(),
-            album: albumName ? albumName.trim() : null,
-            track: trackName.trim(),
-            playedAt: playedAtIso,
-            mbid: mbid || null,
-            createdAt: now,
-          });
+          await db
+            .insert(lastfmScrobbles)
+            .values({
+              id: scrobbleId,
+              lastfmId: uts,
+              artist: artistName.trim(),
+              album: albumName ? albumName.trim() : null,
+              track: trackName.trim(),
+              playedAt: playedAtIso,
+              mbid: mbid || null,
+              createdAt: now,
+            })
+            .onConflictDoNothing();
           itemsCreated++;
           newInThisPage++;
         }
