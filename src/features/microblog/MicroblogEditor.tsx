@@ -7,7 +7,31 @@ import { getLocations } from "@/features/locations/actions";
 import { getTrips } from "@/features/trips/actions";
 import { type LocationRecord, type TripRecord, type Microblog } from "@/db/schema";
 import { CloudinaryImageUploader } from "@/features/media/CloudinaryImageUploader";
-import { Save, Eye, Trash2, Globe, FileEdit, Archive, Upload, Image as ImageIcon, RefreshCw, Loader2, MapPin, Compass } from "lucide-react";
+import {
+  Save,
+  Eye,
+  Trash2,
+  Globe,
+  FileEdit,
+  Upload,
+  Image as ImageIcon,
+  RefreshCw,
+  Loader2,
+  MapPin,
+  Compass,
+  Sliders,
+  ChevronDown,
+  ChevronUp,
+  Link as LinkIcon,
+  Tag,
+  Calendar,
+  Layers,
+  Check,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  Play,
+} from "lucide-react";
 
 interface MicroblogEditorProps {
   initialData?: Microblog | null;
@@ -48,6 +72,10 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
     initialData?.images ? JSON.parse(initialData.images) : []
   );
 
+  // Collapsible Sections State (Defaults to collapsed so the editor is immediately visible)
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+  const [openSection, setOpenSection] = useState<"metadata" | "media" | "shortlink" | "related" | null>("metadata");
+
   useEffect(() => {
     async function loadEntities() {
       setIsLoadingEntities(true);
@@ -63,6 +91,7 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
     }
     loadEntities();
   }, []);
+
   const [relatedPosts, setRelatedPosts] = useState<any[]>(initialRelatedPosts);
   const [lastSavedState, setLastSavedState] = useState({
     contentMarkdown: initialData?.contentMarkdown || "",
@@ -79,6 +108,12 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
   const [isRefreshingRelated, setIsRefreshingRelated] = useState(false);
   const [activeTab, setActiveTab] = useState<"write" | "preview">("write");
   const [showUploader, setShowUploader] = useState(false);
+
+  // RapidLink state
+  const [shortUrl, setShortUrl] = useState<string>(initialData?.shortUrl || "");
+  const [shortSlugInput, setShortSlugInput] = useState<string>("");
+  const [isShortening, setIsShortening] = useState(false);
+  const [copiedShortUrl, setCopiedShortUrl] = useState(false);
 
   // Character & Word counts
   const charCount = contentMarkdown.length;
@@ -243,12 +278,7 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [contentMarkdown, slug, tags, coverImageUrl, images, createdAt, publishedAt, id, status, isSaving, router]);
-
-  const [shortUrl, setShortUrl] = useState<string>(initialData?.shortUrl || "");
-  const [shortSlugInput, setShortSlugInput] = useState<string>("");
-  const [isShortening, setIsShortening] = useState(false);
-  const [copiedShortUrl, setCopiedShortUrl] = useState(false);
+  }, [contentMarkdown, slug, tags, coverImageUrl, images, createdAt, publishedAt, id, status, isSaving, router, locationId, tripId]);
 
   const handleGenerateShortUrl = async () => {
     setIsShortening(true);
@@ -262,7 +292,6 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
 
       if (res.success && res.shortUrl) {
         setShortUrl(res.shortUrl);
-        // Save shortUrl to microblog record in DB
         await saveMicroblog({
           id,
           slug,
@@ -272,6 +301,8 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
           publishedAt: toIsoDateTime(publishedAt),
           tags,
           coverImageUrl: coverImageUrl || null,
+          locationId: locationId || null,
+          tripId: tripId || null,
           shortUrl: res.shortUrl,
           images,
         });
@@ -316,6 +347,8 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
         publishedAt: toIsoDateTime(publishedAt),
         tags,
         coverImageUrl: coverImageUrl || null,
+        locationId: locationId || null,
+        tripId: tripId || null,
         shortUrl: null,
         images,
       });
@@ -326,23 +359,56 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
     }
   };
 
-  // Settings Grid
+  const selectedLocation = locationsList.find((l) => l.id === locationId);
+  const selectedTrip = tripsList.find((t) => t.id === tripId);
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      {/* Editor Top Bar Actions */}
-      <div className="page-header">
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <h1 className="page-title" style={{ margin: 0 }}>
-            <FileEdit size={18} />
-            {id ? "Edit Microblog" : "New Microblog"}
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxWidth: "1400px", margin: "0 auto", width: "100%" }}>
+      {/* 1. Top Action & Navigation Header */}
+      <div
+        style={{
+          background: "var(--bg-card)",
+          border: "1px solid var(--border-color)",
+          borderRadius: "6px",
+          padding: "12px 16px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "12px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          <h1 style={{ fontSize: "18px", fontWeight: "bold", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+            <FileEdit size={18} style={{ color: "var(--accent)" }} />
+            <span>{id ? "Edit Microblog" : "New Microblog"}</span>
           </h1>
+
+          <span className={`status-badge status-${status}`} style={{ fontSize: "11px", textTransform: "capitalize" }}>
+            {status}
+          </span>
+
           {lastAutosavedTime && (
-            <span style={{ fontSize: "11px", color: "var(--text-muted)", background: "var(--bg-sidebar)", padding: "2px 6px", borderRadius: "2px", border: "1px solid var(--border-color)" }}>
-              Autosaved at {lastAutosavedTime}
+            <span
+              style={{
+                fontSize: "11px",
+                color: "var(--text-muted)",
+                background: "var(--bg-sidebar)",
+                padding: "2px 8px",
+                borderRadius: "4px",
+                border: "1px solid var(--border-color)",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+              }}
+            >
+              <Check size={12} style={{ color: "#2e7d32" }} />
+              Autosaved {lastAutosavedTime}
             </span>
           )}
         </div>
-        <div style={{ display: "flex", gap: "8px" }}>
+
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
           {id && (
             <button type="button" onClick={handleDelete} className="btn btn-danger btn-sm" disabled={isSaving}>
               {isSaving && savingAction === "delete" ? (
@@ -353,10 +419,11 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
               <span>{isSaving && savingAction === "delete" ? "Deleting..." : "Delete"}</span>
             </button>
           )}
+
           <button
             type="button"
             onClick={() => handleSubmit("draft")}
-            className="btn btn-sm"
+            className="btn btn-sm btn-secondary"
             disabled={isSaving}
           >
             {isSaving && savingAction === "draft" ? (
@@ -366,6 +433,7 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
             )}
             <span>{isSaving && savingAction === "draft" ? "Saving..." : "Save Draft"}</span>
           </button>
+
           <button
             type="button"
             onClick={() => handleSubmit("published")}
@@ -382,423 +450,542 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
         </div>
       </div>
 
-      {/* Settings Grid */}
-      <div className="editor-settings-grid">
-        <div className="form-group">
-          <label className="form-label">Slug (auto-generated if empty)</label>
-          <input
-            type="text"
-            className="text-input"
-            value={slug}
-            onChange={(e) => setSlug(e.target.value)}
-            placeholder="e.g. hello-world"
-          />
-        </div>
+      {/* 2. Sleek Collapsible Post Options & Metadata Bar */}
+      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "6px", overflow: "hidden" }}>
+        {/* Toggle Bar Header */}
+        <button
+          type="button"
+          onClick={() => setShowSettingsPanel(!showSettingsPanel)}
+          style={{
+            width: "100%",
+            padding: "12px 16px",
+            background: "var(--bg-sidebar)",
+            border: "none",
+            borderBottom: showSettingsPanel ? "1px solid var(--border-color)" : "none",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            <Sliders size={16} style={{ color: "var(--accent)" }} />
+            <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--text-primary)" }}>
+              Post Metadata & Extra Settings
+            </span>
 
-        <div className="form-group">
-          <label className="form-label">Status</label>
-          <select
-            className="select-input"
-            value={status}
-            onChange={(e) => setStatus(e.target.value as any)}
-          >
-            <option value="draft">Draft</option>
-            <option value="published">Published</option>
-            <option value="scheduled">Scheduled</option>
-            <option value="archived">Archived</option>
-          </select>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Created date and time</label>
-          <input
-            type="datetime-local"
-            className="text-input"
-            value={createdAt}
-            onChange={(e) => setCreatedAt(e.target.value)}
-          />
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Published date and time</label>
-          <input
-            type="datetime-local"
-            className="text-input"
-            value={publishedAt}
-            onChange={(e) => setPublishedAt(e.target.value)}
-          />
-        </div>
-
-        <div className="form-group">
-          <label className="form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <MapPin size={13} style={{ color: "var(--accent)" }} />
-            <span>Associated Location</span>
-            {isLoadingEntities && <Loader2 size={12} className="animate-spin" />}
-          </label>
-          <select
-            className="select-input"
-            value={locationId}
-            onChange={(e) => setLocationId(e.target.value)}
-          >
-            <option value="">-- None (No Location) --</option>
-            {locationsList.map((loc) => (
-              <option key={loc.id} value={loc.id}>
-                {loc.name} {[loc.city, loc.country].filter(Boolean).length ? `(${[loc.city, loc.country].filter(Boolean).join(", ")})` : ""}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <Compass size={13} style={{ color: "var(--accent)" }} />
-            <span>Associated Trip</span>
-            {isLoadingEntities && <Loader2 size={12} className="animate-spin" />}
-          </label>
-          <select
-            className="select-input"
-            value={tripId}
-            onChange={(e) => setTripId(e.target.value)}
-          >
-            <option value="">-- None (No Trip) --</option>
-            {tripsList.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.title} ({t.status})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Tags (comma-separated)</label>
-          <input
-            type="text"
-            className="text-input"
-            value={tags}
-            onChange={(e) => setTags(e.target.value)}
-            placeholder="hugo, thoughts, dev"
-          />
-        </div>
-      </div>
-
-      {/* RapidLink Short URL Widget */}
-      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", padding: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-          <label className="form-label" style={{ margin: 0, fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>
-            <Globe size={14} style={{ color: "var(--accent)" }} />
-            <span>RapidLink Short URL</span>
-          </label>
-
-          {shortUrl && (
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span style={{ fontSize: "12px", fontFamily: "var(--font-mono)", color: "var(--accent)", fontWeight: "bold" }}>
-                {shortUrl}
-              </span>
-              <button
-                type="button"
-                className="btn btn-sm"
-                onClick={handleCopyShortUrl}
-                style={{ padding: "2px 6px" }}
-              >
-                {copiedShortUrl ? <span style={{ color: "#2e7d32", fontSize: "11px" }}>Copied!</span> : "Copy"}
-              </button>
-              <button
-                type="button"
-                className="btn btn-sm btn-danger"
-                onClick={handleDeleteShortUrl}
-                disabled={isShortening}
-                style={{ padding: "2px 6px" }}
-                title="Delete short link from RapidLink API"
-              >
-                Delete Link
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-          <input
-            type="text"
-            className="text-input"
-            style={{ flex: 1, minWidth: "180px" }}
-            placeholder="Custom slug (optional)..."
-            value={shortSlugInput}
-            onChange={(e) => setShortSlugInput(e.target.value)}
-          />
-          <button
-            type="button"
-            className="btn btn-sm btn-primary"
-            onClick={handleGenerateShortUrl}
-            disabled={isShortening}
-            style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
-          >
-            {isShortening ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
-            <span>{isShortening ? "Generating..." : shortUrl ? "Regenerate Short URL" : "Generate Short URL"}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Cover Image URL & Media Upload Controls */}
-      <div style={{ background: "var(--bg-card)", padding: "12px", border: "1px solid var(--border-color)", display: "flex", flexDirection: "column", gap: "10px" }}>
-        <div className="media-header">
-          <label className="form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <ImageIcon size={14} />
-            <span>Cover Image URL & Media</span>
-          </label>
-          <button
-            type="button"
-            className="btn btn-sm"
-            onClick={() => setShowUploader(!showUploader)}
-          >
-            <Upload size={14} />
-            <span>{showUploader ? "Hide Cloudinary Direct Uploader" : "Upload Image to Cloudinary"}</span>
-          </button>
-        </div>
-
-        <div className="media-input-group">
-          <input
-            type="text"
-            className="text-input"
-            style={{ flex: 1, width: "100%" }}
-            value={coverImageUrl}
-            onChange={(e) => setCoverImageUrl(e.target.value)}
-            placeholder="https://res.cloudinary.com/... or cover image URL"
-          />
-          {coverImageUrl && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", border: "1px solid var(--border-color)", padding: "2px 6px", flexShrink: 0 }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={coverImageUrl} alt="Cover preview" style={{ width: "32px", height: "32px", objectFit: "cover" }} />
-              <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>Cover Preview</span>
-            </div>
-          )}
-        </div>
-
-        {/* Embedded Cloudinary Direct Upload Component */}
-        {showUploader && (
-          <CloudinaryImageUploader
-            onImageUploaded={handleImageUploaded}
-            onInsertMarkdown={handleInsertMarkdown}
-          />
-        )}
-      </div>
-
-      {/* Images Gallery */}
-      <div style={{ background: "var(--bg-card)", padding: "12px", border: "1px solid var(--border-color)", display: "flex", flexDirection: "column", gap: "10px" }}>
-        <label className="form-label" style={{ fontWeight: "bold" }}>
-          Post Images Gallery ({images.length})
-        </label>
-        
-        {images.length === 0 ? (
-          <div style={{ color: "var(--text-muted)", fontSize: "12px", fontStyle: "italic" }}>
-            No images attached to this post yet. Upload an image above to add it to the gallery.
+            {/* Quick summary pills when collapsed */}
+            {!showSettingsPanel && (
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+                {slug && (
+                  <span style={{ fontSize: "11px", color: "var(--text-muted)", background: "var(--bg-card)", padding: "1px 6px", borderRadius: "3px", border: "1px solid var(--border-color)" }}>
+                    /{slug}
+                  </span>
+                )}
+                {selectedLocation && (
+                  <span style={{ fontSize: "11px", color: "var(--accent)", background: "var(--bg-card)", padding: "1px 6px", borderRadius: "3px", border: "1px solid var(--border-color)", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                    <MapPin size={10} /> {selectedLocation.name}
+                  </span>
+                )}
+                {selectedTrip && (
+                  <span style={{ fontSize: "11px", color: "var(--text-secondary)", background: "var(--bg-card)", padding: "1px 6px", borderRadius: "3px", border: "1px solid var(--border-color)", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                    <Compass size={10} /> {selectedTrip.title}
+                  </span>
+                )}
+                {images.length > 0 && (
+                  <span style={{ fontSize: "11px", color: "var(--text-muted)", background: "var(--bg-card)", padding: "1px 6px", borderRadius: "3px", border: "1px solid var(--border-color)" }}>
+                    🖼️ {images.length} media
+                  </span>
+                )}
+              </div>
+            )}
           </div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "10px" }}>
-            {images.map((url, idx) => {
-              const isCover = coverImageUrl === url;
-              return (
-                <div
-                  key={idx}
-                  style={{
-                    border: isCover ? "2px solid var(--accent)" : "1px solid var(--border-color)",
-                    padding: "6px",
-                    background: "var(--bg-sidebar)",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "6px",
-                    position: "relative",
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={url}
-                    alt={`Gallery ${idx}`}
-                    style={{ width: "100%", height: "80px", objectFit: "cover" }}
+
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--text-muted)" }}>
+            <span>{showSettingsPanel ? "Collapse Settings" : "Configure Settings"}</span>
+            {showSettingsPanel ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </div>
+        </button>
+
+        {/* Expanded Collapsible Panel with Sub-Tabs */}
+        {showSettingsPanel && (
+          <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
+            {/* Section Tab Buttons */}
+            <div style={{ display: "flex", gap: "6px", borderBottom: "1px solid var(--border-color)", paddingBottom: "10px", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className={`btn btn-sm ${openSection === "metadata" ? "btn-primary" : "btn-secondary"}`}
+                onClick={() => setOpenSection("metadata")}
+                style={{ fontSize: "12px", gap: "4px" }}
+              >
+                <Sliders size={13} /> General & Locations
+              </button>
+
+              <button
+                type="button"
+                className={`btn btn-sm ${openSection === "media" ? "btn-primary" : "btn-secondary"}`}
+                onClick={() => setOpenSection("media")}
+                style={{ fontSize: "12px", gap: "4px" }}
+              >
+                <ImageIcon size={13} /> Cover & Media ({images.length})
+              </button>
+
+              <button
+                type="button"
+                className={`btn btn-sm ${openSection === "shortlink" ? "btn-primary" : "btn-secondary"}`}
+                onClick={() => setOpenSection("shortlink")}
+                style={{ fontSize: "12px", gap: "4px" }}
+              >
+                <Globe size={13} /> RapidLink Short URL
+              </button>
+
+              <button
+                type="button"
+                className={`btn btn-sm ${openSection === "related" ? "btn-primary" : "btn-secondary"}`}
+                onClick={() => setOpenSection("related")}
+                style={{ fontSize: "12px", gap: "4px" }}
+              >
+                <LinkIcon size={13} /> Related Posts ({relatedPosts.length})
+              </button>
+            </div>
+
+            {/* Section 1: General Metadata, Slug, Status, Dates, Locations */}
+            {openSection === "metadata" && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" }}>
+                <div className="form-group">
+                  <label className="form-label">Slug (auto-generated if empty)</label>
+                  <input
+                    type="text"
+                    className="text-input"
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value)}
+                    placeholder="e.g. hello-world"
                   />
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", justifyContent: "space-between" }}>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Status</label>
+                  <select
+                    className="select-input"
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value as any)}
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="published">Published</option>
+                    <option value="scheduled">Scheduled</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <MapPin size={13} style={{ color: "var(--accent)" }} />
+                    <span>Associated Location</span>
+                    {isLoadingEntities && <Loader2 size={12} className="animate-spin" />}
+                  </label>
+                  <select
+                    className="select-input"
+                    value={locationId}
+                    onChange={(e) => setLocationId(e.target.value)}
+                  >
+                    <option value="">-- None (No Location) --</option>
+                    {locationsList.map((loc) => (
+                      <option key={loc.id} value={loc.id}>
+                        {loc.name} {[loc.city, loc.country].filter(Boolean).length ? `(${[loc.city, loc.country].filter(Boolean).join(", ")})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <Compass size={13} style={{ color: "var(--accent)" }} />
+                    <span>Associated Trip</span>
+                    {isLoadingEntities && <Loader2 size={12} className="animate-spin" />}
+                  </label>
+                  <select
+                    className="select-input"
+                    value={tripId}
+                    onChange={(e) => setTripId(e.target.value)}
+                  >
+                    <option value="">-- None (No Trip) --</option>
+                    {tripsList.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.title} ({t.status})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Created Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    className="text-input"
+                    value={createdAt}
+                    onChange={(e) => setCreatedAt(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Published Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    className="text-input"
+                    value={publishedAt}
+                    onChange={(e) => setPublishedAt(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group" style={{ gridColumn: "1 / -1" }}>
+                  <label className="form-label">Tags (comma-separated)</label>
+                  <input
+                    type="text"
+                    className="text-input"
+                    value={tags}
+                    onChange={(e) => setTags(e.target.value)}
+                    placeholder="hugo, thoughts, dev"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Section 2: Media & Cover Image */}
+            {openSection === "media" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                <div style={{ background: "var(--bg-sidebar)", padding: "12px", border: "1px solid var(--border-color)", borderRadius: "4px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+                    <label className="form-label" style={{ margin: 0, display: "flex", alignItems: "center", gap: "6px" }}>
+                      <ImageIcon size={14} style={{ color: "var(--accent)" }} />
+                      <span>Cover Image URL & Media Uploader</span>
+                    </label>
                     <button
                       type="button"
-                      className="btn btn-sm"
-                      onClick={() => handleInsertMarkdown(`![image](${url})`)}
-                      title="Insert into Markdown Editor"
-                      style={{ padding: "2px 4px", fontSize: "10px", flex: 1, justifyContent: "center" }}
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => setShowUploader(!showUploader)}
                     >
-                      Insert
-                    </button>
-                    {!isCover && (
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-primary"
-                        onClick={() => setCoverImageUrl(url)}
-                        title="Set as Cover Image"
-                        style={{ padding: "2px 4px", fontSize: "10px", flex: 1, justifyContent: "center" }}
-                      >
-                        Cover
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-danger"
-                      onClick={() => setImages((prev) => prev.filter((_, i) => i !== idx))}
-                      title="Remove from Gallery"
-                      style={{ padding: "2px 4px", fontSize: "10px", width: "100%", justifyContent: "center" }}
-                    >
-                      Remove
+                      <Upload size={14} />
+                      <span>{showUploader ? "Hide Cloudinary Uploader" : "Upload Image to Cloudinary"}</span>
                     </button>
                   </div>
-                  {isCover && (
-                    <span
-                      style={{
-                        position: "absolute",
-                        top: "4px",
-                        right: "4px",
-                        background: "var(--accent)",
-                        color: "var(--accent-text)",
-                        fontSize: "8px",
-                        fontWeight: "bold",
-                        padding: "1px 4px",
-                        borderRadius: "2px",
-                      }}
-                    >
-                      COVER
-                    </span>
+
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <input
+                      type="text"
+                      className="text-input"
+                      style={{ flex: 1 }}
+                      value={coverImageUrl}
+                      onChange={(e) => setCoverImageUrl(e.target.value)}
+                      placeholder="https://res.cloudinary.com/... or cover image URL"
+                    />
+                    {coverImageUrl && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", border: "1px solid var(--border-color)", padding: "2px 6px", borderRadius: "3px" }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={coverImageUrl} alt="Cover preview" style={{ width: "32px", height: "32px", objectFit: "cover" }} />
+                        <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>Cover</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {showUploader && (
+                    <CloudinaryImageUploader
+                      onImageUploaded={handleImageUploaded}
+                      onInsertMarkdown={handleInsertMarkdown}
+                    />
                   )}
                 </div>
-              );
-            })}
+
+                {/* Attached Images Grid */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <label className="form-label" style={{ fontWeight: "bold" }}>
+                    Post Images Gallery ({images.length})
+                  </label>
+                  {images.length === 0 ? (
+                    <div style={{ color: "var(--text-muted)", fontSize: "12px", fontStyle: "italic" }}>
+                      No images attached yet. Click "Upload Image to Cloudinary" above to add images.
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: "10px" }}>
+                      {images.map((url, idx) => {
+                        const isCover = coverImageUrl === url;
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              border: isCover ? "2px solid var(--accent)" : "1px solid var(--border-color)",
+                              padding: "4px",
+                              background: "var(--bg-sidebar)",
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "4px",
+                              position: "relative",
+                              borderRadius: "4px",
+                            }}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={url}
+                              alt={`Gallery ${idx}`}
+                              style={{ width: "100%", height: "70px", objectFit: "cover", borderRadius: "2px" }}
+                            />
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "2px", justifyContent: "space-between" }}>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-secondary"
+                                onClick={() => handleInsertMarkdown(`![image](${url})`)}
+                                title="Insert into Markdown Editor"
+                                style={{ padding: "2px 4px", fontSize: "10px", flex: 1, justifyContent: "center" }}
+                              >
+                                Insert
+                              </button>
+                              {!isCover && (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-primary"
+                                  onClick={() => setCoverImageUrl(url)}
+                                  title="Set as Cover Image"
+                                  style={{ padding: "2px 4px", fontSize: "10px", flex: 1, justifyContent: "center" }}
+                                >
+                                  Cover
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-danger"
+                                onClick={() => setImages((prev) => prev.filter((_, i) => i !== idx))}
+                                title="Remove from Gallery"
+                                style={{ padding: "2px 4px", fontSize: "10px", width: "100%", justifyContent: "center" }}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Section 3: RapidLink Short URL */}
+            {openSection === "shortlink" && (
+              <div style={{ background: "var(--bg-sidebar)", border: "1px solid var(--border-color)", padding: "12px", borderRadius: "4px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+                  <label className="form-label" style={{ margin: 0, fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <Globe size={14} style={{ color: "var(--accent)" }} />
+                    <span>RapidLink Short URL Management</span>
+                  </label>
+
+                  {shortUrl && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{ fontSize: "12px", fontFamily: "var(--font-mono)", color: "var(--accent)", fontWeight: "bold" }}>
+                        {shortUrl}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-secondary"
+                        onClick={handleCopyShortUrl}
+                        style={{ padding: "2px 6px" }}
+                      >
+                        {copiedShortUrl ? <span style={{ color: "#2e7d32", fontSize: "11px" }}>Copied!</span> : "Copy"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-danger"
+                        onClick={handleDeleteShortUrl}
+                        disabled={isShortening}
+                        style={{ padding: "2px 6px" }}
+                      >
+                        Delete Link
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                  <input
+                    type="text"
+                    className="text-input"
+                    style={{ flex: 1, minWidth: "180px" }}
+                    placeholder="Custom slug (optional)..."
+                    value={shortSlugInput}
+                    onChange={(e) => setShortSlugInput(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-primary"
+                    onClick={handleGenerateShortUrl}
+                    disabled={isShortening}
+                    style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
+                  >
+                    {isShortening ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
+                    <span>{isShortening ? "Generating..." : shortUrl ? "Regenerate Short URL" : "Generate Short URL"}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Section 4: Related Posts */}
+            {openSection === "related" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontWeight: "bold", fontSize: "13px" }}>
+                    Related Posts ({relatedPosts.length})
+                  </div>
+                  {id && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      onClick={handleRefreshRelated}
+                      disabled={isRefreshingRelated}
+                      style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px" }}
+                    >
+                      <RefreshCw size={12} style={{ animation: isRefreshingRelated ? "spin 1s linear infinite" : "none" }} />
+                      <span>{isRefreshingRelated ? "Refreshing..." : "Refresh"}</span>
+                    </button>
+                  )}
+                </div>
+
+                {relatedPosts.length === 0 ? (
+                  <div style={{ color: "var(--text-muted)", fontSize: "12px", fontStyle: "italic" }}>
+                    No related posts identified yet. (Calculated automatically based on shared keywords/tags when you save).
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {relatedPosts.map((post) => (
+                      <div
+                        key={post.id}
+                        style={{
+                          background: "var(--bg-sidebar)",
+                          border: "1px solid var(--border-color)",
+                          padding: "8px 12px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "12px",
+                          borderRadius: "4px",
+                        }}
+                      >
+                        <div style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1 }}>
+                          <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-primary)" }}>
+                            {post.contentMarkdown.slice(0, 70)}...
+                          </div>
+                          <div style={{ fontSize: "11px", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+                            /{post.slug} • Match Score: {post.score}
+                          </div>
+                        </div>
+                        <a href={`/microblog/${post.id}`} className="btn btn-sm btn-secondary">
+                          Edit
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Related Posts */}
-      <div style={{ background: "var(--bg-card)", padding: "12px", border: "1px solid var(--border-color)", display: "flex", flexDirection: "column", gap: "10px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontWeight: "bold", fontSize: "13px" }}>
-            Related Posts ({relatedPosts.length})
-          </div>
-          {id && (
+      {/* 3. Main Markdown Editor & Live Preview (Front and Center) */}
+      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "6px", padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+        {/* Editor Mode Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+          <div style={{ display: "flex", gap: "4px" }}>
             <button
               type="button"
-              className="btn btn-sm"
-              onClick={handleRefreshRelated}
-              disabled={isRefreshingRelated}
-              style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px" }}
-              title="Recalculate related posts based on current content and tags"
+              className={`btn btn-sm ${activeTab === "write" ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => setActiveTab("write")}
+              style={{ minHeight: "36px", px: "12px" }}
             >
-              <RefreshCw size={12} style={{ animation: isRefreshingRelated ? "spin 1s linear infinite" : "none" }} />
-              <span>{isRefreshingRelated ? "Refreshing..." : "Refresh"}</span>
+              <FileEdit size={14} /> Write Content
             </button>
-          )}
-        </div>
-        {relatedPosts.length === 0 ? (
-          <div style={{ color: "var(--text-muted)", fontSize: "12px", fontStyle: "italic" }}>
-            No related posts identified yet. (Links will build automatically based on shared keywords/tags when you save).
+            <button
+              type="button"
+              className={`btn btn-sm ${activeTab === "preview" ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => setActiveTab("preview")}
+              style={{ minHeight: "36px", px: "12px" }}
+            >
+              <Eye size={14} /> Live Preview
+            </button>
           </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {relatedPosts.map((post) => {
-              const snippet = post.contentMarkdown.length > 80
-                ? post.contentMarkdown.slice(0, 80) + "..."
-                : post.contentMarkdown;
-              return (
-                <div
-                  key={post.id}
-                  style={{
-                    background: "var(--bg-sidebar)",
-                    border: "1px solid var(--border-color)",
-                    padding: "8px 12px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "12px",
-                  }}
-                >
-                  <div style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1 }}>
-                    <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-primary)" }}>
-                      {snippet}
-                    </div>
-                    <div style={{ fontSize: "11px", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-                      /{post.slug} • Match Score: {post.score}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <span className={`status-badge status-${post.status}`}>
-                      {post.status}
-                    </span>
-                    <a
-                      href={`/microblog/${post.id}`}
-                      className="btn btn-sm"
-                      title="Edit Related Post"
-                    >
-                      Edit
-                    </a>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
 
-      {/* Editor & Live Preview Switcher Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", gap: "4px" }}>
-          <button
-            type="button"
-            className={`btn btn-sm ${activeTab === "write" ? "btn-primary" : ""}`}
-            onClick={() => setActiveTab("write")}
+          <div style={{ fontSize: "12px", color: "var(--text-muted)", fontFamily: "var(--font-mono)", display: "flex", gap: "12px" }}>
+            <span>Words: <strong>{wordCount}</strong></span>
+            <span>Chars: <strong>{charCount}</strong></span>
+          </div>
+        </div>
+
+        {/* Writing & Live Preview Layout */}
+        <div className="editor-layout" style={{ display: "grid", gridTemplateColumns: activeTab === "preview" ? "1fr" : "1fr 1fr", gap: "16px", minHeight: "450px" }}>
+          {/* Editor Input Pane */}
+          <div style={{ display: activeTab === "preview" ? "none" : "flex", flexDirection: "column", height: "100%" }}>
+            <textarea
+              className="editor-textarea"
+              style={{
+                width: "100%",
+                height: "100%",
+                minHeight: "450px",
+                padding: "14px",
+                fontSize: "14px",
+                lineHeight: "1.6",
+                fontFamily: "var(--font-mono)",
+                background: "var(--bg-sidebar)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border-color)",
+                borderRadius: "4px",
+                resize: "vertical",
+                outline: "none",
+              }}
+              placeholder="Write your microblog markdown here..."
+              value={contentMarkdown}
+              onChange={(e) => setContentMarkdown(e.target.value)}
+            />
+          </div>
+
+          {/* Live Preview Pane */}
+          <div
+            style={{
+              display: activeTab === "write" ? "flex" : "flex",
+              flexDirection: "column",
+              height: "100%",
+              minHeight: "450px",
+              padding: "16px",
+              background: "var(--bg-sidebar)",
+              border: "1px solid var(--border-color)",
+              borderRadius: "4px",
+              overflowY: "auto",
+            }}
           >
-            <FileEdit size={14} /> Write
-          </button>
-          <button
-            type="button"
-            className={`btn btn-sm ${activeTab === "preview" ? "btn-primary" : ""}`}
-            onClick={() => setActiveTab("preview")}
-          >
-            <Eye size={14} /> Live Preview
-          </button>
-        </div>
+            <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "10px", textTransform: "uppercase", fontWeight: "bold", letterSpacing: "0.5px" }}>
+              Live Markdown Preview
+            </div>
 
-        <div className="meta-stats">
-          <span>Words: {wordCount}</span>
-          <span>Chars: {charCount}</span>
-        </div>
-      </div>
+            {coverImageUrl && (
+              <div style={{ marginBottom: "12px" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={coverImageUrl} alt="Cover" style={{ maxWidth: "100%", maxHeight: "220px", borderRadius: "4px", objectFit: "cover" }} />
+              </div>
+            )}
 
-      {/* Main Split / Toggle View */}
-      <div className="editor-layout">
-        <div className={`editor-pane ${activeTab !== "write" ? "hide-on-mobile-tab" : ""}`}>
-          <textarea
-            className="editor-textarea"
-            placeholder="Write your microblog markdown here..."
-            value={contentMarkdown}
-            onChange={(e) => setContentMarkdown(e.target.value)}
-          />
-        </div>
-
-        <div className={`preview-pane ${activeTab !== "preview" ? "hide-on-mobile-tab" : ""}`}>
-          <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase", fontWeight: "bold" }}>
-            Live Preview
+            {contentMarkdown ? (
+              <div style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font-sans)", lineHeight: "1.6", fontSize: "14px", color: "var(--text-primary)" }}>
+                {contentMarkdown}
+              </div>
+            ) : (
+              <em style={{ color: "var(--text-muted)", fontSize: "13px" }}>Nothing to preview yet... Start writing in the editor.</em>
+            )}
           </div>
-          {coverImageUrl && (
-            <div style={{ marginBottom: "12px" }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={coverImageUrl} alt="Cover" style={{ maxWidth: "100%", maxHeight: "200px", borderRadius: "2px" }} />
-            </div>
-          )}
-          {contentMarkdown ? (
-            <div style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font-sans)", lineHeight: "1.6" }}>
-              {contentMarkdown}
-            </div>
-          ) : (
-            <em style={{ color: "var(--text-muted)" }}>Nothing to preview yet...</em>
-          )}
         </div>
       </div>
+
       <style jsx>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+        @media (max-width: 768px) {
+          .editor-layout {
+            grid-template-columns: 1fr !important;
+          }
         }
       `}</style>
     </div>
