@@ -140,6 +140,24 @@ export async function getMovieDetailAction(traktId: number): Promise<CombinedMov
   const movieRes = await db.select().from(traktMovies).where(eq(traktMovies.traktId, traktId)).limit(1);
   if (!movieRes[0]) return null;
 
+  // Auto-fetch missing poster artwork from TMDB using tmdbId if available
+  if (!movieRes[0].posterPath && movieRes[0].tmdbId && process.env.TMDB_API_KEY) {
+    try {
+      const res = await fetch(`https://api.themoviedb.org/3/movie/${movieRes[0].tmdbId}?api_key=${process.env.TMDB_API_KEY.trim()}`);
+      if (res.ok) {
+        const data = await res.json();
+        const posterPath = data.poster_path || null;
+        const backdropPath = data.backdrop_path || null;
+        if (posterPath || backdropPath) {
+          const now = new Date().toISOString();
+          await db.update(traktMovies).set({ posterPath, backdropPath, updatedAt: now }).where(eq(traktMovies.traktId, traktId));
+          movieRes[0].posterPath = posterPath;
+          movieRes[0].backdropPath = backdropPath;
+        }
+      }
+    } catch {}
+  }
+
   const metadataRes = await db.select().from(movieMetadata).where(eq(movieMetadata.traktId, traktId)).limit(1);
   const collections = await getItemCollectionsAction("movie", traktId);
 

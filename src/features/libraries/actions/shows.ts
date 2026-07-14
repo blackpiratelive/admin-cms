@@ -115,6 +115,24 @@ export async function getShowDetailAction(traktId: number): Promise<CombinedShow
   const showRes = await db.select().from(traktShows).where(eq(traktShows.traktId, traktId)).limit(1);
   if (!showRes[0]) return null;
 
+  // Auto-fetch missing poster artwork from TMDB using tmdbId if available
+  if (!showRes[0].posterPath && showRes[0].tmdbId && process.env.TMDB_API_KEY) {
+    try {
+      const res = await fetch(`https://api.themoviedb.org/3/tv/${showRes[0].tmdbId}?api_key=${process.env.TMDB_API_KEY.trim()}`);
+      if (res.ok) {
+        const data = await res.json();
+        const posterPath = data.poster_path || null;
+        const backdropPath = data.backdrop_path || null;
+        if (posterPath || backdropPath) {
+          const now = new Date().toISOString();
+          await db.update(traktShows).set({ posterPath, backdropPath, updatedAt: now }).where(eq(traktShows.traktId, traktId));
+          showRes[0].posterPath = posterPath;
+          showRes[0].backdropPath = backdropPath;
+        }
+      }
+    } catch {}
+  }
+
   const metadataRes = await db.select().from(tvShowMetadata).where(eq(tvShowMetadata.traktId, traktId)).limit(1);
   const episodes = await db.select().from(traktEpisodes).where(eq(traktEpisodes.showTraktId, traktId));
   const collections = await getItemCollectionsAction("show", traktId);
