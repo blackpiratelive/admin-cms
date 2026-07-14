@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { CombinedMovie } from "../types";
 import { getTmdbImageUrl } from "../utils/images";
 import { updateMovieMetadataAction } from "../actions/movies";
 import { addItemToCollectionAction, removeItemFromCollectionAction } from "../actions/collections";
-import { CollectionRecord } from "@/db/schema";
-import { Heart, Star, Tag, Eye, ArrowLeft, ExternalLink, FolderPlus, Save, Check } from "lucide-react";
+import { getLocations } from "@/features/locations/actions";
+import { getTrips } from "@/features/trips/actions";
+import { CollectionRecord, LocationRecord, TripRecord } from "@/db/schema";
+import { Heart, Star, Tag, Eye, ArrowLeft, ExternalLink, FolderPlus, Save, Check, MapPin, Compass, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 interface MovieDetailViewProps {
@@ -31,10 +33,31 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
   });
   const [visibility, setVisibility] = useState(metadata?.visibility || "public");
   const [featured, setFeatured] = useState(metadata?.featured === 1);
-  const [watchLocation, setWatchLocation] = useState(metadata?.watchLocation || "");
+  const [locationId, setLocationId] = useState(metadata?.locationId || "");
+  const [tripId, setTripId] = useState(metadata?.tripId || "");
+
+  const [locationsList, setLocationsList] = useState<LocationRecord[]>([]);
+  const [tripsList, setTripsList] = useState<TripRecord[]>([]);
+  const [isLoadingEntities, setIsLoadingEntities] = useState(true);
 
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  useEffect(() => {
+    async function loadEntities() {
+      setIsLoadingEntities(true);
+      try {
+        const [locs, trps] = await Promise.all([getLocations(), getTrips()]);
+        setLocationsList(locs);
+        setTripsList(trps);
+      } catch (err) {
+        console.error("Failed to load locations or trips:", err);
+      } finally {
+        setIsLoadingEntities(false);
+      }
+    }
+    loadEntities();
+  }, []);
 
   const backdropUrl = getTmdbImageUrl(movie.backdropPath, "backdrop");
   const posterUrl = getTmdbImageUrl(movie.posterPath, "poster") || "https://placehold.co/300x450/1a1a1a/cccccc?text=No+Poster";
@@ -62,7 +85,8 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
         tags,
         visibility,
         featured,
-        watchLocation: watchLocation.trim() || null,
+        locationId: locationId || null,
+        tripId: tripId || null,
       });
 
       setSavedSuccess(true);
@@ -217,7 +241,7 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
             </h2>
 
             <button className="btn btn-sm btn-primary" onClick={handleSaveMetadata} disabled={saving}>
-              {savedSuccess ? <Check size={14} /> : <Save size={14} />}
+              {saving ? <Loader2 size={14} className="animate-spin" /> : savedSuccess ? <Check size={14} /> : <Save size={14} />}
               <span>{saving ? "Saving..." : savedSuccess ? "Saved!" : "Save Metadata"}</span>
             </button>
           </div>
@@ -260,15 +284,47 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
             </div>
           </div>
 
-          <div>
-            <label className="label">Watch Location / Cinema</label>
-            <input
-              type="text"
-              className="text-input"
-              placeholder="e.g. IMAX Theater, Home Theater, Flight"
-              value={watchLocation}
-              onChange={(e) => setWatchLocation(e.target.value)}
-            />
+          {/* New Location & Trip Selectors replacing old watch location input */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div>
+              <label className="label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <MapPin size={13} style={{ color: "var(--accent-color)" }} />
+                <span>Associated Location</span>
+                {isLoadingEntities && <Loader2 size={12} className="animate-spin" />}
+              </label>
+              <select
+                className="select-input"
+                value={locationId}
+                onChange={(e) => setLocationId(e.target.value)}
+              >
+                <option value="">-- None (No Location) --</option>
+                {locationsList.map((loc) => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.name} {[loc.city, loc.country].filter(Boolean).length ? `(${[loc.city, loc.country].filter(Boolean).join(", ")})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <Compass size={13} style={{ color: "var(--accent-color)" }} />
+                <span>Associated Trip</span>
+                {isLoadingEntities && <Loader2 size={12} className="animate-spin" />}
+              </label>
+              <select
+                className="select-input"
+                value={tripId}
+                onChange={(e) => setTripId(e.target.value)}
+              >
+                <option value="">-- None (No Trip) --</option>
+                {tripsList.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title} ({t.status})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div>
