@@ -38,7 +38,7 @@ describe("Sync Center Provider Registry & Architecture", () => {
     expect(invalidLastfm.error).toContain("API Key");
 
     // Valid config structure
-    const validTrakt = await trakt.validateConfiguration({ username: "user", clientId: "client123" });
+    const validTrakt = await trakt.validateConfiguration({ username: "user", clientId: "client123", clientSecret: "secret123" });
     expect(validTrakt.valid).toBe(true);
 
     const validLastfm = await lastfm.validateConfiguration({ username: "user", apiKey: "api123" });

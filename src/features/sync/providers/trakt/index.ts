@@ -23,11 +23,19 @@ export class TraktSyncProvider extends BaseSyncProvider {
       },
       {
         name: "clientId",
-        label: "Trakt Client ID (API Key)",
+        label: "Trakt Client ID",
         type: "password",
         placeholder: "Trakt API Client ID",
         required: true,
-        description: "Create an application on trakt.tv/oauth/applications to get your Client ID",
+        description: "Obtained from trakt.tv/oauth/applications",
+      },
+      {
+        name: "clientSecret",
+        label: "Trakt Client Secret",
+        type: "password",
+        placeholder: "Trakt API Client Secret",
+        required: true,
+        description: "Obtained alongside Client ID from your Trakt API application",
       },
     ];
   }
@@ -39,17 +47,25 @@ export class TraktSyncProvider extends BaseSyncProvider {
     if (!config.clientId || typeof config.clientId !== "string" || !config.clientId.trim()) {
       return { valid: false, error: "Trakt Client ID is required." };
     }
+    if (!config.clientSecret || typeof config.clientSecret !== "string" || !config.clientSecret.trim()) {
+      return { valid: false, error: "Trakt Client Secret is required." };
+    }
     return { valid: true };
   }
 
   async testConnection(config: Record<string, any>): Promise<boolean> {
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "trakt-api-version": "2",
+        "trakt-api-key": config.clientId.trim(),
+      };
+      if (config.accessToken && typeof config.accessToken === "string" && config.accessToken.trim()) {
+        headers["Authorization"] = `Bearer ${config.accessToken.trim()}`;
+      }
+
       const res = await fetch(`https://api.trakt.tv/users/${config.username.trim()}`, {
-        headers: {
-          "Content-Type": "application/json",
-          "trakt-api-version": "2",
-          "trakt-api-key": config.clientId.trim(),
-        },
+        headers,
       });
       return res.ok;
     } catch {
@@ -61,11 +77,14 @@ export class TraktSyncProvider extends BaseSyncProvider {
     await ensureDbInitialized();
     const username = config.username.trim();
     const clientId = config.clientId.trim();
-    const headers = {
+    const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "trakt-api-version": "2",
       "trakt-api-key": clientId,
     };
+    if (config.accessToken && typeof config.accessToken === "string" && config.accessToken.trim()) {
+      headers["Authorization"] = `Bearer ${config.accessToken.trim()}`;
+    }
 
     let itemsCreated = 0;
     let itemsUpdated = 0;
