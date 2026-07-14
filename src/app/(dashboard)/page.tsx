@@ -4,6 +4,8 @@ import { getMoviesAction } from "@/features/libraries/actions/movies";
 import { getShowsAction } from "@/features/libraries/actions/shows";
 import { getListeningHistoryAction } from "@/features/libraries/actions/music";
 import { getActivitiesAction } from "@/features/libraries/actions/activities";
+import { getComprehensiveSystemStats } from "@/features/stats/actions";
+import { SystemStatsModule } from "@/features/stats/SystemStatsModule";
 import { DashboardMediaWidgets } from "@/features/libraries/components/DashboardMediaWidgets";
 import { Plus, MessageSquareText, Globe, FileEdit, Archive, Layers } from "lucide-react";
 
@@ -12,17 +14,15 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const posts = await getMicroblogs();
 
-  const [recentMovies, recentShows, recentScrobbles, activities] = await Promise.all([
+  const [recentMovies, recentShows, recentScrobbles, activities, systemStats] = await Promise.all([
     getMoviesAction({ timeframe: "recently_watched" }),
     getShowsAction(),
     getListeningHistoryAction({ limit: 5 }),
     getActivitiesAction(6),
+    getComprehensiveSystemStats(),
   ]);
 
   const totalPosts = posts.length;
-  const publishedCount = posts.filter((p) => p.status === "published").length;
-  const draftCount = posts.filter((p) => p.status === "draft").length;
-  const scheduledCount = posts.filter((p) => p.status === "scheduled").length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -34,28 +34,8 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      {/* Summary Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", padding: "16px" }}>
-          <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>Total Microblogs</div>
-          <div style={{ fontSize: "24px", fontWeight: "bold" }}>{totalPosts}</div>
-        </div>
-
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", padding: "16px" }}>
-          <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>Published</div>
-          <div style={{ fontSize: "24px", fontWeight: "bold", color: "#2e7d32" }}>{publishedCount}</div>
-        </div>
-
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", padding: "16px" }}>
-          <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>Drafts</div>
-          <div style={{ fontSize: "24px", fontWeight: "bold", color: "var(--text-secondary)" }}>{draftCount}</div>
-        </div>
-
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", padding: "16px" }}>
-          <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>Scheduled</div>
-          <div style={{ fontSize: "24px", fontWeight: "bold", color: "#0288d1" }}>{scheduledCount}</div>
-        </div>
-      </div>
+      {/* Comprehensive System & Cloudflare R2 Stats Module */}
+      <SystemStatsModule stats={systemStats} />
 
       {/* Media & Personal Libraries Dashboard Widgets */}
       <DashboardMediaWidgets
