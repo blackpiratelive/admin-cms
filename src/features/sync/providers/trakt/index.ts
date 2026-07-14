@@ -54,23 +54,33 @@ export class TraktSyncProvider extends BaseSyncProvider {
   }
 
   async testConnection(config: Record<string, any>): Promise<boolean> {
-    try {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "trakt-api-version": "2",
-        "trakt-api-key": config.clientId.trim(),
-      };
-      if (config.accessToken && typeof config.accessToken === "string" && config.accessToken.trim()) {
-        headers["Authorization"] = `Bearer ${config.accessToken.trim()}`;
-      }
-
-      const res = await fetch(`https://api.trakt.tv/users/${config.username.trim()}`, {
-        headers,
-      });
-      return res.ok;
-    } catch {
-      return false;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "trakt-api-version": "2",
+      "trakt-api-key": config.clientId.trim(),
+      "User-Agent": "AdminCMS/1.0.0",
+    };
+    if (config.accessToken && typeof config.accessToken === "string" && config.accessToken.trim()) {
+      headers["Authorization"] = `Bearer ${config.accessToken.trim()}`;
     }
+
+    const res = await fetch(`https://api.trakt.tv/users/${config.username.trim()}`, {
+      headers,
+    });
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        throw new Error("Trakt API rejected credentials (401 Unauthorized). Please check your Client ID.");
+      } else if (res.status === 404) {
+        throw new Error(`Trakt user '${config.username.trim()}' was not found (404 Not Found).`);
+      } else if (res.status === 403) {
+        throw new Error("Trakt API access forbidden (403 Forbidden). Check application permissions.");
+      } else {
+        throw new Error(`Trakt API error (${res.status} ${res.statusText})`);
+      }
+    }
+
+    return true;
   }
 
   protected async executeSync(config: Record<string, any>, options?: SyncOptions): Promise<SyncResult> {
@@ -81,6 +91,7 @@ export class TraktSyncProvider extends BaseSyncProvider {
       "Content-Type": "application/json",
       "trakt-api-version": "2",
       "trakt-api-key": clientId,
+      "User-Agent": "AdminCMS/1.0.0",
     };
     if (config.accessToken && typeof config.accessToken === "string" && config.accessToken.trim()) {
       headers["Authorization"] = `Bearer ${config.accessToken.trim()}`;

@@ -49,20 +49,29 @@ export class LastfmSyncProvider extends BaseSyncProvider {
   }
 
   async testConnection(config: Record<string, any>): Promise<boolean> {
-    try {
-      const username = config.username.trim();
-      const apiKey = config.apiKey.trim();
-      const res = await fetch(
-        `https://ws.audioscrobbler.com/2.0/?method=user.getinfo&user=${encodeURIComponent(
-          username
-        )}&api_key=${encodeURIComponent(apiKey)}&format=json`
-      );
-      if (!res.ok) return false;
-      const data = await res.json();
-      return !!data.user;
-    } catch {
-      return false;
+    const username = config.username.trim();
+    const apiKey = config.apiKey.trim();
+    const res = await fetch(
+      `https://ws.audioscrobbler.com/2.0/?method=user.getinfo&user=${encodeURIComponent(
+        username
+      )}&api_key=${encodeURIComponent(apiKey)}&format=json`,
+      {
+        headers: {
+          "User-Agent": "AdminCMS/1.0.0",
+        },
+      }
+    );
+    if (!res.ok) {
+      throw new Error(`Last.fm API HTTP error (${res.status} ${res.statusText})`);
     }
+    const data = await res.json();
+    if (data.error) {
+      throw new Error(`Last.fm error (${data.error}): ${data.message || "Invalid credentials or username"}`);
+    }
+    if (!data.user) {
+      throw new Error(`Last.fm user '${username}' not found.`);
+    }
+    return true;
   }
 
   protected async executeSync(config: Record<string, any>, options?: SyncOptions): Promise<SyncResult> {
