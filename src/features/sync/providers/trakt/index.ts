@@ -1,7 +1,7 @@
 import { BaseSyncProvider } from "../../base-provider";
 import { ConfigField, ConfigValidationResult, SyncOptions, SyncResult } from "../../types";
 import { db, ensureDbInitialized } from "@/db";
-import { traktMovies, traktShows, traktEpisodes } from "@/db/schema";
+import { traktMovies, traktShows, traktEpisodes, providers } from "@/db/schema";
 import { eq, count } from "drizzle-orm";
 
 export class TraktSyncProvider extends BaseSyncProvider {
@@ -100,8 +100,177 @@ export class TraktSyncProvider extends BaseSyncProvider {
     let itemsCreated = 0;
     let itemsUpdated = 0;
     const now = new Date().toISOString();
+    const mode = options?.mode || "incremental";
+    const currentConfig = await this.getConfig();
+    let backfillPage = options?.batchPage || currentConfig.nextBackfillPage || 1;
 
-    // 1. Sync Watched Movies
+    if (mode === "batch") {
+      const maxPagesToFetch = options?.batchSize || 3;
+      let startPage = backfillPage;
+
+      for (let p = 0; p < maxPagesToFetch; p++) {
+        this.checkCancelled();
+        const pageToFetch = startPage + p;
+        const historyRes = await fetch(
+          `https://api.trakt.tv/users/${username}/history?page=${pageToFetch}&limit=100&extended=full`,
+          { headers }
+        );
+        if (!historyRes.ok) break;
+
+        const historyItems: any[] = await historyRes.json();
+        if (!Array.isArray(historyItems) || historyItems.length === 0) break;
+
+        for (const item of historyItems) {
+          this.checkCancelled();
+          if (item.type === "movie" && item.movie) {
+            const movie = item.movie;
+            const traktId = movie.ids?.trakt;
+            if (!traktId) continue;
+
+            const existing = await db.select().from(traktMovies).where(eq(traktMovies.traktId, traktId)).limit(1);
+            const movieData = {
+              traktId,
+              tmdbId: movie.ids.tmdb || null,
+              title: movie.title || "Untitled Movie",
+              year: movie.year || null,
+              overview: movie.overview || null,
+              runtime: movie.runtime || null,
+              rating: movie.rating ? Number(movie.rating) : null,
+              watchedAt: item.watched_at || null,
+              genres: JSON.stringify(movie.genres || []),
+              posterPath: movie.poster || null,
+              backdropPath: movie.fanart || null,
+              updatedAt: now,
+            };
+
+            if (existing[0]) {
+              await db
+                .update(traktMovies)
+                .set({
+                  ...movieData,
+                  favorite: existing[0].favorite,
+                  notes: existing[0].notes,
+                  visibility: existing[0].visibility,
+                  customTags: existing[0].customTags,
+                  review: existing[0].review,
+                })
+                .where(eq(traktMovies.traktId, traktId));
+              itemsUpdated++;
+            } else {
+              await db
+                .insert(traktMovies)
+                .values({
+                  ...movieData,
+                  favorite: 0,
+                  notes: null,
+                  visibility: "public",
+                  customTags: "[]",
+                  review: null,
+                  createdAt: now,
+                })
+                .onConflictDoNothing();
+              itemsCreated++;
+            }
+          } else if (item.type === "episode" && item.show && item.episode) {
+            const show = item.show;
+            const ep = item.episode;
+            const showTraktId = show.ids?.trakt;
+            if (!showTraktId) continue;
+
+            const existingShow = await db.select().from(traktShows).where(eq(traktShows.traktId, showTraktId)).limit(1);
+            const showData = {
+              traktId: showTraktId,
+              tmdbId: show.ids.tmdb || null,
+              title: show.title || "Untitled Show",
+              overview: show.overview || null,
+              status: show.status || null,
+              year: show.year || null,
+              posterPath: show.poster || null,
+              backdropPath: show.fanart || null,
+              updatedAt: now,
+            };
+
+            if (existingShow[0]) {
+              await db
+                .update(traktShows)
+                .set({
+                  ...showData,
+                  favorite: existingShow[0].favorite,
+                  notes: existingShow[0].notes,
+                  visibility: existingShow[0].visibility,
+                  customTags: existingShow[0].customTags,
+                  review: existingShow[0].review,
+                })
+                .where(eq(traktShows.traktId, showTraktId));
+              itemsUpdated++;
+            } else {
+              await db
+                .insert(traktShows)
+                .values({
+                  ...showData,
+                  favorite: 0,
+                  notes: null,
+                  visibility: "public",
+                  customTags: "[]",
+                  review: null,
+                  createdAt: now,
+                })
+                .onConflictDoNothing();
+              itemsCreated++;
+            }
+
+            const epId = `${showTraktId}_s${ep.season}_e${ep.number}`;
+            const existingEp = await db.select().from(traktEpisodes).where(eq(traktEpisodes.id, epId)).limit(1);
+            const epData = {
+              id: epId,
+              showTraktId,
+              episodeNumber: ep.number,
+              seasonNumber: ep.season,
+              title: ep.title || null,
+              watchedAt: item.watched_at || null,
+              rating: ep.rating ? Number(ep.rating) : null,
+              updatedAt: now,
+            };
+
+            if (existingEp[0]) {
+              await db.update(traktEpisodes).set(epData).where(eq(traktEpisodes.id, epId));
+              itemsUpdated++;
+            } else {
+              await db
+                .insert(traktEpisodes)
+                .values({
+                  ...epData,
+                  createdAt: now,
+                })
+                .onConflictDoNothing();
+              itemsCreated++;
+            }
+          }
+        }
+      }
+
+      const nextBackfillPage = startPage + maxPagesToFetch;
+      await db
+        .update(providers)
+        .set({
+          configurationJson: JSON.stringify({
+            ...currentConfig,
+            nextBackfillPage,
+          }),
+          updatedAt: now,
+        })
+        .where(eq(providers.slug, this.slug));
+
+      return {
+        success: true,
+        itemsCreated,
+        itemsUpdated,
+        itemsDeleted: 0,
+        metadata: { mode, pagesFetched: maxPagesToFetch, nextBackfillPage },
+      };
+    }
+
+    // 1. Sync Watched Movies (Incremental)
     const moviesRes = await fetch(`https://api.trakt.tv/users/${username}/watched/movies?extended=full`, { headers });
     if (!moviesRes.ok) {
       throw new Error(`Failed to fetch watched movies from Trakt: ${moviesRes.status} ${moviesRes.statusText}`);

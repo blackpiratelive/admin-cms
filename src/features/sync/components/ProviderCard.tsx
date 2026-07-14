@@ -122,7 +122,7 @@ export function ProviderCard({
 
       <div className="sync-card-footer">
         <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-          {provider.slug === "lastfm" && provider.connected && !isSyncingActive && (
+          {(provider.slug === "lastfm" || provider.slug === "trakt") && provider.connected && !isSyncingActive && (
             <select
               className="select-input"
               value={syncMode}
