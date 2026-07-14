@@ -4,6 +4,28 @@ import { db, ensureDbInitialized } from "@/db";
 import { traktMovies, traktShows, traktEpisodes, providers } from "@/db/schema";
 import { eq, count } from "drizzle-orm";
 
+async function fetchTmdbArtwork(
+  tmdbId: number,
+  type: "movie" | "tv"
+): Promise<{ posterPath: string | null; backdropPath: string | null }> {
+  const apiKey = process.env.TMDB_API_KEY;
+  if (!apiKey || !tmdbId) return { posterPath: null, backdropPath: null };
+
+  try {
+    const res = await fetch(
+      `https://api.themoviedb.org/3/${type}/${tmdbId}?api_key=${apiKey.trim()}`
+    );
+    if (!res.ok) return { posterPath: null, backdropPath: null };
+    const data = await res.json();
+    return {
+      posterPath: data.poster_path || null,
+      backdropPath: data.backdrop_path || null,
+    };
+  } catch {
+    return { posterPath: null, backdropPath: null };
+  }
+}
+
 export class TraktSyncProvider extends BaseSyncProvider {
   id = "trakt";
   name = "Trakt";
@@ -127,6 +149,14 @@ export class TraktSyncProvider extends BaseSyncProvider {
             const traktId = movie.ids?.trakt;
             if (!traktId) continue;
 
+            let posterPath = movie.poster || null;
+            let backdropPath = movie.fanart || null;
+            if ((!posterPath || !backdropPath) && movie.ids?.tmdb) {
+              const tmdbArtwork = await fetchTmdbArtwork(movie.ids.tmdb, "movie");
+              if (tmdbArtwork.posterPath) posterPath = tmdbArtwork.posterPath;
+              if (tmdbArtwork.backdropPath) backdropPath = tmdbArtwork.backdropPath;
+            }
+
             const existing = await db.select().from(traktMovies).where(eq(traktMovies.traktId, traktId)).limit(1);
             const movieData = {
               traktId,
@@ -138,8 +168,8 @@ export class TraktSyncProvider extends BaseSyncProvider {
               rating: movie.rating ? Number(movie.rating) : null,
               watchedAt: item.watched_at || null,
               genres: JSON.stringify(movie.genres || []),
-              posterPath: movie.poster || null,
-              backdropPath: movie.fanart || null,
+              posterPath,
+              backdropPath,
               updatedAt: now,
             };
 
@@ -177,6 +207,14 @@ export class TraktSyncProvider extends BaseSyncProvider {
             const showTraktId = show.ids?.trakt;
             if (!showTraktId) continue;
 
+            let posterPath = show.poster || null;
+            let backdropPath = show.fanart || null;
+            if ((!posterPath || !backdropPath) && show.ids?.tmdb) {
+              const tmdbArtwork = await fetchTmdbArtwork(show.ids.tmdb, "tv");
+              if (tmdbArtwork.posterPath) posterPath = tmdbArtwork.posterPath;
+              if (tmdbArtwork.backdropPath) backdropPath = tmdbArtwork.backdropPath;
+            }
+
             const existingShow = await db.select().from(traktShows).where(eq(traktShows.traktId, showTraktId)).limit(1);
             const showData = {
               traktId: showTraktId,
@@ -185,8 +223,8 @@ export class TraktSyncProvider extends BaseSyncProvider {
               overview: show.overview || null,
               status: show.status || null,
               year: show.year || null,
-              posterPath: show.poster || null,
-              backdropPath: show.fanart || null,
+              posterPath,
+              backdropPath,
               updatedAt: now,
             };
 
@@ -283,6 +321,14 @@ export class TraktSyncProvider extends BaseSyncProvider {
       if (!movie || !movie.ids?.trakt) continue;
 
       const traktId = movie.ids.trakt;
+      let posterPath = movie.poster || null;
+      let backdropPath = movie.fanart || null;
+      if ((!posterPath || !backdropPath) && movie.ids?.tmdb) {
+        const tmdbArtwork = await fetchTmdbArtwork(movie.ids.tmdb, "movie");
+        if (tmdbArtwork.posterPath) posterPath = tmdbArtwork.posterPath;
+        if (tmdbArtwork.backdropPath) backdropPath = tmdbArtwork.backdropPath;
+      }
+
       const existing = await db.select().from(traktMovies).where(eq(traktMovies.traktId, traktId)).limit(1);
 
       const movieData = {
@@ -295,9 +341,8 @@ export class TraktSyncProvider extends BaseSyncProvider {
         rating: movie.rating ? Number(movie.rating) : null,
         watchedAt: item.last_watched_at || null,
         genres: JSON.stringify(movie.genres || []),
-        // Poster and backdrop paths are stored as relative TMDB paths if provided
-        posterPath: movie.poster || null,
-        backdropPath: movie.fanart || null,
+        posterPath,
+        backdropPath,
         updatedAt: now,
       };
 
@@ -344,6 +389,14 @@ export class TraktSyncProvider extends BaseSyncProvider {
       if (!show || !show.ids?.trakt) continue;
 
       const showTraktId = show.ids.trakt;
+      let posterPath = show.poster || null;
+      let backdropPath = show.fanart || null;
+      if ((!posterPath || !backdropPath) && show.ids?.tmdb) {
+        const tmdbArtwork = await fetchTmdbArtwork(show.ids.tmdb, "tv");
+        if (tmdbArtwork.posterPath) posterPath = tmdbArtwork.posterPath;
+        if (tmdbArtwork.backdropPath) backdropPath = tmdbArtwork.backdropPath;
+      }
+
       const existingShow = await db.select().from(traktShows).where(eq(traktShows.traktId, showTraktId)).limit(1);
 
       const showData = {
@@ -353,8 +406,8 @@ export class TraktSyncProvider extends BaseSyncProvider {
         overview: show.overview || null,
         status: show.status || null,
         year: show.year || null,
-        posterPath: show.poster || null,
-        backdropPath: show.fanart || null,
+        posterPath,
+        backdropPath,
         updatedAt: now,
       };
 
