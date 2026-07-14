@@ -542,15 +542,24 @@ export async function ensureDbInitialized(): Promise<void> {
 
       // Add columns to existing installations dynamically
       try {
-        await client.execute(`ALTER TABLE microblogs ADD COLUMN images TEXT NOT NULL DEFAULT '[]';`);
+        await client.execute(`ALTER TABLE microblogs ADD COLUMN location_id TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE microblogs ADD COLUMN trip_id TEXT;`);
       } catch (err) {}
 
       try {
-        await client.execute(`ALTER TABLE microblogs ADD COLUMN short_url TEXT;`);
+        await client.execute(`ALTER TABLE gallery ADD COLUMN location_id TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE gallery ADD COLUMN trip_id TEXT;`);
       } catch (err) {}
 
       try {
-        await client.execute(`ALTER TABLE gallery ADD COLUMN short_url TEXT;`);
+        await client.execute(`ALTER TABLE movie_metadata ADD COLUMN location_id TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE movie_metadata ADD COLUMN trip_id TEXT;`);
       } catch (err) {}
 
       try {

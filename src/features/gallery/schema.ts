@@ -23,6 +23,8 @@ export const galleryPhotoInputSchema = z.object({
   latitude: z.number().optional().nullable(),
   longitude: z.number().optional().nullable(),
   locationName: z.string().optional().nullable(),
+  locationId: z.string().optional().nullable(),
+  tripId: z.string().optional().nullable(),
   visibility: z.enum(["public", "private", "unlisted"]).default("public"),
   featured: z.boolean().default(false),
   processingStatus: z.enum(["pending", "processing", "ready", "failed"]).default("ready"),

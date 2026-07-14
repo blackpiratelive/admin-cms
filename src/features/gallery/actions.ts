@@ -152,6 +152,8 @@ export async function saveGalleryPhoto(input: GalleryPhotoInput) {
       latitude: validated.latitude || null,
       longitude: validated.longitude || null,
       locationName: validated.locationName || null,
+      locationId: validated.locationId || null,
+      tripId: validated.tripId || null,
       visibility: validated.visibility,
       featured: validated.featured ? 1 : 0,
       processingStatus: validated.processingStatus,

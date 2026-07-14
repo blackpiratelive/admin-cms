@@ -12,6 +12,8 @@ export const microblogs = sqliteTable("microblogs", {
   coverImageUrl: text("cover_image_url"),
   images: text("images").notNull().default("[]"),
   shortUrl: text("short_url"),
+  locationId: text("location_id"),
+  tripId: text("trip_id"),
 });
 
 export const relatedMicroblogs = sqliteTable("related_microblogs", {
@@ -45,6 +47,8 @@ export const gallery = sqliteTable("gallery", {
   latitude: real("latitude"),
   longitude: real("longitude"),
   locationName: text("location_name"),
+  locationId: text("location_id"),
+  tripId: text("trip_id"),
   visibility: text("visibility", { enum: ["public", "private", "unlisted"] }).notNull().default("public"),
   featured: integer("featured").notNull().default(0),
   processingStatus: text("processing_status", { enum: ["pending", "processing", "ready", "failed"] }).notNull().default("ready"),
@@ -386,6 +390,8 @@ export const movieMetadata = sqliteTable("movie_metadata", {
   featured: integer("featured").notNull().default(0),
   watchedWith: text("watched_with").notNull().default("[]"),
   watchLocation: text("watch_location"),
+  locationId: text("location_id"),
+  tripId: text("trip_id"),
   relatedPhotos: text("related_photos").notNull().default("[]"),
   relatedMicroblogs: text("related_microblogs").notNull().default("[]"),
   relatedBlogPosts: text("related_blog_posts").notNull().default("[]"),

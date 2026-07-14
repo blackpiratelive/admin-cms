@@ -21,6 +21,8 @@ export const microblogInputSchema = z.object({
   }),
   coverImageUrl: z.string().nullable().optional(),
   shortUrl: z.string().nullable().optional(),
+  locationId: z.string().nullable().optional(),
+  tripId: z.string().nullable().optional(),
   images: z.union([z.array(z.string()), z.string()]).transform((val) => {
     if (Array.isArray(val)) return val;
     if (typeof val === "string") {

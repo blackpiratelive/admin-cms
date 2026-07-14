@@ -105,9 +105,14 @@ admin-cms/
 - `projects`: `id`, unique `name`, `slug`, `description`, `repositoryUrl`, `websiteUrl`, `status` (`active` | `completed` | `archived` | `on_hold` | `planned`), `technologies` (JSON array), `startDate`, `completedDate`, `visibility` (`public` | `private` | `unlisted`).
 - `todos`: `id`, required `title`, optional `description` and `dueDate`, priority (`low` | `medium` | `high`), `completed` flag, `projectId`, JSON-string `tags`.
 
-### Core Content Tables
-- `microblogs`: `id`, `slug`, `contentMarkdown`, `status`, `tags`, `coverImageUrl`, `images`, `shortUrl`, `createdAt`, `updatedAt`, `publishedAt`.
-- `gallery`: `id`, `title`, `slug`, `description`, `originalUrl`, `largeUrl`, `mediumUrl`, `thumbnailUrl`, `width`, `height`, `fileSize`, `mimeType`, `camera`, `lens`, `focalLength`, `aperture`, `shutterSpeed`, `iso`, `takenAt`, `latitude`, `longitude`, `locationName`, `visibility`, `featured`, `tags`, `album`, `shortUrl`.
+### Core Content Tables & Relationships
+- `microblogs`: `id`, `slug`, `contentMarkdown`, `status`, `tags`, `coverImageUrl`, `images`, `shortUrl`, `locationId`, `tripId`, `createdAt`, `updatedAt`, `publishedAt`.
+- `gallery`: `id`, `title`, `slug`, `description`, `originalUrl`, `largeUrl`, `mediumUrl`, `thumbnailUrl`, `width`, `height`, `fileSize`, `mimeType`, `camera`, `lens`, `focalLength`, `aperture`, `shutterSpeed`, `iso`, `takenAt`, `latitude`, `longitude`, `locationName`, `locationId`, `tripId`, `visibility`, `featured`, `tags`, `album`, `shortUrl`.
+- `movieMetadata`: `traktId`, `favorite`, `personalRating`, `review`, `notes`, `tags`, `visibility`, `featured`, `watchedWith`, `watchLocation`, `locationId`, `tripId`, `relatedPhotos`, `relatedMicroblogs`.
+- **Public REST Content Adapter Endpoints**:
+  - `/api/microblogs`: Serves published microblogs with resolved `location` and `trip` objects.
+  - `/api/gallery`: Serves public gallery photos with resolved EXIF, `location` and `trip` objects.
+  - `/api/movies`: Serves public movies with ratings, reviews, `location` and `trip` objects.
 
 ---
 

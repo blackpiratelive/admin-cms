@@ -76,6 +76,8 @@ describe("MicroblogList Helpers", () => {
       coverImageUrl: null,
       images: "[]",
       shortUrl: null,
+      locationId: null,
+      tripId: null,
     };
 
     // No images

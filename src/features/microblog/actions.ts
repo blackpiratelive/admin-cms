@@ -73,6 +73,8 @@ export async function saveMicroblog(input: MicroblogFormInput) {
     tags: JSON.stringify(validated.tags),
     coverImageUrl: validated.coverImageUrl || null,
     shortUrl: validated.shortUrl || null,
+    locationId: validated.locationId || null,
+    tripId: validated.tripId || null,
     images: JSON.stringify(validated.images),
     updatedAt: now,
     createdAt: validated.createdAt || existing?.createdAt || now,

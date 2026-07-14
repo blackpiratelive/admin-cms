@@ -3,9 +3,11 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { saveMicroblog, deleteMicroblog, recalculateRelatedAction } from "./actions";
-import { type Microblog } from "@/db/schema";
+import { getLocations } from "@/features/locations/actions";
+import { getTrips } from "@/features/trips/actions";
+import { type LocationRecord, type TripRecord, type Microblog } from "@/db/schema";
 import { CloudinaryImageUploader } from "@/features/media/CloudinaryImageUploader";
-import { Save, Eye, Trash2, Globe, FileEdit, Archive, Upload, Image as ImageIcon, RefreshCw, Loader2 } from "lucide-react";
+import { Save, Eye, Trash2, Globe, FileEdit, Archive, Upload, Image as ImageIcon, RefreshCw, Loader2, MapPin, Compass } from "lucide-react";
 
 interface MicroblogEditorProps {
   initialData?: Microblog | null;
@@ -37,9 +39,30 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
     initialData?.tags ? JSON.parse(initialData.tags).join(", ") : ""
   );
   const [coverImageUrl, setCoverImageUrl] = useState<string>(initialData?.coverImageUrl || "");
+  const [locationId, setLocationId] = useState<string>(initialData?.locationId || "");
+  const [tripId, setTripId] = useState<string>(initialData?.tripId || "");
+  const [locationsList, setLocationsList] = useState<LocationRecord[]>([]);
+  const [tripsList, setTripsList] = useState<TripRecord[]>([]);
+  const [isLoadingEntities, setIsLoadingEntities] = useState(true);
   const [images, setImages] = useState<string[]>(
     initialData?.images ? JSON.parse(initialData.images) : []
   );
+
+  useEffect(() => {
+    async function loadEntities() {
+      setIsLoadingEntities(true);
+      try {
+        const [locs, trps] = await Promise.all([getLocations(), getTrips()]);
+        setLocationsList(locs);
+        setTripsList(trps);
+      } catch (err) {
+        console.error("Failed to load locations or trips:", err);
+      } finally {
+        setIsLoadingEntities(false);
+      }
+    }
+    loadEntities();
+  }, []);
   const [relatedPosts, setRelatedPosts] = useState<any[]>(initialRelatedPosts);
   const [lastSavedState, setLastSavedState] = useState({
     contentMarkdown: initialData?.contentMarkdown || "",
@@ -75,6 +98,8 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
         publishedAt: toIsoDateTime(publishedAt),
         tags,
         coverImageUrl: coverImageUrl || null,
+        locationId: locationId || null,
+        tripId: tripId || null,
         images,
       });
 
@@ -188,6 +213,8 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
           publishedAt: toIsoDateTime(publishedAt),
           tags,
           coverImageUrl: coverImageUrl || null,
+          locationId: locationId || null,
+          tripId: tripId || null,
           images,
         });
 
@@ -400,6 +427,46 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
             value={publishedAt}
             onChange={(e) => setPublishedAt(e.target.value)}
           />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <MapPin size={13} style={{ color: "var(--accent)" }} />
+            <span>Associated Location</span>
+            {isLoadingEntities && <Loader2 size={12} className="animate-spin" />}
+          </label>
+          <select
+            className="select-input"
+            value={locationId}
+            onChange={(e) => setLocationId(e.target.value)}
+          >
+            <option value="">-- None (No Location) --</option>
+            {locationsList.map((loc) => (
+              <option key={loc.id} value={loc.id}>
+                {loc.name} {[loc.city, loc.country].filter(Boolean).length ? `(${[loc.city, loc.country].filter(Boolean).join(", ")})` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <Compass size={13} style={{ color: "var(--accent)" }} />
+            <span>Associated Trip</span>
+            {isLoadingEntities && <Loader2 size={12} className="animate-spin" />}
+          </label>
+          <select
+            className="select-input"
+            value={tripId}
+            onChange={(e) => setTripId(e.target.value)}
+          >
+            <option value="">-- None (No Trip) --</option>
+            {tripsList.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.title} ({t.status})
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="form-group">

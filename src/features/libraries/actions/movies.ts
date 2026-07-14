@@ -180,6 +180,8 @@ export async function updateMovieMetadataAction(
     featured?: boolean;
     watchedWith?: string[];
     watchLocation?: string | null;
+    locationId?: string | null;
+    tripId?: string | null;
     relatedPhotos?: string[];
     relatedMicroblogs?: string[];
     relatedBlogPosts?: string[];
@@ -202,6 +204,8 @@ export async function updateMovieMetadataAction(
   if (data.featured !== undefined) updateValues.featured = data.featured ? 1 : 0;
   if (data.watchedWith !== undefined) updateValues.watchedWith = JSON.stringify(data.watchedWith);
   if (data.watchLocation !== undefined) updateValues.watchLocation = data.watchLocation;
+  if (data.locationId !== undefined) updateValues.locationId = data.locationId;
+  if (data.tripId !== undefined) updateValues.tripId = data.tripId;
   if (data.relatedPhotos !== undefined) updateValues.relatedPhotos = JSON.stringify(data.relatedPhotos);
   if (data.relatedMicroblogs !== undefined) updateValues.relatedMicroblogs = JSON.stringify(data.relatedMicroblogs);
   if (data.relatedBlogPosts !== undefined) updateValues.relatedBlogPosts = JSON.stringify(data.relatedBlogPosts);
@@ -220,6 +224,8 @@ export async function updateMovieMetadataAction(
       featured: data.featured ? 1 : 0,
       watchedWith: JSON.stringify(data.watchedWith || []),
       watchLocation: data.watchLocation || null,
+      locationId: data.locationId || null,
+      tripId: data.tripId || null,
       relatedPhotos: JSON.stringify(data.relatedPhotos || []),
       relatedMicroblogs: JSON.stringify(data.relatedMicroblogs || []),
       relatedBlogPosts: JSON.stringify(data.relatedBlogPosts || []),
