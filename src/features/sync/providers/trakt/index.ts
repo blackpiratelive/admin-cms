@@ -98,6 +98,7 @@ export class TraktSyncProvider extends BaseSyncProvider {
     const watchedMovies: any[] = await moviesRes.json();
 
     for (const item of watchedMovies) {
+      this.checkCancelled();
       const movie = item.movie;
       if (!movie || !movie.ids?.trakt) continue;
 

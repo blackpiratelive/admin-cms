@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ProviderOverviewDTO, syncProviderAction } from "../actions";
+import { ProviderOverviewDTO, syncProviderAction, cancelProviderSyncAction } from "../actions";
 import { ConfigureModal } from "./ConfigureModal";
 import Link from "next/link";
-import { RefreshCw, Settings, ListFilter, Play } from "lucide-react";
+import { RefreshCw, Settings, ListFilter, Square } from "lucide-react";
 
 export function ProviderCard({
   provider,
@@ -15,6 +15,7 @@ export function ProviderCard({
 }) {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [syncMode, setSyncMode] = useState<"incremental" | "batch">("incremental");
   const [syncNotice, setSyncNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -51,6 +52,19 @@ export function ProviderCard({
     }
   };
 
+  const handleStopSync = async () => {
+    setCancelling(true);
+    const res = await cancelProviderSyncAction(provider.slug);
+    setCancelling(false);
+    setSyncing(false);
+
+    if (res.success) {
+      setSyncNotice({ type: "error", message: "Sync stopped by user." });
+      onRefresh();
+    }
+  };
+
+  const isSyncingActive = syncing || provider.status === "syncing";
   const statusClass = `status-${provider.status}`;
 
   return (
@@ -108,27 +122,39 @@ export function ProviderCard({
 
       <div className="sync-card-footer">
         <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-          {provider.slug === "lastfm" && provider.connected && (
+          {provider.slug === "lastfm" && provider.connected && !isSyncingActive && (
             <select
               className="select-input"
               value={syncMode}
               onChange={(e) => setSyncMode(e.target.value as any)}
               style={{ padding: "3px 6px", fontSize: "11px", width: "auto" }}
-              disabled={syncing}
+              disabled={isSyncingActive}
             >
               <option value="incremental">Incremental</option>
               <option value="batch">Batch History</option>
             </select>
           )}
 
-          <button
-            className="btn btn-sm btn-primary"
-            onClick={handleSync}
-            disabled={!provider.connected || syncing || provider.status === "syncing"}
-          >
-            <RefreshCw size={13} className={syncing || provider.status === "syncing" ? "animate-spin" : ""} />
-            <span>{syncing || provider.status === "syncing" ? "Syncing..." : "Sync Now"}</span>
-          </button>
+          {isSyncingActive ? (
+            <button
+              className="btn btn-sm btn-danger"
+              onClick={handleStopSync}
+              disabled={cancelling}
+              title="Stop current sync execution"
+            >
+              <Square size={13} fill="currentColor" />
+              <span>{cancelling ? "Stopping..." : "Stop Sync"}</span>
+            </button>
+          ) : (
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={handleSync}
+              disabled={!provider.connected}
+            >
+              <RefreshCw size={13} />
+              <span>Sync Now</span>
+            </button>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>

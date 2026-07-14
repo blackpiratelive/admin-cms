@@ -139,6 +139,7 @@ The **Sync Center** (`/sync`) manages all external integrations through a provid
 All integrations implement `ISyncProvider` (inheriting from `BaseSyncProvider`):
 - `connect(config)` & `disconnect()`
 - `sync(options)` (supports `incremental`, `full`, and `batch` modes)
+- `cancelSync()` (aborts active sync executions gracefully and updates audit log state)
 - `getStatus()` & `getStatistics()`
 - `validateConfiguration(config)` & `testConnection(config)`
 

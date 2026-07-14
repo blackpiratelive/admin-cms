@@ -156,6 +156,22 @@ export async function syncProviderAction(slug: string, options?: SyncOptions) {
   }
 }
 
+export async function cancelProviderSyncAction(slug: string) {
+  const provider = syncRegistry.getProvider(slug);
+  if (!provider) {
+    return { success: false, error: `Provider ${slug} not found.` };
+  }
+
+  try {
+    await provider.cancelSync();
+    revalidatePath("/sync");
+    return { success: true };
+  } catch (err: any) {
+    revalidatePath("/sync");
+    return { success: false, error: err.message || "Failed to stop sync." };
+  }
+}
+
 export async function getSyncLogsAction(providerSlug?: string, page = 1, limit = 30) {
   await ensureDbInitialized();
   const offset = (page - 1) * limit;

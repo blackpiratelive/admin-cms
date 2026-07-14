@@ -17,11 +17,50 @@ export abstract class BaseSyncProvider implements ISyncProvider {
   abstract icon: string;
   abstract description: string;
 
+  protected cancellationRequested = false;
+
   abstract getConfigFields(): ConfigField[];
   abstract validateConfiguration(config: Record<string, any>): Promise<ConfigValidationResult>;
   abstract testConnection(config: Record<string, any>): Promise<boolean>;
   protected abstract executeSync(config: Record<string, any>, options?: SyncOptions): Promise<SyncResult>;
   abstract getStatistics(): Promise<Record<string, number | string>>;
+
+  protected checkCancelled() {
+    if (this.cancellationRequested) {
+      throw new Error("Sync stopped by user.");
+    }
+  }
+
+  async cancelSync(): Promise<boolean> {
+    this.cancellationRequested = true;
+    await ensureDbInitialized();
+    const now = new Date().toISOString();
+
+    // Mark active in-progress log as cancelled/failed
+    const activeLogs = await db
+      .select()
+      .from(syncLogs)
+      .where(eq(syncLogs.provider, this.slug))
+      .limit(10);
+
+    for (const log of activeLogs) {
+      if (log.status === "in_progress") {
+        const duration = log.startedAt ? Date.now() - new Date(log.startedAt).getTime() : 0;
+        await db
+          .update(syncLogs)
+          .set({
+            finishedAt: now,
+            duration,
+            status: "failed",
+            errorMessage: "Sync stopped by user.",
+          })
+          .where(eq(syncLogs.id, log.id));
+      }
+    }
+
+    await this.updateStatus("connected", { lastSync: now });
+    return true;
+  }
 
   async getStoredRecord() {
     await ensureDbInitialized();
@@ -137,6 +176,7 @@ export abstract class BaseSyncProvider implements ISyncProvider {
   }
 
   async sync(options?: SyncOptions): Promise<SyncResult> {
+    this.cancellationRequested = false;
     const config = await this.getConfig();
     const stored = await this.getStoredRecord();
     if (!stored || stored.connected === 0) {
@@ -201,7 +241,7 @@ export abstract class BaseSyncProvider implements ISyncProvider {
         })
         .where(eq(syncLogs.id, logId));
 
-      await this.updateStatus("error", { lastSync: finishedAt });
+      await this.updateStatus(errorMessage.includes("stopped") ? "connected" : "error", { lastSync: finishedAt });
 
       return {
         success: false,

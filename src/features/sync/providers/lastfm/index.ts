@@ -90,6 +90,7 @@ export class LastfmSyncProvider extends BaseSyncProvider {
     const touchedTracks = new Map<string, { artistName: string; trackName: string }>();
 
     for (let p = 0; p < maxPagesToFetch; p++) {
+      this.checkCancelled();
       const pageToFetch = startPage + p;
       const url = `https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${encodeURIComponent(
         username

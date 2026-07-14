@@ -71,4 +71,15 @@ describe("Sync Center Provider Registry & Architecture", () => {
     expect(record[0]).toBeDefined();
     expect(record[0].status).toBe("connected");
   });
+
+  it("should support cancelling active sync", async () => {
+    const trakt = new TraktSyncProvider();
+    await trakt.updateStatus("syncing");
+
+    const cancelled = await trakt.cancelSync();
+    expect(cancelled).toBe(true);
+
+    const status = await trakt.getStatus();
+    expect(status).toBe("connected");
+  });
 });

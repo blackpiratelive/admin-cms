@@ -46,4 +46,5 @@ export interface ISyncProvider {
   getStatistics(): Promise<Record<string, number | string>>;
   validateConfiguration(config: Record<string, any>): Promise<ConfigValidationResult>;
   testConnection(config: Record<string, any>): Promise<boolean>;
+  cancelSync(): Promise<boolean>;
 }
