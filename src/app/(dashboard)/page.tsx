@@ -1,5 +1,10 @@
 import Link from "next/link";
 import { getMicroblogs } from "@/features/microblog/actions";
+import { getMoviesAction } from "@/features/libraries/actions/movies";
+import { getShowsAction } from "@/features/libraries/actions/shows";
+import { getListeningHistoryAction } from "@/features/libraries/actions/music";
+import { getActivitiesAction } from "@/features/libraries/actions/activities";
+import { DashboardMediaWidgets } from "@/features/libraries/components/DashboardMediaWidgets";
 import { Plus, MessageSquareText, Globe, FileEdit, Archive, Layers } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -7,13 +12,20 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const posts = await getMicroblogs();
 
+  const [recentMovies, recentShows, recentScrobbles, activities] = await Promise.all([
+    getMoviesAction({ timeframe: "recently_watched" }),
+    getShowsAction(),
+    getListeningHistoryAction({ limit: 5 }),
+    getActivitiesAction(6),
+  ]);
+
   const totalPosts = posts.length;
   const publishedCount = posts.filter((p) => p.status === "published").length;
   const draftCount = posts.filter((p) => p.status === "draft").length;
   const scheduledCount = posts.filter((p) => p.status === "scheduled").length;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       <div className="page-header">
         <h1 className="page-title">Dashboard Overview</h1>
         <Link href="/microblog/new" className="btn btn-primary">
@@ -44,6 +56,14 @@ export default async function DashboardPage() {
           <div style={{ fontSize: "24px", fontWeight: "bold", color: "#0288d1" }}>{scheduledCount}</div>
         </div>
       </div>
+
+      {/* Media & Personal Libraries Dashboard Widgets */}
+      <DashboardMediaWidgets
+        recentMovies={recentMovies}
+        recentShows={recentShows}
+        recentScrobbles={recentScrobbles}
+        activities={activities}
+      />
 
       {/* Quick Access & Recent Posts */}
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>

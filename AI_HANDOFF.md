@@ -152,7 +152,20 @@ Providers self-register with `syncRegistry`. Adding a future provider (e.g. GitH
 
 ---
 
-## 6. Extensibility Guidelines for Future AI Agents
+## 6. Personal Libraries System (`src/features/libraries/`)
+
+The **Libraries** section manages and enriches media synced from external providers (Trakt for Movies & TV Shows, Last.fm for Music).
+
+### Strict Separation Architecture
+- **Provider Data**: `trakt_movies`, `trakt_shows`, `trakt_episodes`, `lastfm_artists`, `lastfm_albums`, `lastfm_tracks`, `lastfm_scrobbles`. Provider tables store canonical data and are updated during syncs.
+- **CMS Metadata Tables**: `movie_metadata`, `tv_show_metadata`, `artist_metadata`, `album_metadata`, `track_metadata`. Personal ratings, notes, reviews, tags, visibility, and favorites belong exclusively to the CMS and can NEVER be overwritten by provider syncs.
+- **Collections System**: `collections` & `collection_items` allow grouping Movies, TV Shows, Artists, Albums, and Tracks into generic curated collections.
+- **Activity Timeline**: `activities` logs action events (`movie_watched`, `review_written`, `album_favorited`, `artist_tagged`, `show_completed`, `track_loved`) for future timeline streams.
+- **Global Search**: Keyboard shortcut `Ctrl + K` triggers fuzzy search across Movies, TV Shows, Artists, Albums, and Tracks.
+
+---
+
+## 7. Extensibility Guidelines for Future AI Agents
 
 To add a new content type or provider:
 1. **New Content Module**:

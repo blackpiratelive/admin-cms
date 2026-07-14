@@ -250,6 +250,125 @@ export async function ensureDbInitialized(): Promise<void> {
         );
       `);
 
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS movie_metadata (
+          trakt_id INTEGER PRIMARY KEY,
+          favorite INTEGER NOT NULL DEFAULT 0,
+          personal_rating REAL,
+          review TEXT,
+          notes TEXT,
+          tags TEXT NOT NULL DEFAULT '[]',
+          visibility TEXT NOT NULL DEFAULT 'public',
+          featured INTEGER NOT NULL DEFAULT 0,
+          watched_with TEXT NOT NULL DEFAULT '[]',
+          watch_location TEXT,
+          related_photos TEXT NOT NULL DEFAULT '[]',
+          related_microblogs TEXT NOT NULL DEFAULT '[]',
+          related_blog_posts TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS tv_show_metadata (
+          trakt_id INTEGER PRIMARY KEY,
+          favorite INTEGER NOT NULL DEFAULT 0,
+          personal_rating REAL,
+          review TEXT,
+          notes TEXT,
+          tags TEXT NOT NULL DEFAULT '[]',
+          visibility TEXT NOT NULL DEFAULT 'public',
+          featured INTEGER NOT NULL DEFAULT 0,
+          related_photos TEXT NOT NULL DEFAULT '[]',
+          related_posts TEXT NOT NULL DEFAULT '[]',
+          related_microblogs TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS artist_metadata (
+          artist_name TEXT PRIMARY KEY,
+          favorite INTEGER NOT NULL DEFAULT 0,
+          personal_rating REAL,
+          review TEXT,
+          notes TEXT,
+          tags TEXT NOT NULL DEFAULT '[]',
+          visibility TEXT NOT NULL DEFAULT 'public',
+          hidden INTEGER NOT NULL DEFAULT 0,
+          related_microblogs TEXT NOT NULL DEFAULT '[]',
+          related_blog_posts TEXT NOT NULL DEFAULT '[]',
+          related_photos TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS album_metadata (
+          id TEXT PRIMARY KEY,
+          favorite INTEGER NOT NULL DEFAULT 0,
+          personal_rating REAL,
+          review TEXT,
+          notes TEXT,
+          tags TEXT NOT NULL DEFAULT '[]',
+          visibility TEXT NOT NULL DEFAULT 'public',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS track_metadata (
+          id TEXT PRIMARY KEY,
+          favorite INTEGER NOT NULL DEFAULT 0,
+          loved INTEGER NOT NULL DEFAULT 0,
+          personal_rating REAL,
+          notes TEXT,
+          tags TEXT NOT NULL DEFAULT '[]',
+          visibility TEXT NOT NULL DEFAULT 'public',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS collections (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL UNIQUE,
+          slug TEXT NOT NULL UNIQUE,
+          description TEXT,
+          color TEXT,
+          icon TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS collection_items (
+          id TEXT PRIMARY KEY,
+          collection_id TEXT NOT NULL,
+          item_type TEXT NOT NULL,
+          item_id TEXT NOT NULL,
+          added_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS activities (
+          id TEXT PRIMARY KEY,
+          action TEXT NOT NULL,
+          entity_type TEXT NOT NULL,
+          entity_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          metadata_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL
+        );
+      `);
+
       // Add columns to existing installations dynamically
       try {
         await client.execute(`ALTER TABLE microblogs ADD COLUMN images TEXT NOT NULL DEFAULT '[]';`);

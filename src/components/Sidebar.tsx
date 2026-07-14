@@ -22,6 +22,8 @@ import {
   Settings,
   CheckSquare,
   RefreshCw,
+  Music,
+  Folder,
 } from "lucide-react";
 
 export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
@@ -199,6 +201,42 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
           >
             <Link2 size={16} />
             <span>Links</span>
+          </Link>
+        </div>
+
+        <div className="nav-section">
+          <div className="nav-section-title">Libraries</div>
+          <Link
+            href="/libraries/movies"
+            className={`nav-link ${isActive("/libraries/movies") ? "active" : ""}`}
+            onClick={handleLinkClick}
+          >
+            <Film size={16} />
+            <span>Movies</span>
+          </Link>
+          <Link
+            href="/libraries/shows"
+            className={`nav-link ${isActive("/libraries/shows") ? "active" : ""}`}
+            onClick={handleLinkClick}
+          >
+            <Tv size={16} />
+            <span>TV Shows</span>
+          </Link>
+          <Link
+            href="/libraries/music"
+            className={`nav-link ${isActive("/libraries/music") ? "active" : ""}`}
+            onClick={handleLinkClick}
+          >
+            <Music size={16} />
+            <span>Music</span>
+          </Link>
+          <Link
+            href="/libraries/collections"
+            className={`nav-link ${isActive("/libraries/collections") ? "active" : ""}`}
+            onClick={handleLinkClick}
+          >
+            <Folder size={16} />
+            <span>Collections</span>
           </Link>
         </div>
 

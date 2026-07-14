@@ -215,6 +215,112 @@ export const lastfmTracks = sqliteTable("lastfm_tracks", {
   updatedAt: text("updated_at").notNull(),
 });
 
+// CMS Dedicated Personal Metadata Tables
+export const movieMetadata = sqliteTable("movie_metadata", {
+  traktId: integer("trakt_id").primaryKey(),
+  favorite: integer("favorite").notNull().default(0),
+  personalRating: real("personal_rating"),
+  review: text("review"),
+  notes: text("notes"),
+  tags: text("tags").notNull().default("[]"),
+  visibility: text("visibility").notNull().default("public"),
+  featured: integer("featured").notNull().default(0),
+  watchedWith: text("watched_with").notNull().default("[]"),
+  watchLocation: text("watch_location"),
+  relatedPhotos: text("related_photos").notNull().default("[]"),
+  relatedMicroblogs: text("related_microblogs").notNull().default("[]"),
+  relatedBlogPosts: text("related_blog_posts").notNull().default("[]"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const tvShowMetadata = sqliteTable("tv_show_metadata", {
+  traktId: integer("trakt_id").primaryKey(),
+  favorite: integer("favorite").notNull().default(0),
+  personalRating: real("personal_rating"),
+  review: text("review"),
+  notes: text("notes"),
+  tags: text("tags").notNull().default("[]"),
+  visibility: text("visibility").notNull().default("public"),
+  featured: integer("featured").notNull().default(0),
+  relatedPhotos: text("related_photos").notNull().default("[]"),
+  relatedPosts: text("related_posts").notNull().default("[]"),
+  relatedMicroblogs: text("related_microblogs").notNull().default("[]"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const artistMetadata = sqliteTable("artist_metadata", {
+  artistName: text("artist_name").primaryKey(),
+  favorite: integer("favorite").notNull().default(0),
+  personalRating: real("personal_rating"),
+  review: text("review"),
+  notes: text("notes"),
+  tags: text("tags").notNull().default("[]"),
+  visibility: text("visibility").notNull().default("public"),
+  hidden: integer("hidden").notNull().default(0),
+  relatedMicroblogs: text("related_microblogs").notNull().default("[]"),
+  relatedBlogPosts: text("related_blog_posts").notNull().default("[]"),
+  relatedPhotos: text("related_photos").notNull().default("[]"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const albumMetadata = sqliteTable("album_metadata", {
+  id: text("id").primaryKey(), // ${artist}:::${albumName}
+  favorite: integer("favorite").notNull().default(0),
+  personalRating: real("personal_rating"),
+  review: text("review"),
+  notes: text("notes"),
+  tags: text("tags").notNull().default("[]"),
+  visibility: text("visibility").notNull().default("public"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const trackMetadata = sqliteTable("track_metadata", {
+  id: text("id").primaryKey(), // ${artist}:::${trackName}
+  favorite: integer("favorite").notNull().default(0),
+  loved: integer("loved").notNull().default(0),
+  personalRating: real("personal_rating"),
+  notes: text("notes"),
+  tags: text("tags").notNull().default("[]"),
+  visibility: text("visibility").notNull().default("public"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+// Generic Collections
+export const collections = sqliteTable("collections", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  slug: text("slug").notNull().unique(),
+  description: text("description"),
+  color: text("color"),
+  icon: text("icon"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const collectionItems = sqliteTable("collection_items", {
+  id: text("id").primaryKey(), // ${collectionId}_${itemType}_${itemId}
+  collectionId: text("collection_id").notNull(),
+  itemType: text("item_type").notNull(), // 'movie' | 'show' | 'artist' | 'album' | 'track' | 'book' | 'project' | 'photo'
+  itemId: text("item_id").notNull(),
+  addedAt: text("added_at").notNull(),
+});
+
+// Activity Timeline Stream
+export const activities = sqliteTable("activities", {
+  id: text("id").primaryKey(),
+  action: text("action").notNull(), // 'movie_watched', 'review_written', 'album_favorited', 'artist_tagged', 'show_completed', 'track_loved'
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  title: text("title").notNull(),
+  metadataJson: text("metadata_json").notNull().default("{}"),
+  createdAt: text("created_at").notNull(),
+});
+
 export type Microblog = typeof microblogs.$inferSelect;
 export type NewMicroblog = typeof microblogs.$inferInsert;
 
@@ -232,6 +338,15 @@ export type LastfmScrobbleRecord = typeof lastfmScrobbles.$inferSelect;
 export type LastfmArtistRecord = typeof lastfmArtists.$inferSelect;
 export type LastfmAlbumRecord = typeof lastfmAlbums.$inferSelect;
 export type LastfmTrackRecord = typeof lastfmTracks.$inferSelect;
+
+export type MovieMetadataRecord = typeof movieMetadata.$inferSelect;
+export type TvShowMetadataRecord = typeof tvShowMetadata.$inferSelect;
+export type ArtistMetadataRecord = typeof artistMetadata.$inferSelect;
+export type AlbumMetadataRecord = typeof albumMetadata.$inferSelect;
+export type TrackMetadataRecord = typeof trackMetadata.$inferSelect;
+export type CollectionRecord = typeof collections.$inferSelect;
+export type CollectionItemRecord = typeof collectionItems.$inferSelect;
+export type ActivityRecord = typeof activities.$inferSelect;
 
 export interface ShortLink {
   slug: string;
@@ -255,6 +370,7 @@ export interface PasteItem {
   expiresAt?: string | null;
   createdAt: string;
 }
+
 
 
 
