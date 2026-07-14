@@ -59,6 +59,8 @@ export function DashboardMediaWidgets({
                   src={getTmdbImageUrl(m.movie.posterPath, "poster") || "https://placehold.co/40x60/111/fff?text=Film"}
                   alt={m.movie.title}
                   style={{ width: "36px", height: "54px", objectFit: "cover", borderRadius: "4px" }}
+                  loading="lazy"
+                  decoding="async"
                 />
                 <div style={{ flex: 1, overflow: "hidden" }}>
                   <div style={{ fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -109,6 +111,8 @@ export function DashboardMediaWidgets({
                   src={getTmdbImageUrl(s.show.posterPath, "poster") || "https://placehold.co/40x60/111/fff?text=TV"}
                   alt={s.show.title}
                   style={{ width: "36px", height: "54px", objectFit: "cover", borderRadius: "4px" }}
+                  loading="lazy"
+                  decoding="async"
                 />
                 <div style={{ flex: 1, overflow: "hidden" }}>
                   <div style={{ fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>

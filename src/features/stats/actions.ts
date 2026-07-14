@@ -13,7 +13,7 @@ import {
   todos,
 } from "@/db/schema";
 import { getCloudflareUsageStats, type CloudflareUsageStats } from "@/features/gallery/actions";
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 
 export interface ComprehensiveSystemStats {
   r2Stats: CloudflareUsageStats;
@@ -38,52 +38,50 @@ export async function getComprehensiveSystemStats(): Promise<ComprehensiveSystem
 
   const [
     r2Stats,
-    allMicroblogs,
-    allPhotos,
-    allMovies,
-    allShows,
-    allScrobbles,
-    allLocations,
-    allTrips,
-    allProjects,
-    allTodos,
+    microblogTotals,
+    galleryTotals,
+    moviesTotal,
+    showsTotal,
+    scrobblesTotal,
+    locationsTotal,
+    tripsTotal,
+    projectsTotal,
+    openTodos,
   ] = await Promise.all([
     getCloudflareUsageStats(),
-    db.select({ status: microblogs.status }).from(microblogs),
-    db.select({ visibility: gallery.visibility }).from(gallery),
-    db.select({ traktId: traktMovies.traktId }).from(traktMovies),
-    db.select({ traktId: traktShows.traktId }).from(traktShows),
-    db.select({ id: lastfmScrobbles.id }).from(lastfmScrobbles),
-    db.select({ id: locations.id }).from(locations),
-    db.select({ id: trips.id }).from(trips),
-    db.select({ id: projects.id }).from(projects),
-    db.select({ id: todos.id, completed: todos.completed }).from(todos),
+    Promise.all([
+      db.select({ total: count() }).from(microblogs),
+      db.select({ total: count() }).from(microblogs).where(eq(microblogs.status, "published")),
+      db.select({ total: count() }).from(microblogs).where(eq(microblogs.status, "draft")),
+    ]),
+    Promise.all([
+      db.select({ total: count() }).from(gallery),
+      db.select({ total: count() }).from(gallery).where(eq(gallery.visibility, "public")),
+    ]),
+    db.select({ total: count() }).from(traktMovies),
+    db.select({ total: count() }).from(traktShows),
+    db.select({ total: count() }).from(lastfmScrobbles),
+    db.select({ total: count() }).from(locations),
+    db.select({ total: count() }).from(trips),
+    db.select({ total: count() }).from(projects),
+    db.select({ total: count() }).from(todos).where(eq(todos.completed, 0)),
   ]);
-
-  const microblogsTotal = allMicroblogs.length;
-  const microblogsPublished = allMicroblogs.filter((m) => m.status === "published").length;
-  const microblogsDrafts = allMicroblogs.filter((m) => m.status === "draft").length;
-
-  const photosTotal = allPhotos.length;
-  const photosPublic = allPhotos.filter((p) => p.visibility === "public").length;
-
-  const openTodos = allTodos.filter((t) => t.completed === 0).length;
 
   return {
     r2Stats,
     counts: {
-      microblogsTotal,
-      microblogsPublished,
-      microblogsDrafts,
-      photosTotal,
-      photosPublic,
-      moviesTotal: allMovies.length,
-      showsTotal: allShows.length,
-      scrobblesTotal: allScrobbles.length,
-      locationsTotal: allLocations.length,
-      tripsTotal: allTrips.length,
-      projectsTotal: allProjects.length,
-      openTodos,
+      microblogsTotal: microblogTotals[0][0]?.total ?? 0,
+      microblogsPublished: microblogTotals[1][0]?.total ?? 0,
+      microblogsDrafts: microblogTotals[2][0]?.total ?? 0,
+      photosTotal: galleryTotals[0][0]?.total ?? 0,
+      photosPublic: galleryTotals[1][0]?.total ?? 0,
+      moviesTotal: moviesTotal[0]?.total ?? 0,
+      showsTotal: showsTotal[0]?.total ?? 0,
+      scrobblesTotal: scrobblesTotal[0]?.total ?? 0,
+      locationsTotal: locationsTotal[0]?.total ?? 0,
+      tripsTotal: tripsTotal[0]?.total ?? 0,
+      projectsTotal: projectsTotal[0]?.total ?? 0,
+      openTodos: openTodos[0]?.total ?? 0,
     },
   };
 }

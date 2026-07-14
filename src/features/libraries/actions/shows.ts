@@ -5,7 +5,7 @@ import { traktShows, tvShowMetadata, traktEpisodes, TvShowMetadataRecord, TraktS
 import { CombinedShow, ShowFilterOptions } from "../types";
 import { getItemCollectionsAction } from "./collections";
 import { recordActivityAction } from "./activities";
-import { eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function getShowsAction(options?: ShowFilterOptions): Promise<CombinedShow[]> {
@@ -107,6 +107,32 @@ export async function getShowsAction(options?: ShowFilterOptions): Promise<Combi
   }
 
   return combined;
+}
+
+export async function getRecentShowsAction(limit = 4): Promise<CombinedShow[]> {
+  await ensureDbInitialized();
+  const shows = await db.select().from(traktShows).orderBy(desc(traktShows.updatedAt)).limit(limit);
+  if (shows.length === 0) return [];
+
+  const showIds = shows.map((show) => show.traktId);
+  const [metadata, episodes] = await Promise.all([
+    db.select().from(tvShowMetadata).where(inArray(tvShowMetadata.traktId, showIds)),
+    db.select().from(traktEpisodes).where(inArray(traktEpisodes.showTraktId, showIds)),
+  ]);
+  const metadataById = new Map(metadata.map((item) => [item.traktId, item]));
+  const episodesByShow = new Map<number, typeof episodes>();
+  for (const episode of episodes) {
+    const current = episodesByShow.get(episode.showTraktId) ?? [];
+    current.push(episode);
+    episodesByShow.set(episode.showTraktId, current);
+  }
+
+  return shows.map((show) => ({
+    show,
+    metadata: metadataById.get(show.traktId) ?? null,
+    episodes: episodesByShow.get(show.traktId) ?? [],
+    collections: [],
+  }));
 }
 
 export async function getShowDetailAction(traktId: number): Promise<CombinedShow | null> {

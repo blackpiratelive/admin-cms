@@ -61,6 +61,16 @@ admin-cms/
 └── drizzle.config.ts            # Drizzle kit configuration
 ```
 
+### Performance & Perceived-Speed Conventions
+
+- **Route feedback:** `src/app/(dashboard)/loading.tsx` is the dashboard route boundary. It renders an immediate skeleton/progress treatment while a server-rendered dashboard route is loading; preserve this pattern for any independently slow route segment.
+- **Dashboard reads:** Keep dashboard widgets bounded. `getMicroblogDashboardData`, `getRecentMoviesAction`, and `getRecentShowsAction` fetch only the records displayed rather than serializing whole libraries. Dashboard work should be initiated concurrently with `Promise.all`.
+- **Aggregate, do not hydrate:** System counters and gallery storage estimates use SQL `count`/`sum` aggregates. Do not fetch complete tables merely to calculate a count or total.
+- **Storage monitor cache:** `getCloudflareUsageStats` keeps a 30-second in-process cache to avoid repeated R2 listings. Gallery saves/deletes invalidate it, so the next render reflects mutations.
+- **Search:** Universal command-palette lookups run as independent parallel queries. The client debounces input and ignores stale responses; keep new search sources independent and bounded with a result limit.
+- **Indexes:** `ensureDbInitialized` creates indexes for the high-traffic list/order/filter paths. Add an index alongside any new query that will be used for a large library list or dashboard widget.
+- **Media rendering:** Poster and dashboard thumbnail images use lazy loading plus asynchronous decoding to protect interaction responsiveness.
+
 ---
 
 ## 3. Database Schema (`src/db/schema.ts`)
@@ -138,5 +148,4 @@ admin-cms/
 - **Execute Tests**: `npm run test`
 - **Type Check**: `npx tsc --noEmit`
 - **Drizzle DB Schema Push**: `npm run db:push`
-
 

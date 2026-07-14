@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { getMicroblogs } from "@/features/microblog/actions";
-import { getMoviesAction } from "@/features/libraries/actions/movies";
-import { getShowsAction } from "@/features/libraries/actions/shows";
+import { getMicroblogDashboardData } from "@/features/microblog/actions";
+import { getRecentMoviesAction } from "@/features/libraries/actions/movies";
+import { getRecentShowsAction } from "@/features/libraries/actions/shows";
 import { getListeningHistoryAction } from "@/features/libraries/actions/music";
 import { getActivitiesAction } from "@/features/libraries/actions/activities";
 import { getComprehensiveSystemStats } from "@/features/stats/actions";
@@ -12,17 +12,16 @@ import { Plus, MessageSquareText, Globe, FileEdit, Archive, Layers } from "lucid
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const posts = await getMicroblogs();
-
-  const [recentMovies, recentShows, recentScrobbles, activities, systemStats] = await Promise.all([
-    getMoviesAction({ timeframe: "recently_watched" }),
-    getShowsAction(),
+  const [microblogData, recentMovies, recentShows, recentScrobbles, activities, systemStats] = await Promise.all([
+    getMicroblogDashboardData(),
+    getRecentMoviesAction(),
+    getRecentShowsAction(),
     getListeningHistoryAction({ limit: 5 }),
     getActivitiesAction(6),
     getComprehensiveSystemStats(),
   ]);
 
-  const totalPosts = posts.length;
+  const { posts, total: totalPosts } = microblogData;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>

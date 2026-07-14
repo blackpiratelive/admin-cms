@@ -2,7 +2,7 @@
 
 import { db, ensureDbInitialized } from "@/db";
 import { microblogs, relatedMicroblogs } from "@/db/schema";
-import { eq, like, and, desc, or } from "drizzle-orm";
+import { count, eq, like, and, desc, or } from "drizzle-orm";
 import { generateSlug, microblogInputSchema, type MicroblogFormInput } from "./schema";
 import { triggerVercelDeployHook } from "@/lib/deploy-hook";
 import { revalidatePath } from "next/cache";
@@ -34,6 +34,20 @@ export async function getMicroblogs(filters?: { search?: string; status?: string
   } catch (error) {
     console.error("Error fetching microblogs:", error);
     return [];
+  }
+}
+
+export async function getMicroblogDashboardData() {
+  try {
+    await ensureDbInitialized();
+    const [posts, totals] = await Promise.all([
+      db.select().from(microblogs).orderBy(desc(microblogs.createdAt)).limit(5),
+      db.select({ total: count() }).from(microblogs),
+    ]);
+    return { posts, total: totals[0]?.total ?? 0 };
+  } catch (error) {
+    console.error("Error fetching dashboard microblogs:", error);
+    return { posts: [], total: 0 };
   }
 }
 

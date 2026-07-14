@@ -32,14 +32,22 @@ export async function searchEverything(query: string): Promise<SearchResultItem[
   await ensureDbInitialized();
 
   const term = `%${query.trim().toLowerCase()}%`;
+  // These independent lookups used to run one after another on every keystroke.
+  // Running them together keeps the command palette responsive on remote Turso.
+  const [mRes, gRes, pRes, lRes, tRes, movRes, showRes, artRes, colRes] = await Promise.all([
+    db.select().from(microblogs).where(or(like(microblogs.contentMarkdown, term), like(microblogs.slug, term))).limit(5),
+    db.select().from(gallery).where(or(like(gallery.title, term), like(gallery.slug, term), like(gallery.description, term))).limit(5),
+    db.select().from(projects).where(or(like(projects.name, term), like(projects.description, term))).limit(5),
+    db.select().from(locations).where(or(like(locations.name, term), like(locations.city, term), like(locations.country, term))).limit(5),
+    db.select().from(trips).where(or(like(trips.title, term), like(trips.description, term))).limit(5),
+    db.select().from(traktMovies).where(like(traktMovies.title, term)).limit(5),
+    db.select().from(traktShows).where(like(traktShows.title, term)).limit(5),
+    db.select().from(lastfmArtists).where(like(lastfmArtists.artistName, term)).limit(5),
+    db.select().from(collections).where(or(like(collections.name, term), like(collections.description, term))).limit(5),
+  ]);
   const results: SearchResultItem[] = [];
 
   // 1. Microblogs
-  const mRes = await db
-    .select()
-    .from(microblogs)
-    .where(or(like(microblogs.contentMarkdown, term), like(microblogs.slug, term)))
-    .limit(5);
   for (const item of mRes) {
     results.push({
       id: item.id,
@@ -51,11 +59,6 @@ export async function searchEverything(query: string): Promise<SearchResultItem[
   }
 
   // 2. Gallery
-  const gRes = await db
-    .select()
-    .from(gallery)
-    .where(or(like(gallery.title, term), like(gallery.slug, term), like(gallery.description, term)))
-    .limit(5);
   for (const item of gRes) {
     results.push({
       id: item.id,
@@ -67,11 +70,6 @@ export async function searchEverything(query: string): Promise<SearchResultItem[
   }
 
   // 3. Projects
-  const pRes = await db
-    .select()
-    .from(projects)
-    .where(or(like(projects.name, term), like(projects.description, term)))
-    .limit(5);
   for (const item of pRes) {
     results.push({
       id: item.id,
@@ -83,11 +81,6 @@ export async function searchEverything(query: string): Promise<SearchResultItem[
   }
 
   // 4. Locations
-  const lRes = await db
-    .select()
-    .from(locations)
-    .where(or(like(locations.name, term), like(locations.city, term), like(locations.country, term)))
-    .limit(5);
   for (const item of lRes) {
     results.push({
       id: item.id,
@@ -99,11 +92,6 @@ export async function searchEverything(query: string): Promise<SearchResultItem[
   }
 
   // 5. Trips
-  const tRes = await db
-    .select()
-    .from(trips)
-    .where(or(like(trips.title, term), like(trips.description, term)))
-    .limit(5);
   for (const item of tRes) {
     results.push({
       id: item.id,
@@ -115,11 +103,6 @@ export async function searchEverything(query: string): Promise<SearchResultItem[
   }
 
   // 6. Movies
-  const movRes = await db
-    .select()
-    .from(traktMovies)
-    .where(like(traktMovies.title, term))
-    .limit(5);
   for (const item of movRes) {
     results.push({
       id: item.traktId.toString(),
@@ -131,11 +114,6 @@ export async function searchEverything(query: string): Promise<SearchResultItem[
   }
 
   // 7. TV Shows
-  const showRes = await db
-    .select()
-    .from(traktShows)
-    .where(like(traktShows.title, term))
-    .limit(5);
   for (const item of showRes) {
     results.push({
       id: item.traktId.toString(),
@@ -147,11 +125,6 @@ export async function searchEverything(query: string): Promise<SearchResultItem[
   }
 
   // 8. Music Artists
-  const artRes = await db
-    .select()
-    .from(lastfmArtists)
-    .where(like(lastfmArtists.artistName, term))
-    .limit(5);
   for (const item of artRes) {
     results.push({
       id: item.artistName,
@@ -163,11 +136,6 @@ export async function searchEverything(query: string): Promise<SearchResultItem[
   }
 
   // 9. Collections
-  const colRes = await db
-    .select()
-    .from(collections)
-    .where(or(like(collections.name, term), like(collections.description, term)))
-    .limit(5);
   for (const item of colRes) {
     results.push({
       id: item.id,

@@ -2,7 +2,7 @@
 
 import { db, ensureDbInitialized } from "@/db";
 import { gallery, type GalleryPhoto } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { count, desc, eq, sql } from "drizzle-orm";
 import { galleryPhotoInputSchema, type GalleryPhotoInput, generatePhotoSlug } from "./schema";
 import { triggerVercelDeployHook } from "@/lib/deploy-hook";
 import { revalidatePath } from "next/cache";
@@ -177,6 +177,7 @@ export async function saveGalleryPhoto(input: GalleryPhotoInput) {
       await triggerVercelDeployHook();
     }
 
+    usageStatsCache = null;
     revalidatePath("/gallery");
     revalidatePath("/");
     return { success: true, id, slug };
@@ -222,6 +223,7 @@ export async function deleteGalleryPhoto(id: string) {
   try {
     await ensureDbInitialized();
     await db.delete(gallery).where(eq(gallery.id, id));
+    usageStatsCache = null;
     revalidatePath("/gallery");
     revalidatePath("/");
     return { success: true };
@@ -245,7 +247,14 @@ export interface CloudflareUsageStats {
   egressLimitFormatted: string;
 }
 
+const USAGE_STATS_TTL_MS = 30_000;
+let usageStatsCache: { expiresAt: number; value: CloudflareUsageStats } | null = null;
+
 export async function getCloudflareUsageStats(): Promise<CloudflareUsageStats> {
+  if (usageStatsCache && usageStatsCache.expiresAt > Date.now()) {
+    return usageStatsCache.value;
+  }
+
   const accountId = process.env.R2_ACCOUNT_ID;
   const accessKeyId = process.env.R2_ACCESS_KEY_ID;
   const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
@@ -258,13 +267,16 @@ export async function getCloudflareUsageStats(): Promise<CloudflareUsageStats> {
 
   try {
     await ensureDbInitialized();
-    const allPhotos = await db.select({ fileSize: gallery.fileSize }).from(gallery);
-    totalPhotos = allPhotos.length;
-    for (const p of allPhotos) {
-      if (p.fileSize) {
-        totalBytes += Math.round(p.fileSize * 1.4);
-      }
-    }
+    const [totals] = await db
+      .select({
+        totalPhotos: count(),
+        originalBytes: sql<number>`coalesce(sum(${gallery.fileSize}), 0)`,
+      })
+      .from(gallery);
+    totalPhotos = totals?.totalPhotos ?? 0;
+    // The pipeline stores an original and three derivatives. This estimate avoids
+    // enumerating every object when R2 is temporarily unavailable.
+    totalBytes = Math.round((totals?.originalBytes ?? 0) * 1.4);
   } catch (e) {
     console.error("Error calculating local DB gallery stats:", e);
   }
@@ -298,7 +310,7 @@ export async function getCloudflareUsageStats(): Promise<CloudflareUsageStats> {
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   };
 
-  return {
+  const result = {
     configured: isConfigured,
     bucketName: isConfigured ? bucketName : "gallery (Local Dev Fallback)",
     totalPhotos,
@@ -311,5 +323,6 @@ export async function getCloudflareUsageStats(): Promise<CloudflareUsageStats> {
     classBLimitFormatted: "10,000,000 requests / month (Free Tier)",
     egressLimitFormatted: "Unlimited ($0 Egress)",
   };
+  usageStatsCache = { value: result, expiresAt: Date.now() + USAGE_STATS_TTL_MS };
+  return result;
 }
-

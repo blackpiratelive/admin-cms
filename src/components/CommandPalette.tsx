@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { searchEverything, SearchResultItem } from "@/features/search/actions";
 import {
@@ -19,21 +19,12 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const requestId = useRef(0);
   const router = useRouter();
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        if (isOpen) {
-          onClose();
-        } else {
-          window.dispatchEvent(new CustomEvent("open-command-palette"));
-        }
-      }
-      if (e.key === "Escape" && isOpen) {
-        onClose();
-      }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && isOpen) onClose();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
@@ -41,18 +32,21 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
 
   useEffect(() => {
     if (!query.trim()) {
+      requestId.current += 1;
+      setLoading(false);
       setResults([]);
       return;
     }
     const timer = setTimeout(async () => {
+      const currentRequest = ++requestId.current;
       setLoading(true);
       try {
         const res = await searchEverything(query);
-        setResults(res);
+        if (currentRequest === requestId.current) setResults(res);
       } finally {
-        setLoading(false);
+        if (currentRequest === requestId.current) setLoading(false);
       }
-    }, 150);
+    }, 250);
 
     return () => clearTimeout(timer);
   }, [query]);

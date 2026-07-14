@@ -5,7 +5,7 @@ import { traktMovies, movieMetadata, MovieMetadataRecord, TraktMovieRecord } fro
 import { CombinedMovie, MovieFilterOptions } from "../types";
 import { getItemCollectionsAction } from "./collections";
 import { recordActivityAction } from "./activities";
-import { eq, like, desc, asc, sql } from "drizzle-orm";
+import { eq, inArray, like, desc, asc, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function getMoviesAction(options?: MovieFilterOptions): Promise<CombinedMovie[]> {
@@ -132,6 +132,29 @@ export async function getMoviesAction(options?: MovieFilterOptions): Promise<Com
   }
 
   return combined;
+}
+
+export async function getRecentMoviesAction(limit = 4): Promise<CombinedMovie[]> {
+  await ensureDbInitialized();
+  const movies = await db
+    .select()
+    .from(traktMovies)
+    .where(sql`${traktMovies.watchedAt} is not null`)
+    .orderBy(desc(traktMovies.watchedAt))
+    .limit(limit);
+
+  if (movies.length === 0) return [];
+  const metadata = await db
+    .select()
+    .from(movieMetadata)
+    .where(inArray(movieMetadata.traktId, movies.map((movie) => movie.traktId)));
+  const metadataById = new Map(metadata.map((item) => [item.traktId, item]));
+
+  return movies.map((movie) => ({
+    movie,
+    metadata: metadataById.get(movie.traktId) ?? null,
+    collections: [],
+  }));
 }
 
 export async function getMovieDetailAction(traktId: number): Promise<CombinedMovie | null> {

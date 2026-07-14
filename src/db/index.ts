@@ -586,6 +586,21 @@ export async function ensureDbInitialized(): Promise<void> {
       try {
         await client.execute(`ALTER TABLE projects ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public';`);
       } catch (err) {}
+
+      // Keep the frequently rendered dashboard, library, and activity queries on
+      // indexes rather than full-table scans as personal data grows.
+      await client.executeMultiple(`
+        CREATE INDEX IF NOT EXISTS microblogs_created_at_idx ON microblogs(created_at DESC);
+        CREATE INDEX IF NOT EXISTS microblogs_status_created_at_idx ON microblogs(status, created_at DESC);
+        CREATE INDEX IF NOT EXISTS gallery_created_at_idx ON gallery(created_at DESC);
+        CREATE INDEX IF NOT EXISTS gallery_visibility_idx ON gallery(visibility);
+        CREATE INDEX IF NOT EXISTS todos_completed_due_date_idx ON todos(completed, due_date);
+        CREATE INDEX IF NOT EXISTS trakt_movies_watched_at_idx ON trakt_movies(watched_at DESC);
+        CREATE INDEX IF NOT EXISTS trakt_shows_updated_at_idx ON trakt_shows(updated_at DESC);
+        CREATE INDEX IF NOT EXISTS trakt_episodes_show_id_idx ON trakt_episodes(show_trakt_id);
+        CREATE INDEX IF NOT EXISTS lastfm_scrobbles_played_at_idx ON lastfm_scrobbles(played_at DESC);
+        CREATE INDEX IF NOT EXISTS activities_created_at_idx ON activities(created_at DESC);
+      `);
     } catch (err) {
       console.error("Auto DB initialization error:", err);
       // Reset promise to allow retrying on error

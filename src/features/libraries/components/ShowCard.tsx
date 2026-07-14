@@ -66,7 +66,7 @@ export function ShowCard({ showData, isSelected, onToggleSelect }: ShowCardProps
 
       <Link href={`/libraries/shows/${show.traktId}`} style={{ textDecoration: "none", color: "inherit" }}>
         <div style={{ position: "relative", width: "100%", aspectRatio: "2/3", background: "#111" }}>
-          <img src={posterUrl} alt={show.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" />
+          <img src={posterUrl} alt={show.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" decoding="async" />
         </div>
 
         <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "6px" }}>
