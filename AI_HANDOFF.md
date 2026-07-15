@@ -68,6 +68,9 @@ admin-cms/
 
 ### Performance & Perceived-Speed Conventions
 
+- **Gallery Location & Trip Associations**:
+  - Replaced legacy manual location text inputs in both [GalleryGrid.tsx](file:///home/dog/git/admin-cms/src/features/gallery/GalleryGrid.tsx) edit modal and [GalleryUploader.tsx](file:///home/dog/git/admin-cms/src/features/gallery/GalleryUploader.tsx) inspector with dropdown selectors linked directly to the `locations` and `trips` database tables.
+  - Automatically records `locationId` and `tripId` while maintaining backwards-compatible `locationName`, latitude, and longitude synchronization.
 - **Locations & Trips Universal High-Performance Architecture**:
   - Single composite batch queries (`getLocationHubDataAction` and `getTripHubDataAction`) fetch entity records and associated media/relationships in **1 single DB roundtrip** using `inArray` queries.
   - Vercel Data Cache (`createCachedQuery` & `purgeTag`) caches responses in server memory, providing **0-1ms** response times.

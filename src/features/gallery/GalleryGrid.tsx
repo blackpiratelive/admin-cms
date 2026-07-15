@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
-import { type GalleryPhoto } from "@/db/schema";
+import { type GalleryPhoto, type LocationRecord, type TripRecord } from "@/db/schema";
 import { deleteGalleryPhoto, saveGalleryPhoto } from "./actions";
 import { generatePhotoSlug } from "./schema";
+import { getLocations } from "@/features/locations/actions";
+import { getTrips } from "@/features/trips/actions";
 import {
   Trash2,
   Camera,
@@ -12,6 +14,7 @@ import {
   X,
   Sparkles,
   MapPin,
+  Compass,
   Loader2,
   Globe,
 } from "lucide-react";
@@ -29,6 +32,24 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [albumFilter, setAlbumFilter] = useState("all");
+
+  const [locationsList, setLocationsList] = useState<LocationRecord[]>([]);
+  const [tripsList, setTripsList] = useState<TripRecord[]>([]);
+  const [isLoadingEntities, setIsLoadingEntities] = useState(false);
+
+  const loadEntities = async () => {
+    if (locationsList.length > 0 && tripsList.length > 0) return;
+    setIsLoadingEntities(true);
+    try {
+      const [locs, trps] = await Promise.all([getLocations(), getTrips()]);
+      setLocationsList(locs);
+      setTripsList(trps);
+    } catch (err) {
+      console.error("Failed to load locations or trips:", err);
+    } finally {
+      setIsLoadingEntities(false);
+    }
+  };
 
   // Form state for editing existing photo
   const [editForm, setEditForm] = useState({
@@ -49,6 +70,8 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
     latitude: "",
     longitude: "",
     locationName: "",
+    locationId: "",
+    tripId: "",
     shortUrl: "",
     shortSlug: "",
   });
@@ -77,6 +100,7 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
       tagsStr = photo.tags || "";
     }
 
+    loadEntities();
     setEditingPhoto(photo);
     setEditForm({
       title: photo.title,
@@ -96,6 +120,8 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
       latitude: photo.latitude ? String(photo.latitude) : "",
       longitude: photo.longitude ? String(photo.longitude) : "",
       locationName: photo.locationName || "",
+      locationId: photo.locationId || "",
+      tripId: photo.tripId || "",
       shortUrl: photo.shortUrl || "",
       shortSlug: "",
     });
@@ -282,6 +308,8 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
         latitude: editForm.latitude ? Number(editForm.latitude) : null,
         longitude: editForm.longitude ? Number(editForm.longitude) : null,
         locationName: editForm.locationName || null,
+        locationId: editForm.locationId || null,
+        tripId: editForm.tripId || null,
         visibility: editForm.visibility,
         featured: editForm.featured,
         processingStatus: editingPhoto.processingStatus as any,
@@ -310,6 +338,8 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
           latitude: editForm.latitude ? Number(editForm.latitude) : null,
           longitude: editForm.longitude ? Number(editForm.longitude) : null,
           locationName: editForm.locationName || null,
+          locationId: editForm.locationId || null,
+          tripId: editForm.tripId || null,
           shortUrl: editForm.shortUrl || null,
         };
 
@@ -910,14 +940,55 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Location Name</label>
-                  <input
-                    type="text"
-                    className="text-input"
-                    placeholder="e.g. Puri Beach, Odisha"
-                    value={editForm.locationName}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, locationName: e.target.value }))}
-                  />
+                  <label className="form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <MapPin size={13} style={{ color: "var(--accent)" }} />
+                    <span>Associated Location</span>
+                    {isLoadingEntities && <Loader2 size={12} className="animate-spin" />}
+                  </label>
+                  <select
+                    className="select-input"
+                    value={editForm.locationId}
+                    onFocus={loadEntities}
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      const foundLoc = locationsList.find((l) => l.id === selectedId);
+                      setEditForm((prev) => ({
+                        ...prev,
+                        locationId: selectedId,
+                        locationName: foundLoc ? foundLoc.name : "",
+                        latitude: foundLoc && foundLoc.latitude ? String(foundLoc.latitude) : prev.latitude,
+                        longitude: foundLoc && foundLoc.longitude ? String(foundLoc.longitude) : prev.longitude,
+                      }));
+                    }}
+                  >
+                    <option value="">-- None (No Location) --</option>
+                    {locationsList.map((loc) => (
+                      <option key={loc.id} value={loc.id}>
+                        {loc.name} {[loc.city, loc.country].filter(Boolean).length ? `(${[loc.city, loc.country].filter(Boolean).join(", ")})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <Compass size={13} style={{ color: "var(--accent)" }} />
+                    <span>Associated Trip</span>
+                    {isLoadingEntities && <Loader2 size={12} className="animate-spin" />}
+                  </label>
+                  <select
+                    className="select-input"
+                    value={editForm.tripId}
+                    onFocus={loadEntities}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, tripId: e.target.value }))}
+                  >
+                    <option value="">-- None (No Trip) --</option>
+                    {tripsList.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.title} ({t.status})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", minWidth: 0 }}>

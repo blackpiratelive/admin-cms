@@ -5,6 +5,9 @@ import { processImageWithWorker, type ProcessedDerivatives } from "./worker/imag
 import { extractExifMetadata, type ExtractedExif } from "./exif";
 import { getPresignedGalleryUrls, saveGalleryPhoto, type PresignedUrlsResult } from "./actions";
 import { generatePhotoSlug } from "./schema";
+import { LocationRecord, TripRecord } from "@/db/schema";
+import { getLocations } from "@/features/locations/actions";
+import { getTrips } from "@/features/trips/actions";
 import {
   UploadCloud,
   X,
@@ -13,6 +16,7 @@ import {
   Camera,
   Calendar,
   MapPin,
+  Compass,
   RefreshCw,
   FileImage,
   Tag,
@@ -73,6 +77,8 @@ export interface GalleryQueueItem {
     latitude: string;
     longitude: string;
     locationName: string;
+    locationId: string;
+    tripId: string;
   };
 }
 
@@ -84,6 +90,24 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
   const [queue, setQueue] = useState<GalleryQueueItem[]>([]);
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+
+  const [locationsList, setLocationsList] = useState<LocationRecord[]>([]);
+  const [tripsList, setTripsList] = useState<TripRecord[]>([]);
+  const [isLoadingEntities, setIsLoadingEntities] = useState(false);
+
+  const loadEntities = async () => {
+    if (locationsList.length > 0 && tripsList.length > 0) return;
+    setIsLoadingEntities(true);
+    try {
+      const [locs, trps] = await Promise.all([getLocations(), getTrips()]);
+      setLocationsList(locs);
+      setTripsList(trps);
+    } catch (err) {
+      console.error("Failed to load locations or trips:", err);
+    } finally {
+      setIsLoadingEntities(false);
+    }
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -324,6 +348,8 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
           latitude: "",
           longitude: "",
           locationName: "",
+          locationId: "",
+          tripId: "",
         },
       };
     });
@@ -418,6 +444,8 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
       latitude: item.form.latitude ? Number(item.form.latitude) : null,
       longitude: item.form.longitude ? Number(item.form.longitude) : null,
       locationName: item.form.locationName || null,
+      locationId: item.form.locationId || null,
+      tripId: item.form.tripId || null,
       visibility: item.form.visibility,
       featured: item.form.featured,
       processingStatus: "ready",
@@ -978,19 +1006,63 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Location Name</label>
-                    <input
-                      type="text"
-                      className="text-input"
-                      placeholder="e.g. Puri Beach, Odisha"
-                      value={activeItem.form.locationName}
+                    <label className="form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <MapPin size={13} style={{ color: "var(--accent)" }} />
+                      <span>Associated Location</span>
+                      {isLoadingEntities && <Loader2 size={12} className="animate-spin" />}
+                    </label>
+                    <select
+                      className="select-input"
+                      value={activeItem.form.locationId}
+                      onFocus={loadEntities}
+                      onChange={(e) => {
+                        const selectedId = e.target.value;
+                        const foundLoc = locationsList.find((l) => l.id === selectedId);
+                        updateItem(activeItem.id, (prev) => ({
+                          ...prev,
+                          form: {
+                            ...prev.form,
+                            locationId: selectedId,
+                            locationName: foundLoc ? foundLoc.name : "",
+                            latitude: foundLoc && foundLoc.latitude ? String(foundLoc.latitude) : prev.form.latitude,
+                            longitude: foundLoc && foundLoc.longitude ? String(foundLoc.longitude) : prev.form.longitude,
+                          },
+                        }));
+                      }}
+                    >
+                      <option value="">-- None (No Location) --</option>
+                      {locationsList.map((loc) => (
+                        <option key={loc.id} value={loc.id}>
+                          {loc.name} {[loc.city, loc.country].filter(Boolean).length ? `(${[loc.city, loc.country].filter(Boolean).join(", ")})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <Compass size={13} style={{ color: "var(--accent)" }} />
+                      <span>Associated Trip</span>
+                      {isLoadingEntities && <Loader2 size={12} className="animate-spin" />}
+                    </label>
+                    <select
+                      className="select-input"
+                      value={activeItem.form.tripId}
+                      onFocus={loadEntities}
                       onChange={(e) =>
                         updateItem(activeItem.id, (prev) => ({
                           ...prev,
-                          form: { ...prev.form, locationName: e.target.value },
+                          form: { ...prev.form, tripId: e.target.value },
                         }))
                       }
-                    />
+                    >
+                      <option value="">-- None (No Trip) --</option>
+                      {tripsList.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.title} ({t.status})
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", minWidth: 0 }}>
