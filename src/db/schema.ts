@@ -139,6 +139,7 @@ export const trips = sqliteTable("trips", {
 export const persons = sqliteTable("persons", {
   id: text("id").primaryKey(),
   displayName: text("display_name").notNull(),
+  name: text("name").notNull().default(""),
   firstName: text("first_name"),
   lastName: text("last_name"),
   nickname: text("nickname"),

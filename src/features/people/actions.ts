@@ -151,6 +151,7 @@ export async function createPersonAction(rawInput: unknown): Promise<{ success: 
     const record = {
       id,
       displayName: parsed.displayName,
+      name: parsed.displayName,
       firstName: parsed.firstName || null,
       lastName: parsed.lastName || null,
       nickname: parsed.nickname || null,
@@ -204,7 +205,10 @@ export async function updatePersonAction(
       updatedAt: now,
     };
 
-    if (parsed.displayName !== undefined) updates.displayName = parsed.displayName;
+    if (parsed.displayName !== undefined) {
+      updates.displayName = parsed.displayName;
+      updates.name = parsed.displayName;
+    }
     if (parsed.firstName !== undefined) updates.firstName = parsed.firstName || null;
     if (parsed.lastName !== undefined) updates.lastName = parsed.lastName || null;
     if (parsed.nickname !== undefined) updates.nickname = parsed.nickname || null;

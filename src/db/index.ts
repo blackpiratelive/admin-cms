@@ -423,6 +423,7 @@ export async function ensureDbInitialized(): Promise<void> {
         CREATE TABLE IF NOT EXISTS persons (
           id TEXT PRIMARY KEY,
           display_name TEXT NOT NULL,
+          name TEXT NOT NULL DEFAULT '',
           first_name TEXT,
           last_name TEXT,
           nickname TEXT,
@@ -617,6 +618,15 @@ export async function ensureDbInitialized(): Promise<void> {
 
       try {
         await client.execute(`ALTER TABLE persons ADD COLUMN display_name TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE persons ADD COLUMN name TEXT NOT NULL DEFAULT '';`);
+      } catch (err) {}
+      try {
+        await client.execute(`UPDATE persons SET display_name = name WHERE (display_name IS NULL OR display_name = '') AND name IS NOT NULL AND name != '';`);
+      } catch (err) {}
+      try {
+        await client.execute(`UPDATE persons SET name = display_name WHERE (name IS NULL OR name = '') AND display_name IS NOT NULL AND display_name != '';`);
       } catch (err) {}
       try {
         await client.execute(`ALTER TABLE persons ADD COLUMN first_name TEXT;`);
