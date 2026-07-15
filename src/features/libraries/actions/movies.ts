@@ -227,7 +227,7 @@ export async function getRecentMoviesAction(limit = 4): Promise<CombinedMovie[]>
   }));
 }
 
-export async function getMovieDetailAction(traktId: number): Promise<CombinedMovie | null> {
+async function fetchMovieDetailRaw(traktId: number): Promise<CombinedMovie | null> {
   await ensureDbInitialized();
 
   const movieRes = await db.select().from(traktMovies).where(eq(traktMovies.traktId, traktId)).limit(1);
@@ -259,6 +259,16 @@ export async function getMovieDetailAction(traktId: number): Promise<CombinedMov
     metadata: metadataRes[0] || null,
     collections,
   };
+}
+
+export async function getMovieDetailAction(traktId: number): Promise<CombinedMovie | null> {
+  const cachedFn = createCachedQuery(
+    () => fetchMovieDetailRaw(traktId),
+    ["movie-detail", String(traktId)],
+    { tags: ["movies-list", `movie-${traktId}`], revalidate: 3600 }
+  );
+
+  return cachedFn();
 }
 
 export async function updateMovieMetadataAction(
@@ -338,6 +348,7 @@ export async function updateMovieMetadataAction(
 
   try {
     purgeTag("movies-list");
+    purgeTag(`movie-${traktId}`);
     revalidatePath(`/libraries/movies`);
     revalidatePath(`/libraries/movies/${traktId}`);
   } catch {}

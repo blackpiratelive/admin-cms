@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TripRecord, LocationRecord, Microblog, GalleryPhoto, PersonRecord } from "@/db/schema";
 import {
-  getTripByIdOrSlug,
-  getTripAssociatedEntities,
+  getTripHubDataAction,
   deleteTrip,
   connectTripToLocation,
   TripAssociatedEntities,
+  TripHubData,
 } from "@/features/trips/actions";
 import { getLocations, removeLocationTripConnection } from "@/features/locations/actions";
 import { TripFormModal } from "@/features/trips/components/TripFormModal";
@@ -31,6 +31,7 @@ import {
   ChevronRight,
   Globe,
 } from "lucide-react";
+import { getBrowserCache, setBrowserCache } from "@/lib/client-cache";
 
 export default function TripDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params);
@@ -49,17 +50,23 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
   const [activeTab, setActiveTab] = useState<"locations" | "photos" | "microblogs" | "movies" | "people">("locations");
 
   const loadTripData = useCallback(async () => {
-    setLoading(true);
+    const cacheKey = `swr_trip_detail_${slug}`;
+    const cached = getBrowserCache<TripHubData>(cacheKey);
+
+    if (cached) {
+      setTrip(cached.trip);
+      setEntities(cached.entities);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     try {
-      const tr = await getTripByIdOrSlug(slug);
-      if (tr) {
-        setTrip(tr);
-        const [assocEntities, locs] = await Promise.all([
-          getTripAssociatedEntities(tr.id),
-          getLocations(),
-        ]);
-        setEntities(assocEntities);
-        setAvailableLocations(locs);
+      const data = await getTripHubDataAction(slug);
+      if (data && data.trip) {
+        setTrip(data.trip);
+        setEntities(data.entities);
+        setBrowserCache(cacheKey, data);
       }
     } catch (err) {
       console.error("Error loading trip detail:", err);
@@ -67,6 +74,13 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
       setLoading(false);
     }
   }, [slug]);
+
+  const loadAvailableLocations = async () => {
+    if (availableLocations.length === 0) {
+      const locs = await getLocations();
+      setAvailableLocations(locs);
+    }
+  };
 
   useEffect(() => {
     loadTripData();
@@ -296,7 +310,7 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
           {/* Link Location Selector */}
           <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "8px", padding: "14px", display: "flex", alignItems: "center", gap: "12px" }}>
             <span style={{ fontSize: "13px", fontWeight: 600 }}>Link Location to Trip:</span>
-            <select className="form-input" value={selectedLocToConnect} onChange={(e) => setSelectedLocToConnect(e.target.value)} style={{ flex: 1 }}>
+            <select className="form-input" value={selectedLocToConnect} onFocus={loadAvailableLocations} onChange={(e) => setSelectedLocToConnect(e.target.value)} style={{ flex: 1 }}>
               <option value="">-- Select Location --</option>
               {availableLocations.map((l) => {
                 const locStr = [l.city, l.state, l.country].filter(Boolean).join(", ");

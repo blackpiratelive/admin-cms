@@ -7,6 +7,8 @@ import { TripRecord } from "@/db/schema";
 import { TripFormModal } from "@/features/trips/components/TripFormModal";
 import { Compass, Plus, Edit2, Trash2, Calendar, ChevronRight, Star } from "lucide-react";
 
+import { getBrowserCache, setBrowserCache } from "@/lib/client-cache";
+
 export default function TripsPage() {
   const [trips, setTrips] = useState<TripRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -14,10 +16,20 @@ export default function TripsPage() {
   const [tripToEdit, setTripToEdit] = useState<TripRecord | null>(null);
 
   const loadData = async () => {
-    setLoading(true);
+    const cacheKey = "swr_trips_list";
+    const cached = getBrowserCache<TripRecord[]>(cacheKey);
+
+    if (cached) {
+      setTrips(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     try {
       const data = await getTrips();
       setTrips(data);
+      setBrowserCache(cacheKey, data);
     } finally {
       setLoading(false);
     }

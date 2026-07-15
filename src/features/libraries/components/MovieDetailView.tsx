@@ -38,26 +38,24 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
 
   const [locationsList, setLocationsList] = useState<LocationRecord[]>([]);
   const [tripsList, setTripsList] = useState<TripRecord[]>([]);
-  const [isLoadingEntities, setIsLoadingEntities] = useState(true);
+  const [isLoadingEntities, setIsLoadingEntities] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
-  useEffect(() => {
-    async function loadEntities() {
-      setIsLoadingEntities(true);
-      try {
-        const [locs, trps] = await Promise.all([getLocations(), getTrips()]);
-        setLocationsList(locs);
-        setTripsList(trps);
-      } catch (err) {
-        console.error("Failed to load locations or trips:", err);
-      } finally {
-        setIsLoadingEntities(false);
-      }
+  const loadEntities = async () => {
+    if (locationsList.length > 0 && tripsList.length > 0) return;
+    setIsLoadingEntities(true);
+    try {
+      const [locs, trps] = await Promise.all([getLocations(), getTrips()]);
+      setLocationsList(locs);
+      setTripsList(trps);
+    } catch (err) {
+      console.error("Failed to load locations or trips:", err);
+    } finally {
+      setIsLoadingEntities(false);
     }
-    loadEntities();
-  }, []);
+  };
 
   const backdropUrl = getTmdbImageUrl(movie.backdropPath, "backdrop");
   const posterUrl = getTmdbImageUrl(movie.posterPath, "poster") || "https://placehold.co/300x450/1a1a1a/cccccc?text=No+Poster";
@@ -291,6 +289,7 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
               <select
                 className="select-input"
                 value={locationId}
+                onFocus={loadEntities}
                 onChange={(e) => setLocationId(e.target.value)}
               >
                 <option value="">-- None (No Location) --</option>
@@ -311,6 +310,7 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
               <select
                 className="select-input"
                 value={tripId}
+                onFocus={loadEntities}
                 onChange={(e) => setTripId(e.target.value)}
               >
                 <option value="">-- None (No Trip) --</option>

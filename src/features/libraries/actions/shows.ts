@@ -206,7 +206,7 @@ export async function getRecentShowsAction(limit = 4): Promise<CombinedShow[]> {
   }));
 }
 
-export async function getShowDetailAction(traktId: number): Promise<CombinedShow | null> {
+async function fetchShowDetailRaw(traktId: number): Promise<CombinedShow | null> {
   await ensureDbInitialized();
 
   const showRes = await db.select().from(traktShows).where(eq(traktShows.traktId, traktId)).limit(1);
@@ -240,6 +240,16 @@ export async function getShowDetailAction(traktId: number): Promise<CombinedShow
     episodes,
     collections,
   };
+}
+
+export async function getShowDetailAction(traktId: number): Promise<CombinedShow | null> {
+  const cachedFn = createCachedQuery(
+    () => fetchShowDetailRaw(traktId),
+    ["show-detail", String(traktId)],
+    { tags: ["shows-list", `show-${traktId}`], revalidate: 3600 }
+  );
+
+  return cachedFn();
 }
 
 export async function updateShowMetadataAction(
@@ -307,6 +317,7 @@ export async function updateShowMetadataAction(
 
   try {
     purgeTag("shows-list");
+    purgeTag(`show-${traktId}`);
     revalidatePath(`/libraries/shows`);
     revalidatePath(`/libraries/shows/${traktId}`);
   } catch {}

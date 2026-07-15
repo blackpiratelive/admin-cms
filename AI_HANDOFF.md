@@ -68,6 +68,14 @@ admin-cms/
 
 ### Performance & Perceived-Speed Conventions
 
+- **Locations & Trips Universal High-Performance Architecture**:
+  - Single composite batch queries (`getLocationHubDataAction` and `getTripHubDataAction`) fetch entity records and associated media/relationships in **1 single DB roundtrip** using `inArray` queries.
+  - Vercel Data Cache (`createCachedQuery` & `purgeTag`) caches responses in server memory, providing **0-1ms** response times.
+  - Client-side SWR browser caching (`getBrowserCache` / `setBrowserCache`) enables instant **0ms initial paints** on route changes for `/locations`, `/locations/[slug]`, `/trips`, and `/trips/[slug]`.
+  - Lazy `onFocus` deferred dropdown entity loading eliminates redundant API calls when opening detail pages.
+- **Movies & TV Shows Library High-Performance Caching**:
+  - `getMovieDetailAction(traktId)` and `getShowDetailAction(traktId)` wrapped with Vercel Data Cache (`createCachedQuery` & `purgeTag`), serving detail views in **0-1ms**.
+  - Client-side SWR caching (`getBrowserCache` / `setBrowserCache`) provides instant 0ms paints across movies and TV show library lists and detail views (`/libraries/movies`, `/libraries/movies/[id]`, `/libraries/shows`, `/libraries/shows/[id]`).
 - **People Module & Memory Hub High Performance Architecture**: 
   - Single composite batch queries (`getPersonMemoryHubDataAction`) fetch person details, relationships, connected photos, locations, trips, microblogs, projects, and timeline events in **1 single DB roundtrip** using `inArray` batch queries (reducing 50+ sequential network calls).
   - Vercel Data Cache integration (`createCachedQuery` & `purgeTag`) serves cached queries in **0-1ms** with instantaneous tag invalidation on updates.

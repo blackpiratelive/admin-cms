@@ -7,6 +7,8 @@ import { LocationRecord } from "@/db/schema";
 import { LocationFormModal } from "@/features/locations/components/LocationFormModal";
 import { MapPin, Plus, Edit2, Trash2, Camera, Globe, ChevronRight, Star, Lock, EyeOff } from "lucide-react";
 
+import { getBrowserCache, setBrowserCache } from "@/lib/client-cache";
+
 export default function LocationsPage() {
   const [locs, setLocs] = useState<LocationRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -14,10 +16,20 @@ export default function LocationsPage() {
   const [locationToEdit, setLocationToEdit] = useState<LocationRecord | null>(null);
 
   const loadData = async () => {
-    setLoading(true);
+    const cacheKey = "swr_locations_list";
+    const cached = getBrowserCache<LocationRecord[]>(cacheKey);
+
+    if (cached) {
+      setLocs(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     try {
       const data = await getLocations();
       setLocs(data);
+      setBrowserCache(cacheKey, data);
     } finally {
       setLoading(false);
     }

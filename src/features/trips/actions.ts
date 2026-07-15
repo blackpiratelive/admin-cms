@@ -17,12 +17,13 @@ import {
   persons,
   PersonRecord,
 } from "@/db/schema";
-import { desc, eq, or, and } from "drizzle-orm";
+import { desc, eq, or, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/features/activity/actions";
 import { addRelationship, removeRelationship } from "@/features/relationships/actions";
+import { createCachedQuery, purgeTag } from "@/lib/server-cache";
 
-export async function getTrips(): Promise<TripRecord[]> {
+async function fetchTripsRaw(): Promise<TripRecord[]> {
   await ensureDbInitialized();
   return db
     .select()
@@ -30,7 +31,17 @@ export async function getTrips(): Promise<TripRecord[]> {
     .orderBy(desc(trips.createdAt));
 }
 
-export async function getTripByIdOrSlug(idOrSlug: string): Promise<TripRecord | null> {
+export async function getTrips(): Promise<TripRecord[]> {
+  const cachedFn = createCachedQuery(
+    fetchTripsRaw,
+    ["trips-list"],
+    { tags: ["trips-list"], revalidate: 3600 }
+  );
+
+  return cachedFn();
+}
+
+async function fetchTripByIdOrSlugRaw(idOrSlug: string): Promise<TripRecord | null> {
   await ensureDbInitialized();
 
   const byId = await db.select().from(trips).where(eq(trips.id, idOrSlug)).limit(1);
@@ -40,6 +51,16 @@ export async function getTripByIdOrSlug(idOrSlug: string): Promise<TripRecord | 
   if (bySlug[0]) return bySlug[0];
 
   return null;
+}
+
+export async function getTripByIdOrSlug(idOrSlug: string): Promise<TripRecord | null> {
+  const cachedFn = createCachedQuery(
+    () => fetchTripByIdOrSlugRaw(idOrSlug),
+    ["trip-detail", idOrSlug],
+    { tags: ["trips-list", `trip-${idOrSlug}`], revalidate: 3600 }
+  );
+
+  return cachedFn();
 }
 
 export async function createTrip(data: {
@@ -76,6 +97,8 @@ export async function createTrip(data: {
 
   await db.insert(trips).values(newTrip);
   await logActivity("trip_created", "trip", id, `Created Trip: ${data.title}`, { slug });
+
+  purgeTag("trips-list");
 
   try {
     revalidatePath("/trips");
@@ -124,6 +147,11 @@ export async function updateTrip(
     id,
   });
 
+  purgeTag("trips-list");
+  purgeTag(`trip-${id}`);
+  purgeTag(`trip-${existing[0].slug}`);
+  if (updates.slug) purgeTag(`trip-${updates.slug}`);
+
   try {
     revalidatePath("/trips");
     revalidatePath(`/trips/${updates.slug || existing[0].slug}`);
@@ -135,9 +163,9 @@ export async function updateTrip(
 
 export async function deleteTrip(id: string): Promise<boolean> {
   await ensureDbInitialized();
+  const existing = await db.select().from(trips).where(eq(trips.id, id)).limit(1);
+
   await db.delete(trips).where(eq(trips.id, id));
-  
-  // Clean relationships
   await db
     .delete(relationships)
     .where(
@@ -146,6 +174,9 @@ export async function deleteTrip(id: string): Promise<boolean> {
         and(eq(relationships.targetType, "trip"), eq(relationships.targetId, id))
       )
     );
+
+  purgeTag("trips-list");
+  if (existing[0]) purgeTag(`trip-${existing[0].slug}`);
 
   try {
     revalidatePath("/trips");
@@ -161,38 +192,43 @@ export interface TripAssociatedEntities {
   people: Array<{ relationshipId?: string; person: PersonRecord }>;
 }
 
-export async function getTripAssociatedEntities(tripId: string): Promise<TripAssociatedEntities> {
+export interface TripHubData {
+  trip: TripRecord | null;
+  entities: TripAssociatedEntities;
+}
+
+async function fetchTripHubDataRaw(slug: string): Promise<TripHubData | null> {
   await ensureDbInitialized();
 
-  // 1. Associated Microblogs
-  const directMicroblogs = await db.select().from(microblogs).where(eq(microblogs.tripId, tripId));
+  const trip = await fetchTripByIdOrSlugRaw(slug);
+  if (!trip) return null;
 
-  // 2. Associated Gallery Photos
-  const directPhotos = await db.select().from(gallery).where(eq(gallery.tripId, tripId));
+  const tripId = trip.id;
 
-  // 3. Movies with tripId
-  const directMovieMeta = await db.select().from(movieMetadata).where(eq(movieMetadata.tripId, tripId));
-  const moviesList: any[] = [];
-  for (const mm of directMovieMeta) {
-    const mov = await db.select().from(traktMovies).where(eq(traktMovies.traktId, mm.traktId)).limit(1);
-    if (mov[0]) moviesList.push({ ...mov[0], personalMetadata: mm });
-  }
-
-  // 4. Relationships (Locations & People)
-  const relRows = await db
-    .select()
-    .from(relationships)
-    .where(
+  // Execute direct lookups & relationship queries in 1 parallel batch!
+  const [directMicroblogs, directPhotos, directMovieMeta, relRows] = await Promise.all([
+    db.select().from(microblogs).where(eq(microblogs.tripId, tripId)),
+    db.select().from(gallery).where(eq(gallery.tripId, tripId)),
+    db.select().from(movieMetadata).where(eq(movieMetadata.tripId, tripId)),
+    db.select().from(relationships).where(
       or(
         and(eq(relationships.sourceType, "trip"), eq(relationships.sourceId, tripId), eq(relationships.targetType, "location")),
         and(eq(relationships.sourceType, "location"), eq(relationships.targetType, "trip"), eq(relationships.targetId, tripId)),
         and(eq(relationships.sourceType, "person"), eq(relationships.targetType, "trip"), eq(relationships.targetId, tripId)),
         and(eq(relationships.sourceType, "trip"), eq(relationships.sourceId, tripId), eq(relationships.targetType, "person"))
       )
-    );
+    ),
+  ]);
 
-  const associatedLocations: Array<{ relationshipId?: string; location: LocationRecord }> = [];
-  const associatedPeople: Array<{ relationshipId?: string; person: PersonRecord }> = [];
+  const movieTraktIds = directMovieMeta.map((m) => m.traktId);
+  const moviesList = movieTraktIds.length > 0 ? await db.select().from(traktMovies).where(inArray(traktMovies.traktId, movieTraktIds)) : [];
+  const metaMap = new Map(directMovieMeta.map((mm) => [mm.traktId, mm]));
+  const moviesWithMeta = moviesList.map((m) => ({ ...m, personalMetadata: metaMap.get(m.traktId) }));
+
+  const locRelMap = new Map<string, string>();
+  const personRelMap = new Map<string, string>();
+  const locIds: string[] = [];
+  const personIds: string[] = [];
 
   for (const rel of relRows) {
     const isSourceTrip = rel.sourceType === "trip" && rel.sourceId === tripId;
@@ -200,25 +236,50 @@ export async function getTripAssociatedEntities(tripId: string): Promise<TripAss
     const otherId = isSourceTrip ? rel.targetId : rel.sourceId;
 
     if (otherType === "location") {
-      const loc = await db.select().from(locations).where(eq(locations.id, otherId)).limit(1);
-      if (loc[0] && !associatedLocations.some((l) => l.location.id === loc[0].id)) {
-        associatedLocations.push({ relationshipId: rel.id, location: loc[0] });
-      }
+      locIds.push(otherId);
+      locRelMap.set(otherId, rel.id);
     } else if (otherType === "person") {
-      const p = await db.select().from(persons).where(eq(persons.id, otherId)).limit(1);
-      if (p[0] && !associatedPeople.some((pe) => pe.person.id === p[0].id)) {
-        associatedPeople.push({ relationshipId: rel.id, person: p[0] });
-      }
+      personIds.push(otherId);
+      personRelMap.set(otherId, rel.id);
     }
   }
 
+  const [locsRes, peopleRes] = await Promise.all([
+    locIds.length > 0 ? db.select().from(locations).where(inArray(locations.id, locIds)) : Promise.resolve([]),
+    personIds.length > 0 ? db.select().from(persons).where(inArray(persons.id, personIds)) : Promise.resolve([]),
+  ]);
+
+  const associatedLocations = locsRes.map((l) => ({ relationshipId: locRelMap.get(l.id), location: l }));
+  const associatedPeople = peopleRes.map((p) => ({ relationshipId: personRelMap.get(p.id), person: p }));
+
   return {
-    associatedLocations,
-    microblogs: directMicroblogs,
-    photos: directPhotos,
-    movies: moviesList,
-    people: associatedPeople,
+    trip,
+    entities: {
+      associatedLocations,
+      microblogs: directMicroblogs,
+      photos: directPhotos,
+      movies: moviesWithMeta,
+      people: associatedPeople,
+    },
   };
+}
+
+export async function getTripHubDataAction(slug: string): Promise<TripHubData | null> {
+  const cachedFn = createCachedQuery(
+    () => fetchTripHubDataRaw(slug),
+    ["trip-hub-data", slug],
+    { tags: ["trips-list", `trip-${slug}`], revalidate: 3600 }
+  );
+
+  return cachedFn();
+}
+
+export async function getTripAssociatedEntities(tripId: string): Promise<TripAssociatedEntities> {
+  const tr = await fetchTripByIdOrSlugRaw(tripId);
+  if (!tr) return { associatedLocations: [], microblogs: [], photos: [], movies: [], people: [] };
+
+  const hubData = await getTripHubDataAction(tr.slug);
+  return hubData?.entities || { associatedLocations: [], microblogs: [], photos: [], movies: [], people: [] };
 }
 
 export async function connectTripToLocation(
@@ -228,14 +289,20 @@ export async function connectTripToLocation(
   try {
     await ensureDbInitialized();
     await addRelationship("trip", tripId, "location", locationId, "includes_location");
+    
+    purgeTag("trips-list");
+    purgeTag("locations-list");
+
     const tr = await db.select().from(trips).where(eq(trips.id, tripId)).limit(1);
     const loc = await db.select().from(locations).where(eq(locations.id, locationId)).limit(1);
     if (tr[0]) {
+      purgeTag(`trip-${tr[0].slug}`);
       try {
         revalidatePath(`/trips/${tr[0].slug}`);
       } catch {}
     }
     if (loc[0]) {
+      purgeTag(`location-${loc[0].slug}`);
       try {
         revalidatePath(`/locations/${loc[0].slug}`);
       } catch {}

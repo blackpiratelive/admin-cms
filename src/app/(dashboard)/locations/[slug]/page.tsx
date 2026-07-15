@@ -5,12 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LocationRecord, TripRecord, Microblog, GalleryPhoto, PersonRecord } from "@/db/schema";
 import {
-  getLocationByIdOrSlug,
-  getLocationAssociatedEntities,
+  getLocationHubDataAction,
   deleteLocation,
   connectLocationToTrip,
   removeLocationTripConnection,
   LocationAssociatedEntities,
+  LocationHubData,
 } from "@/features/locations/actions";
 import { getTrips } from "@/features/trips/actions";
 import { LocationFormModal } from "@/features/locations/components/LocationFormModal";
@@ -33,6 +33,7 @@ import {
   EyeOff,
   ChevronRight,
 } from "lucide-react";
+import { getBrowserCache, setBrowserCache } from "@/lib/client-cache";
 
 export default function LocationDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params);
@@ -51,17 +52,23 @@ export default function LocationDetailPage({ params }: { params: Promise<{ slug:
   const [activeTab, setActiveTab] = useState<"trips" | "photos" | "microblogs" | "movies" | "people">("trips");
 
   const loadLocationData = useCallback(async () => {
-    setLoading(true);
+    const cacheKey = `swr_location_detail_${slug}`;
+    const cached = getBrowserCache<LocationHubData>(cacheKey);
+
+    if (cached) {
+      setLocation(cached.location);
+      setEntities(cached.entities);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     try {
-      const loc = await getLocationByIdOrSlug(slug);
-      if (loc) {
-        setLocation(loc);
-        const [assocEntities, trps] = await Promise.all([
-          getLocationAssociatedEntities(loc.id),
-          getTrips(),
-        ]);
-        setEntities(assocEntities);
-        setAvailableTrips(trps);
+      const data = await getLocationHubDataAction(slug);
+      if (data && data.location) {
+        setLocation(data.location);
+        setEntities(data.entities);
+        setBrowserCache(cacheKey, data);
       }
     } catch (err) {
       console.error("Error loading location details:", err);
@@ -69,6 +76,13 @@ export default function LocationDetailPage({ params }: { params: Promise<{ slug:
       setLoading(false);
     }
   }, [slug]);
+
+  const loadAvailableTrips = async () => {
+    if (availableTrips.length === 0) {
+      const trps = await getTrips();
+      setAvailableTrips(trps);
+    }
+  };
 
   useEffect(() => {
     loadLocationData();
@@ -322,7 +336,7 @@ export default function LocationDetailPage({ params }: { params: Promise<{ slug:
           {/* Link Trip bar */}
           <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "8px", padding: "14px", display: "flex", alignItems: "center", gap: "12px" }}>
             <span style={{ fontSize: "13px", fontWeight: 600 }}>Link Trip to Location:</span>
-            <select className="form-input" value={selectedTripToConnect} onChange={(e) => setSelectedTripToConnect(e.target.value)} style={{ flex: 1 }}>
+            <select className="form-input" value={selectedTripToConnect} onFocus={loadAvailableTrips} onChange={(e) => setSelectedTripToConnect(e.target.value)} style={{ flex: 1 }}>
               <option value="">-- Select Trip --</option>
               {availableTrips.map((tr) => (
                 <option key={tr.id} value={tr.id}>
