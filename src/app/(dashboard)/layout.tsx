@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { Header } from "@/components/Header";
 import { Sidebar } from "@/components/Sidebar";
+import { NavigationProgressBar } from "@/components/NavigationProgressBar";
 
 export default function DashboardLayout({
   children,
@@ -13,6 +14,9 @@ export default function DashboardLayout({
 
   return (
     <div className="app-container">
+      <Suspense fallback={null}>
+        <NavigationProgressBar />
+      </Suspense>
       <Header onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} sidebarOpen={sidebarOpen} />
       <div className="body-layout">
         {sidebarOpen && (
