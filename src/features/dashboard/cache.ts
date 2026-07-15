@@ -72,7 +72,7 @@ export async function setDashboardCacheEntry<T>(key: string, data: T): Promise<v
 /**
  * Recomputes the entire dashboard overview dataset and saves it to the DB table.
  */
-export async function rebuildDashboardCache(): Promise<DashboardOverviewSnapshot> {
+export async function rebuildDashboardCache(skipRevalidate = false): Promise<DashboardOverviewSnapshot> {
   await ensureDbInitialized();
   const now = new Date().toISOString();
 
@@ -106,7 +106,13 @@ export async function rebuildDashboardCache(): Promise<DashboardOverviewSnapshot
   };
 
   await setDashboardCacheEntry("dashboard_overview", snapshot);
-  revalidatePath("/");
+  if (!skipRevalidate) {
+    try {
+      revalidatePath("/");
+    } catch (e) {
+      // Ignore if revalidatePath is called in a render context
+    }
+  }
   return snapshot;
 }
 
@@ -122,7 +128,8 @@ export async function getDashboardData(forceRefresh = false): Promise<DashboardO
     }
   }
 
-  return await rebuildDashboardCache();
+  // Pass skipRevalidate = true so revalidatePath is not called during component rendering
+  return await rebuildDashboardCache(true);
 }
 
 /**
@@ -130,7 +137,8 @@ export async function getDashboardData(forceRefresh = false): Promise<DashboardO
  */
 export async function refreshDashboardCacheAction() {
   try {
-    const snapshot = await rebuildDashboardCache();
+    const snapshot = await rebuildDashboardCache(false);
+    revalidatePath("/");
     return { success: true, updatedAt: snapshot.updatedAt };
   } catch (err: any) {
     console.error("Manual dashboard cache refresh failed:", err);
