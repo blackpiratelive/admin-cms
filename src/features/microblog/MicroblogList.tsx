@@ -1,16 +1,23 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { type Microblog } from "@/db/schema";
-import { setMicroblogStatus, deleteMicroblog, deleteMicroblogsBatch } from "./actions";
+import {
+  setMicroblogStatus,
+  deleteMicroblog,
+  deleteMicroblogsBatch,
+  getMicroblogs,
+  type MicroblogListItem,
+  type MicroblogFetchResult,
+} from "./actions";
 import { Search, Plus, Edit3, Trash2, Image as ImageIcon, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from "lucide-react";
 
 interface MicroblogListProps {
-  initialItems: Microblog[];
+  initialData?: MicroblogFetchResult;
+  initialItems?: MicroblogListItem[];
 }
 
-export function hasImages(item: Microblog): boolean {
+export function hasImages(item: { coverImageUrl?: string | null; images?: string | null }): boolean {
   if (item.coverImageUrl && item.coverImageUrl.trim() !== "") {
     return true;
   }
@@ -27,54 +34,88 @@ export function hasImages(item: Microblog): boolean {
   return false;
 }
 
-export function MicroblogList({ initialItems }: MicroblogListProps) {
-  const [items, setItems] = useState<Microblog[]>(initialItems);
+export function MicroblogList({ initialData, initialItems }: MicroblogListProps) {
+  const defaultItems = initialData?.items ?? initialItems ?? [];
+  const defaultTotal = initialData?.total ?? defaultItems.length;
+  const defaultTotalPages = initialData?.totalPages ?? Math.max(1, Math.ceil(defaultTotal / 50));
+
+  const [items, setItems] = useState<MicroblogListItem[]>(defaultItems);
+  const [totalItems, setTotalItems] = useState<number>(defaultTotal);
+  const [totalPages, setTotalPages] = useState<number>(defaultTotalPages);
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+
+  const [isFetching, setIsFetching] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
-  // Pagination states (default 50 per page, configurable)
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const isInitialMount = useRef(true);
 
-  // Filter items based on status and search query
-  const filteredItems = items.filter((item) => {
-    const matchesStatus = statusFilter === "all" || item.status === statusFilter;
-    const matchesSearch =
-      !search.trim() ||
-      item.contentMarkdown.toLowerCase().includes(search.toLowerCase()) ||
-      item.slug.toLowerCase().includes(search.toLowerCase());
-    return matchesStatus && matchesSearch;
-  });
+  const fetchServerData = useCallback(async (
+    s: string,
+    st: string,
+    p: number,
+    limit: number
+  ) => {
+    setIsFetching(true);
+    try {
+      const res = await getMicroblogs({
+        search: s,
+        status: st,
+        page: p,
+        limit,
+      });
+      setItems(res.items);
+      setTotalItems(res.total);
+      setTotalPages(res.totalPages);
+    } catch (err) {
+      console.error("Failed to fetch server microblogs:", err);
+    } finally {
+      setIsFetching(false);
+    }
+  }, []);
 
-  // Reset page to 1 when filters or page size change
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      fetchServerData(search, statusFilter, currentPage, pageSize);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [search, statusFilter, currentPage, pageSize, fetchServerData]);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearch(e.target.value);
     setCurrentPage(1);
-  }, [search, statusFilter, pageSize]);
+  };
 
-  // Calculate pagination boundaries
-  const totalItems = filteredItems.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const handleStatusFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setStatusFilter(e.target.value);
+    setCurrentPage(1);
+  };
 
-  const startIndex = (safeCurrentPage - 1) * pageSize;
-  const endIndex = Math.min(startIndex + pageSize, totalItems);
-  const paginatedItems = filteredItems.slice(startIndex, endIndex);
+  const handlePageSizeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setPageSize(Number(e.target.value));
+    setCurrentPage(1);
+  };
 
   const isAllCurrentPageSelected =
-    paginatedItems.length > 0 &&
-    paginatedItems.every((item) => selectedIds.includes(item.id));
+    items.length > 0 && items.every((item) => selectedIds.includes(item.id));
 
   const handleStatusChange = async (id: string, newStatus: any) => {
     setUpdatingStatusId(id);
     try {
       await setMicroblogStatus(id, newStatus);
-      setItems((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, status: newStatus } : item))
-      );
+      fetchServerData(search, statusFilter, currentPage, pageSize);
     } finally {
       setUpdatingStatusId(null);
     }
@@ -85,8 +126,8 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
     setDeletingId(id);
     try {
       await deleteMicroblog(id);
-      setItems((prev) => prev.filter((item) => item.id !== id));
       setSelectedIds((prev) => prev.filter((item) => item !== id));
+      fetchServerData(search, statusFilter, currentPage, pageSize);
     } finally {
       setDeletingId(null);
     }
@@ -94,10 +135,10 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      const pageIds = paginatedItems.map((item) => item.id);
+      const pageIds = items.map((item) => item.id);
       setSelectedIds((prev) => Array.from(new Set([...prev, ...pageIds])));
     } else {
-      const pageIds = new Set(paginatedItems.map((item) => item.id));
+      const pageIds = new Set(items.map((item) => item.id));
       setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
     }
   };
@@ -121,8 +162,8 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
     try {
       const res = await deleteMicroblogsBatch(selectedIds);
       if (res.success) {
-        setItems((prev) => prev.filter((item) => !selectedIds.includes(item.id)));
         setSelectedIds([]);
+        fetchServerData(search, statusFilter, currentPage, pageSize);
       } else {
         alert(res.error || "Failed to delete selected posts.");
       }
@@ -144,10 +185,16 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
     });
   };
 
+  const startIndex = totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0;
+  const endIndex = Math.min(currentPage * pageSize, totalItems);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <div className="page-header">
-        <h1 className="page-title">Microblog Posts ({totalItems})</h1>
+        <h1 className="page-title" style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+          <span>Microblog Posts ({totalItems})</span>
+          {isFetching && <Loader2 size={18} className="animate-spin" style={{ color: "var(--accent)" }} />}
+        </h1>
         <div style={{ display: "flex", gap: "8px" }}>
           {selectedIds.length > 0 && (
             <button
@@ -176,7 +223,7 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
             type="text"
             placeholder="Search microblog posts by content or slug..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={handleSearchChange}
             className="search-input"
             style={{ width: "100%" }}
           />
@@ -188,7 +235,7 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
           </label>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={handleStatusFilterChange}
             className="select-input"
           >
             <option value="all">All Statuses</option>
@@ -205,7 +252,7 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
           </label>
           <select
             value={pageSize}
-            onChange={(e) => setPageSize(Number(e.target.value))}
+            onChange={handlePageSizeChange}
             className="select-input"
             aria-label="Items per page"
           >
@@ -238,17 +285,17 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
             </tr>
           </thead>
           <tbody>
-            {paginatedItems.length === 0 ? (
+            {items.length === 0 ? (
               <tr>
                 <td
                   colSpan={7}
                   style={{ textAlign: "center", padding: "24px", color: "var(--text-muted)" }}
                 >
-                  No microblog posts found.
+                  {isFetching ? "Loading microblog posts..." : "No microblog posts found."}
                 </td>
               </tr>
             ) : (
-              paginatedItems.map((item) => {
+              items.map((item) => {
                 const snippet =
                   item.contentMarkdown.length > 60
                     ? item.contentMarkdown.slice(0, 60) + "..."
@@ -364,7 +411,7 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
           }}
         >
           <div>
-            Showing <strong>{startIndex + 1}</strong> to <strong>{endIndex}</strong> of{" "}
+            Showing <strong>{startIndex}</strong> to <strong>{endIndex}</strong> of{" "}
             <strong>{totalItems}</strong> entries
           </div>
 
@@ -373,7 +420,7 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
               type="button"
               className="btn btn-sm"
               onClick={() => setCurrentPage(1)}
-              disabled={safeCurrentPage === 1}
+              disabled={currentPage === 1 || isFetching}
               title="First Page"
             >
               <ChevronsLeft size={14} />
@@ -382,7 +429,7 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
               type="button"
               className="btn btn-sm"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={safeCurrentPage === 1}
+              disabled={currentPage === 1 || isFetching}
               title="Previous Page"
             >
               <ChevronLeft size={14} />
@@ -390,14 +437,14 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
             </button>
 
             <span style={{ padding: "0 8px", fontWeight: 500 }}>
-              Page {safeCurrentPage} of {totalPages}
+              Page {currentPage} of {totalPages}
             </span>
 
             <button
               type="button"
               className="btn btn-sm"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={safeCurrentPage === totalPages}
+              disabled={currentPage >= totalPages || isFetching}
               title="Next Page"
             >
               <span>Next</span>
@@ -407,7 +454,7 @@ export function MicroblogList({ initialItems }: MicroblogListProps) {
               type="button"
               className="btn btn-sm"
               onClick={() => setCurrentPage(totalPages)}
-              disabled={safeCurrentPage === totalPages}
+              disabled={currentPage >= totalPages || isFetching}
               title="Last Page"
             >
               <ChevronsRight size={14} />

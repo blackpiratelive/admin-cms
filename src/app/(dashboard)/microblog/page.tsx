@@ -4,6 +4,6 @@ import { MicroblogList } from "@/features/microblog/MicroblogList";
 export const dynamic = "force-dynamic";
 
 export default async function MicroblogListPage() {
-  const posts = await getMicroblogs();
-  return <MicroblogList initialItems={posts} />;
+  const initialData = await getMicroblogs({ page: 1, limit: 50 });
+  return <MicroblogList initialData={initialData} />;
 }

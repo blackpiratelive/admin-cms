@@ -8,9 +8,40 @@ import { triggerVercelDeployHook } from "@/lib/deploy-hook";
 import { revalidatePath } from "next/cache";
 import { updateRelatedPosts, getRelatedPosts } from "./related";
 
-export async function getMicroblogs(filters?: { search?: string; status?: string }) {
+export type MicroblogListItem = {
+  id: string;
+  slug: string;
+  contentMarkdown: string;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt: string | null;
+  status: "draft" | "published" | "scheduled" | "archived";
+  coverImageUrl: string | null;
+  images: string;
+};
+
+export interface MicroblogFetchParams {
+  search?: string;
+  status?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface MicroblogFetchResult {
+  items: MicroblogListItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export async function getMicroblogs(filters?: MicroblogFetchParams): Promise<MicroblogFetchResult> {
   try {
     await ensureDbInitialized();
+    const page = Math.max(1, filters?.page || 1);
+    const limit = Math.max(1, filters?.limit || 50);
+    const offset = (page - 1) * limit;
+
     const conditions = [];
 
     if (filters?.status && filters.status !== "all") {
@@ -18,22 +49,59 @@ export async function getMicroblogs(filters?: { search?: string; status?: string
     }
 
     if (filters?.search && filters.search.trim()) {
-      conditions.push(like(microblogs.contentMarkdown, `%${filters.search.trim()}%`));
+      const queryStr = `%${filters.search.trim()}%`;
+      conditions.push(
+        or(
+          like(microblogs.contentMarkdown, queryStr),
+          like(microblogs.slug, queryStr)
+        )
+      );
     }
 
-    const query = db
-      .select()
-      .from(microblogs)
-      .orderBy(desc(microblogs.createdAt));
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    if (conditions.length > 0) {
-      return await query.where(and(...conditions));
-    }
+    const selectColumns = {
+      id: microblogs.id,
+      slug: microblogs.slug,
+      contentMarkdown: microblogs.contentMarkdown,
+      createdAt: microblogs.createdAt,
+      updatedAt: microblogs.updatedAt,
+      publishedAt: microblogs.publishedAt,
+      status: microblogs.status,
+      coverImageUrl: microblogs.coverImageUrl,
+      images: microblogs.images,
+    };
 
-    return await query;
+    const [totals, items] = await Promise.all([
+      db.select({ total: count() }).from(microblogs).where(whereClause),
+      db
+        .select(selectColumns)
+        .from(microblogs)
+        .where(whereClause)
+        .orderBy(desc(microblogs.createdAt))
+        .limit(limit)
+        .offset(offset),
+    ]);
+
+    const total = totals[0]?.total ?? 0;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   } catch (error) {
     console.error("Error fetching microblogs:", error);
-    return [];
+    return {
+      items: [],
+      total: 0,
+      page: 1,
+      limit: filters?.limit || 50,
+      totalPages: 1,
+    };
   }
 }
 
