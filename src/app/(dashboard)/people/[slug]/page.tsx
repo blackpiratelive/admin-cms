@@ -45,6 +45,7 @@ import {
   ChevronRight,
   X,
 } from "lucide-react";
+import { getBrowserCache, setBrowserCache } from "@/lib/client-cache";
 
 export default function PersonDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params);
@@ -66,7 +67,22 @@ export default function PersonDetailPage({ params }: { params: Promise<{ slug: s
   const [activeTab, setActiveTab] = useState<"overview" | "connections" | "timeline">("overview");
 
   const loadPerson = useCallback(async () => {
-    setLoading(true);
+    const cacheKey = `swr_person_detail_${slug}`;
+    const cached = getBrowserCache<{
+      person: PersonRecord;
+      connections: PersonConnectionsResult;
+      timeline: PersonTimelineItem[];
+    }>(cacheKey);
+
+    if (cached) {
+      setPerson(cached.person);
+      setConnections(cached.connections);
+      setTimeline(cached.timeline);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     try {
       const p = await getPersonByIdOrSlugAction(slug);
       if (p) {
@@ -81,6 +97,7 @@ export default function PersonDetailPage({ params }: { params: Promise<{ slug: s
         setTimeline(timelineRes);
         setAllLocations(locs);
         setAllTrips(trps);
+        setBrowserCache(cacheKey, { person: p, connections: connRes, timeline: timelineRes });
       }
     } catch (err) {
       console.error("Error loading person detail:", err);

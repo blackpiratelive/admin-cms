@@ -32,6 +32,8 @@ import {
   User,
 } from "lucide-react";
 
+import { getBrowserCache, setBrowserCache } from "@/lib/client-cache";
+
 export default function PeoplePage() {
   const [people, setPeople] = useState<PersonRecord[]>([]);
   const [upcomingDates, setUpcomingDates] = useState<UpcomingBirthdayItem[]>([]);
@@ -50,7 +52,17 @@ export default function PeoplePage() {
   const [personToEdit, setPersonToEdit] = useState<PersonRecord | null>(null);
 
   const loadData = useCallback(async () => {
-    setLoading(true);
+    const cacheKey = `swr_people_list_${search}_${relationshipFilter}_${favoriteFilter}_${birthdayMonthFilter}_${visibilityFilter}_${sortBy}`;
+    const cached = getBrowserCache<{ people: PersonRecord[]; upcoming: UpcomingBirthdayItem[] }>(cacheKey);
+
+    if (cached) {
+      setPeople(cached.people);
+      setUpcomingDates(cached.upcoming);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     try {
       const [data, upcoming] = await Promise.all([
         getPeopleAction({
@@ -65,6 +77,7 @@ export default function PeoplePage() {
       ]);
       setPeople(data);
       setUpcomingDates(upcoming);
+      setBrowserCache(cacheKey, { people: data, upcoming });
     } catch (err) {
       console.error("Failed to load people data:", err);
     } finally {
