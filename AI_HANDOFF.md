@@ -71,6 +71,7 @@ admin-cms/
 - **Search:** Universal command-palette lookups run as independent parallel queries. The client debounces input and ignores stale responses; keep new search sources independent and bounded with a result limit.
 - **Indexes:** `ensureDbInitialized` creates indexes for high-traffic list/order/filter paths (including `microblogs_created_at_idx`, `microblogs_status_created_at_idx`, and `microblogs_slug_idx`). Add an index alongside any new query that will be used for a large library list or dashboard widget.
 - **Loading Visuals:** Paginated list tables provide instant visual feedback during async server fetches: spinning search/footer icons, top accent progress bar overlays, and dimmed table body transitions (`opacity: 0.4`) while data is in flight.
+- **Browser Client-Side Cache (SWR):** `src/lib/client-cache.ts` provides `getBrowserCache`, `setBrowserCache`, and `clearBrowserCachePrefix`. Components like `MicroblogList` use Stale-While-Revalidate to render cached data instantly (0ms paint) while silently revalidating with the server in the background and invalidating local caches upon mutations.
 - **Media rendering:** Poster and dashboard thumbnail images use lazy loading plus asynchronous decoding to protect interaction responsiveness.
 
 ---

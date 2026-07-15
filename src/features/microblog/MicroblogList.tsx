@@ -12,6 +12,8 @@ import {
 } from "./actions";
 import { Search, Plus, Edit3, Trash2, Globe, FileEdit, Clock, Archive, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from "lucide-react";
 
+import { getBrowserCache, setBrowserCache, clearBrowserCachePrefix } from "@/lib/client-cache";
+
 interface MicroblogListProps {
   initialData?: MicroblogFetchResult;
   initialItems?: MicroblogListItem[];
@@ -79,13 +81,26 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
 
   const isInitialMount = useRef(true);
 
+  const getCacheKey = (s: string, st: string, p: number, limit: number) =>
+    `mb_list_${st}_${limit}_${p}_${s.trim()}`;
+
   const fetchServerData = useCallback(async (
     s: string,
     st: string,
     p: number,
     limit: number
   ) => {
-    setIsFetching(true);
+    const cacheKey = getCacheKey(s, st, p, limit);
+    const cached = getBrowserCache<MicroblogFetchResult>(cacheKey);
+
+    if (cached) {
+      setItems(cached.items);
+      setTotalItems(cached.total);
+      setTotalPages(cached.totalPages);
+    }
+
+    setIsFetching(!cached);
+
     try {
       const res = await getMicroblogs({
         search: s,
@@ -96,6 +111,7 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
       setItems(res.items);
       setTotalItems(res.total);
       setTotalPages(res.totalPages);
+      setBrowserCache(cacheKey, res);
     } catch (err) {
       console.error("Failed to fetch server microblogs:", err);
     } finally {
@@ -106,6 +122,10 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
+      // Cache initial render data
+      if (initialData) {
+        setBrowserCache(getCacheKey("", "all", 1, 50), initialData);
+      }
       return;
     }
 
@@ -114,7 +134,7 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [search, statusFilter, currentPage, pageSize, fetchServerData]);
+  }, [search, statusFilter, currentPage, pageSize, fetchServerData, initialData]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value);
@@ -138,6 +158,7 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
     setUpdatingStatusId(id);
     try {
       await setMicroblogStatus(id, newStatus);
+      clearBrowserCachePrefix("mb_list_");
       fetchServerData(search, statusFilter, currentPage, pageSize);
     } finally {
       setUpdatingStatusId(null);
@@ -150,6 +171,7 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
     try {
       await deleteMicroblog(id);
       setSelectedIds((prev) => prev.filter((item) => item !== id));
+      clearBrowserCachePrefix("mb_list_");
       fetchServerData(search, statusFilter, currentPage, pageSize);
     } finally {
       setDeletingId(null);
@@ -186,6 +208,7 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
       const res = await deleteMicroblogsBatch(selectedIds);
       if (res.success) {
         setSelectedIds([]);
+        clearBrowserCachePrefix("mb_list_");
         fetchServerData(search, statusFilter, currentPage, pageSize);
       } else {
         alert(res.error || "Failed to delete selected posts.");
