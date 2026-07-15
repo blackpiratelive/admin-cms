@@ -592,6 +592,7 @@ export async function ensureDbInitialized(): Promise<void> {
       await client.executeMultiple(`
         CREATE INDEX IF NOT EXISTS microblogs_created_at_idx ON microblogs(created_at DESC);
         CREATE INDEX IF NOT EXISTS microblogs_status_created_at_idx ON microblogs(status, created_at DESC);
+        CREATE INDEX IF NOT EXISTS microblogs_slug_idx ON microblogs(slug);
         CREATE INDEX IF NOT EXISTS gallery_created_at_idx ON gallery(created_at DESC);
         CREATE INDEX IF NOT EXISTS gallery_visibility_idx ON gallery(visibility);
         CREATE INDEX IF NOT EXISTS todos_completed_due_date_idx ON todos(completed, due_date);

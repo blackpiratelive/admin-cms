@@ -218,7 +218,11 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
       {/* Filter and Search Toolbar */}
       <div className="filter-bar">
         <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, minWidth: "200px" }}>
-          <Search size={16} style={{ color: "var(--text-muted)" }} />
+          {isFetching ? (
+            <Loader2 size={16} className="animate-spin" style={{ color: "var(--accent)" }} />
+          ) : (
+            <Search size={16} style={{ color: "var(--text-muted)" }} />
+          )}
           <input
             type="text"
             placeholder="Search microblog posts by content or slug..."
@@ -237,6 +241,7 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
             value={statusFilter}
             onChange={handleStatusFilterChange}
             className="select-input"
+            disabled={isFetching}
           >
             <option value="all">All Statuses</option>
             <option value="draft">Draft</option>
@@ -254,6 +259,7 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
             value={pageSize}
             onChange={handlePageSizeChange}
             className="select-input"
+            disabled={isFetching}
             aria-label="Items per page"
           >
             <option value={10}>10</option>
@@ -265,7 +271,22 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
       </div>
 
       {/* Data Table */}
-      <div className="table-container">
+      <div className="table-container" style={{ position: "relative" }}>
+        {isFetching && (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: "3px",
+              backgroundColor: "var(--accent)",
+              zIndex: 10,
+              opacity: 0.8,
+              borderRadius: "2px 2px 0 0",
+            }}
+          />
+        )}
         <table className="data-table">
           <thead>
             <tr>
@@ -274,6 +295,7 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
                   type="checkbox"
                   checked={isAllCurrentPageSelected}
                   onChange={handleSelectAll}
+                  disabled={isFetching}
                 />
               </th>
               <th>Snippet / Slug</th>
@@ -284,7 +306,7 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
               <th style={{ textAlign: "right" }}>Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody style={{ opacity: isFetching ? 0.4 : 1, transition: "opacity 0.2s ease", pointerEvents: isFetching ? "none" : "auto" }}>
             {items.length === 0 ? (
               <tr>
                 <td
@@ -410,9 +432,16 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
             gap: "12px",
           }}
         >
-          <div>
-            Showing <strong>{startIndex}</strong> to <strong>{endIndex}</strong> of{" "}
-            <strong>{totalItems}</strong> entries
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+            <span>
+              Showing <strong>{startIndex}</strong> to <strong>{endIndex}</strong> of{" "}
+              <strong>{totalItems}</strong> entries
+            </span>
+            {isFetching && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px", color: "var(--accent)" }}>
+                <Loader2 size={12} className="animate-spin" /> Fetching...
+              </span>
+            )}
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -436,8 +465,8 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
               <span>Prev</span>
             </button>
 
-            <span style={{ padding: "0 8px", fontWeight: 500 }}>
-              Page {currentPage} of {totalPages}
+            <span style={{ padding: "0 8px", fontWeight: 500, display: "inline-flex", alignItems: "center", gap: "4px" }}>
+              <span>Page {currentPage} of {totalPages}</span>
             </span>
 
             <button

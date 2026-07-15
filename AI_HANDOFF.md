@@ -68,7 +68,8 @@ admin-cms/
 - **Aggregate, do not hydrate:** System counters and gallery storage estimates use SQL `count`/`sum` aggregates. Do not fetch complete tables merely to calculate a count or total.
 - **Storage monitor cache:** `getCloudflareUsageStats` keeps a 30-second in-process cache to avoid repeated R2 listings. Gallery saves/deletes invalidate it, so the next render reflects mutations.
 - **Search:** Universal command-palette lookups run as independent parallel queries. The client debounces input and ignores stale responses; keep new search sources independent and bounded with a result limit.
-- **Indexes:** `ensureDbInitialized` creates indexes for the high-traffic list/order/filter paths. Add an index alongside any new query that will be used for a large library list or dashboard widget.
+- **Indexes:** `ensureDbInitialized` creates indexes for high-traffic list/order/filter paths (including `microblogs_created_at_idx`, `microblogs_status_created_at_idx`, and `microblogs_slug_idx`). Add an index alongside any new query that will be used for a large library list or dashboard widget.
+- **Loading Visuals:** Paginated list tables provide instant visual feedback during async server fetches: spinning search/footer icons, top accent progress bar overlays, and dimmed table body transitions (`opacity: 0.4`) while data is in flight.
 - **Media rendering:** Poster and dashboard thumbnail images use lazy loading plus asynchronous decoding to protect interaction responsiveness.
 
 ---
