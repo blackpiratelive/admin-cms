@@ -46,9 +46,8 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
   return (
     <aside
       className={`sidebar ${isOpen ? "open" : ""}`}
-      style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}
     >
-      <div>
+      <div style={{ flex: 1, minHeight: 0 }}>
         <nav className="nav-section">
           <Link
             href="/"

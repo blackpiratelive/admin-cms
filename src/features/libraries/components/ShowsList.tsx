@@ -124,7 +124,7 @@ export function ShowsList({ initialData, initialParams }: ShowsListProps) {
       </div>
 
       {/* Filter Toolbar */}
-      <div className="filter-bar card" style={{ padding: "12px 16px", display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
+      <div className="filter-bar card library-filter-bar">
         <div style={{ flex: 1, minWidth: "200px", display: "flex", alignItems: "center", gap: "6px" }}>
           {isFetching ? (
             <Loader2 size={16} className="animate-spin" style={{ color: "var(--accent)" }} />
@@ -141,20 +141,20 @@ export function ShowsList({ initialData, initialParams }: ShowsListProps) {
           />
         </div>
 
-        <select value={status} onChange={handleStatusChange} className="select-input" style={{ width: "auto", fontSize: "12px" }} disabled={isFetching}>
+        <select value={status} onChange={handleStatusChange} className="select-input" style={{ fontSize: "12px" }} disabled={isFetching}>
           <option value="">All Statuses</option>
           <option value="returning series">Returning Series</option>
           <option value="ended">Ended</option>
           <option value="canceled">Canceled</option>
         </select>
 
-        <select value={sort} onChange={handleSortChange} className="select-input" style={{ width: "auto", fontSize: "12px" }} disabled={isFetching}>
+        <select value={sort} onChange={handleSortChange} className="select-input" style={{ fontSize: "12px" }} disabled={isFetching}>
           <option value="title">Sort by Title</option>
           <option value="year">Sort by Release Year</option>
           <option value="updated_at">Sort by Last Updated</option>
         </select>
 
-        <select value={pageSize} onChange={handlePageSizeChange} className="select-input" style={{ width: "auto", fontSize: "12px" }} disabled={isFetching}>
+        <select value={pageSize} onChange={handlePageSizeChange} className="select-input" style={{ fontSize: "12px" }} disabled={isFetching}>
           <option value={12}>12 per page</option>
           <option value={25}>25 per page (Default)</option>
           <option value={50}>50 per page</option>
@@ -190,10 +190,8 @@ export function ShowsList({ initialData, initialParams }: ShowsListProps) {
           </div>
         ) : (
           <div
+            className="library-cards-grid"
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-              gap: "20px",
               opacity: isFetching ? 0.4 : 1,
               transition: "opacity 0.2s ease",
               pointerEvents: isFetching ? "none" : "auto",

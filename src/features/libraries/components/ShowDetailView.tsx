@@ -95,12 +95,12 @@ export function ShowDetailView({ showData, allCollections }: ShowDetailViewProps
       >
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(15,15,15,1) 0%, rgba(15,15,15,0.4) 60%, rgba(0,0,0,0.2) 100%)" }} />
 
-        <div style={{ position: "relative", zIndex: 2, padding: "24px", display: "flex", gap: "24px", alignItems: "flex-end", width: "100%" }}>
-          <img src={posterUrl} alt={show.title} style={{ width: "120px", height: "180px", objectFit: "cover", borderRadius: "8px", border: "2px solid rgba(255,255,255,0.1)" }} />
+        <div className="library-detail-hero-content">
+          <img src={posterUrl} alt={show.title} className="library-detail-poster" />
 
           <div style={{ flex: 1 }}>
             <h1 style={{ fontSize: "28px", fontWeight: 700, margin: "0 0 6px 0" }}>{show.title}</h1>
-            <div style={{ display: "flex", gap: "12px", fontSize: "13px", color: "var(--text-muted)", alignItems: "center" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", fontSize: "13px", color: "var(--text-muted)", alignItems: "center" }}>
               <span>{show.year || "N/A"}</span>
               <span>• Status: {show.status || "Ongoing"}</span>
               <span>• {episodes.length} Episodes Logged</span>
@@ -109,7 +109,7 @@ export function ShowDetailView({ showData, allCollections }: ShowDetailViewProps
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
+      <div className="library-detail-grid">
         {/* Left: Provider Read-Only Info */}
         <div className="card" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <h2 style={{ fontSize: "16px", fontWeight: 600, margin: 0, borderBottom: "1px solid var(--border-color)", paddingBottom: "10px" }}>
@@ -121,7 +121,7 @@ export function ShowDetailView({ showData, allCollections }: ShowDetailViewProps
             <p style={{ fontSize: "14px", lineHeight: 1.6, marginTop: "4px" }}>{show.overview || "No overview provided."}</p>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", fontSize: "13px" }}>
+          <div className="library-detail-subgrid" style={{ fontSize: "13px" }}>
             <div><span style={{ color: "var(--text-muted)" }}>TMDB ID:</span> {show.tmdbId || "N/A"}</div>
             <div><span style={{ color: "var(--text-muted)" }}>Trakt ID:</span> {show.traktId}</div>
             <div>
@@ -164,7 +164,7 @@ export function ShowDetailView({ showData, allCollections }: ShowDetailViewProps
             <span>Favorite Show</span>
           </label>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div className="library-detail-subgrid">
             <div>
               <label className="label">Personal Rating (1 - 10)</label>
               <input

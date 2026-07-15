@@ -137,17 +137,13 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
           }}
         />
 
-        <div style={{ position: "relative", zIndex: 2, padding: "24px", display: "flex", gap: "24px", alignItems: "flex-end", width: "100%" }}>
+        <div className="library-detail-hero-content">
           <img
             src={posterUrl}
             alt={movie.title}
+            className="library-detail-poster"
             style={{
-              width: "120px",
-              height: "180px",
-              objectFit: "cover",
-              borderRadius: "8px",
               boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
-              border: "2px solid rgba(255,255,255,0.1)",
             }}
           />
 
@@ -178,7 +174,7 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
       </div>
 
       {/* Grid Layout: Provider Read-Only Info (Left) + CMS Metadata Editor (Right) */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
+      <div className="library-detail-grid">
         {/* Left Column: Read-Only Provider Metadata */}
         <div className="card" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <h2 style={{ fontSize: "16px", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px", margin: 0, borderBottom: "1px solid var(--border-color)", paddingBottom: "10px" }}>
@@ -192,7 +188,7 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
             </p>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", fontSize: "13px" }}>
+          <div className="library-detail-subgrid" style={{ fontSize: "13px" }}>
             <div>
               <span style={{ color: "var(--text-muted)" }}>TMDB ID:</span> {movie.tmdbId ? movie.tmdbId : "N/A"}
             </div>
@@ -246,7 +242,7 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
             </button>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div className="library-detail-subgrid">
             <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "14px" }}>
               <input type="checkbox" checked={favorite} onChange={(e) => setFavorite(e.target.checked)} />
               <Heart size={16} fill={favorite ? "var(--accent-color)" : "none"} color={favorite ? "var(--accent-color)" : "currentColor"} />
@@ -259,7 +255,7 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
             </label>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div className="library-detail-subgrid">
             <div>
               <label className="label">My Personal Rating (1 - 10)</label>
               <input
@@ -285,7 +281,7 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
           </div>
 
           {/* New Location & Trip Selectors replacing old watch location input */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div className="library-detail-subgrid">
             <div>
               <label className="label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <MapPin size={13} style={{ color: "var(--accent-color)" }} />

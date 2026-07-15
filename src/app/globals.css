@@ -244,7 +244,15 @@ a:hover {
   padding: 12px 0;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   flex-shrink: 0;
+  position: sticky;
+  top: 42px;
+  height: calc(100vh - 42px);
+  height: calc(100dvh - 42px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 
 .nav-section {
@@ -667,11 +675,15 @@ a:hover {
     left: 0;
     width: 260px;
     height: 100vh;
+    height: 100dvh;
     z-index: 1000;
     border-right: 1px solid var(--border-color);
     transform: translateX(-100%);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 4px 0 12px rgba(0, 0, 0, 0.15);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   .sidebar.open {
@@ -685,6 +697,56 @@ a:hover {
   .editor-settings-grid {
     grid-template-columns: 1fr;
   }
+
+  .library-detail-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Library Detail & List Responsive Helper Classes */
+.library-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.library-detail-subgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.library-detail-hero-content {
+  position: relative;
+  z-index: 2;
+  padding: 24px;
+  display: flex;
+  gap: 24px;
+  align-items: flex-end;
+  width: 100%;
+}
+
+.library-detail-poster {
+  width: 120px;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid rgba(255,255,255,0.1);
+  flex-shrink: 0;
+}
+
+.library-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 20px;
+}
+
+.library-filter-bar {
+  padding: 12px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
 }
 
 @media (max-width: 900px) {
@@ -693,7 +755,43 @@ a:hover {
   }
 
   .todo-layout { grid-template-columns: 1fr; }
+  .library-detail-grid { grid-template-columns: 1fr !important; }
 }
+
+@media (max-width: 600px) {
+  .library-detail-subgrid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .library-detail-hero-content {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 16px;
+    gap: 14px;
+  }
+
+  .library-detail-poster {
+    width: 120px;
+    height: 180px;
+  }
+
+  .library-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .library-filter-bar > select,
+  .library-filter-bar > div,
+  .library-filter-bar .search-input {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .library-cards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 12px;
+  }
 
 @media (max-width: 600px) {
   .page-header {
