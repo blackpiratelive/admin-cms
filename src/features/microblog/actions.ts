@@ -13,11 +13,8 @@ export type MicroblogListItem = {
   slug: string;
   contentMarkdown: string;
   createdAt: string;
-  updatedAt: string;
   publishedAt: string | null;
   status: "draft" | "published" | "scheduled" | "archived";
-  coverImageUrl: string | null;
-  images: string;
 };
 
 export interface MicroblogFetchParams {
@@ -65,11 +62,8 @@ export async function getMicroblogs(filters?: MicroblogFetchParams): Promise<Mic
       slug: microblogs.slug,
       contentMarkdown: microblogs.contentMarkdown,
       createdAt: microblogs.createdAt,
-      updatedAt: microblogs.updatedAt,
       publishedAt: microblogs.publishedAt,
       status: microblogs.status,
-      coverImageUrl: microblogs.coverImageUrl,
-      images: microblogs.images,
     };
 
     const [totals, items] = await Promise.all([

@@ -10,7 +10,7 @@ import {
   type MicroblogListItem,
   type MicroblogFetchResult,
 } from "./actions";
-import { Search, Plus, Edit3, Trash2, Image as ImageIcon, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from "lucide-react";
+import { Search, Plus, Edit3, Trash2, Globe, FileEdit, Clock, Archive, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from "lucide-react";
 
 interface MicroblogListProps {
   initialData?: MicroblogFetchResult;
@@ -32,6 +32,29 @@ export function hasImages(item: { coverImageUrl?: string | null; images?: string
     }
   }
   return false;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const label = status.charAt(0).toUpperCase() + status.slice(1);
+  let Icon = FileEdit;
+  if (status === "published") Icon = Globe;
+  else if (status === "scheduled") Icon = Clock;
+  else if (status === "archived") Icon = Archive;
+
+  return (
+    <span
+      className={`status-badge status-${status}`}
+      title={label}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "4px",
+      }}
+    >
+      <Icon size={16} />
+    </span>
+  );
 }
 
 export function MicroblogList({ initialData, initialItems }: MicroblogListProps) {
@@ -299,10 +322,8 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
                 />
               </th>
               <th>Snippet / Slug</th>
-              <th>Status</th>
-              <th className="hide-on-mobile">Created</th>
+              <th style={{ width: "60px", textAlign: "center" }}>Status</th>
               <th className="hide-on-mobile">Published</th>
-              <th className="hide-on-mobile">Updated</th>
               <th style={{ textAlign: "right" }}>Actions</th>
             </tr>
           </thead>
@@ -310,7 +331,7 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
             {items.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={5}
                   style={{ textAlign: "center", padding: "24px", color: "var(--text-muted)" }}
                 >
                   {isFetching ? "Loading microblog posts..." : "No microblog posts found."}
@@ -323,8 +344,6 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
                     ? item.contentMarkdown.slice(0, 60) + "..."
                     : item.contentMarkdown;
 
-                const postHasImages = hasImages(item);
-
                 return (
                   <tr key={item.id}>
                     <td style={{ width: "40px", paddingRight: 0 }}>
@@ -335,26 +354,13 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
                       />
                     </td>
                     <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <div>
                         <Link
                           href={`/microblog/${item.id}`}
                           style={{ fontWeight: 600, textDecoration: "none" }}
                         >
                           {snippet || item.slug}
                         </Link>
-                        {postHasImages && (
-                          <span
-                            title="Has image attachments"
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              color: "var(--accent)",
-                              lineHeight: 1,
-                            }}
-                          >
-                            <ImageIcon size={14} />
-                          </span>
-                        )}
                       </div>
                       <div
                         style={{
@@ -366,28 +372,14 @@ export function MicroblogList({ initialData, initialItems }: MicroblogListProps)
                         /{item.slug}
                       </div>
                     </td>
-                    <td>
-                      <span className={`status-badge status-${item.status}`}>
-                        {item.status}
-                      </span>
-                    </td>
-                    <td
-                      className="hide-on-mobile"
-                      style={{ fontSize: "12px", color: "var(--text-secondary)" }}
-                    >
-                      {formatDate(item.createdAt)}
+                    <td style={{ textAlign: "center" }}>
+                      <StatusBadge status={item.status} />
                     </td>
                     <td
                       className="hide-on-mobile"
                       style={{ fontSize: "12px", color: "var(--text-secondary)" }}
                     >
                       {formatDate(item.publishedAt)}
-                    </td>
-                    <td
-                      className="hide-on-mobile"
-                      style={{ fontSize: "12px", color: "var(--text-secondary)" }}
-                    >
-                      {formatDate(item.updatedAt)}
                     </td>
                     <td style={{ textAlign: "right" }}>
                       <div style={{ display: "inline-flex", gap: "6px" }}>
