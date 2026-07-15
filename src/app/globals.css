@@ -792,6 +792,7 @@ a:hover {
     grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
     gap: 12px;
   }
+}
 
 @media (max-width: 600px) {
   .page-header {
