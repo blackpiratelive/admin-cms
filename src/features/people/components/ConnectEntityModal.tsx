@@ -87,7 +87,8 @@ export function ConnectEntityModal({
       onSuccess?.();
       onClose();
     } else {
-      setError(res.error || "Failed to create connection");
+      const errMsg = "error" in res ? (res as { error?: string }).error : undefined;
+      setError(errMsg || "Failed to create connection");
     }
   };
 
