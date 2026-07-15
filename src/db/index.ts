@@ -540,6 +540,14 @@ export async function ensureDbInitialized(): Promise<void> {
         );
       `);
 
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS dashboard_cache (
+          key TEXT PRIMARY KEY,
+          data_json TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
       // Add columns to existing installations dynamically
       try {
         await client.execute(`ALTER TABLE microblogs ADD COLUMN location_id TEXT;`);

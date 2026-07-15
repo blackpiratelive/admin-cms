@@ -1,36 +1,28 @@
 import Link from "next/link";
-import { getMicroblogDashboardData } from "@/features/microblog/actions";
-import { getRecentMoviesAction } from "@/features/libraries/actions/movies";
-import { getRecentShowsAction } from "@/features/libraries/actions/shows";
-import { getListeningHistoryAction } from "@/features/libraries/actions/music";
-import { getActivitiesAction } from "@/features/libraries/actions/activities";
-import { getComprehensiveSystemStats } from "@/features/stats/actions";
+import { getDashboardData } from "@/features/dashboard/cache";
 import { SystemStatsModule } from "@/features/stats/SystemStatsModule";
 import { DashboardMediaWidgets } from "@/features/libraries/components/DashboardMediaWidgets";
-import { Plus, MessageSquareText, Globe, FileEdit, Archive, Layers } from "lucide-react";
+import { RefreshDashboardButton } from "@/features/dashboard/RefreshDashboardButton";
+import { Plus } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [microblogData, recentMovies, recentShows, recentScrobbles, activities, systemStats] = await Promise.all([
-    getMicroblogDashboardData(),
-    getRecentMoviesAction(),
-    getRecentShowsAction(),
-    getListeningHistoryAction({ limit: 5 }),
-    getActivitiesAction(6),
-    getComprehensiveSystemStats(),
-  ]);
-
+  const dashboardData = await getDashboardData();
+  const { microblogData, recentMovies, recentShows, recentScrobbles, activities, systemStats, updatedAt } = dashboardData;
   const { posts, total: totalPosts } = microblogData;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       <div className="page-header">
         <h1 className="page-title">Dashboard Overview</h1>
-        <Link href="/microblog/new" className="btn btn-primary">
-          <Plus size={16} />
-          <span>New Microblog</span>
-        </Link>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <RefreshDashboardButton updatedAt={updatedAt} />
+          <Link href="/microblog/new" className="btn btn-primary">
+            <Plus size={16} />
+            <span>New Microblog</span>
+          </Link>
+        </div>
       </div>
 
       {/* Comprehensive System & Cloudflare R2 Stats Module */}

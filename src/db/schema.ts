@@ -528,6 +528,14 @@ export type CollectionRecord = typeof collections.$inferSelect;
 export type CollectionItemRecord = typeof collectionItems.$inferSelect;
 export type ActivityRecord = typeof activities.$inferSelect;
 
+export const dashboardCache = sqliteTable("dashboard_cache", {
+  key: text("key").primaryKey(),
+  dataJson: text("data_json").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export type DashboardCacheRecord = typeof dashboardCache.$inferSelect;
+
 export interface ShortLink {
   slug: string;
   url: string;
