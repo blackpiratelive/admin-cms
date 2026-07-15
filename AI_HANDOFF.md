@@ -29,8 +29,8 @@ admin-cms/
 │   │   │   ├── microblog/       # Microblog list & CRUD editor routes
 │   │   │   ├── todos/           # Todo list & Project management route
 │   │   │   ├── people/          # Personal Relationship & Memory Hub routes (/people and /people/[slug])
-│   │   │   ├── locations/       # Reusable geographical locations entity page
-│   │   │   ├── trips/           # Travel itineraries and trip grouping route
+│   │   │   ├── locations/       # Geographical locations entity page & detail hub (/locations and /locations/[slug])
+│   │   │   ├── trips/           # Travel itineraries & trip grouping hub (/trips and /trips/[slug])
 │   │   │   ├── settings/        # Centralized Settings Hub (General, Storage, Providers, etc.)
 │   │   │   ├── libraries/       # Personal Media Libraries (Movies, TV, Music, Collections)
 │   │   │   └── sync/            # Sync Center integration hub
