@@ -48,7 +48,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
     <aside
       className={`sidebar ${isOpen ? "open" : ""}`}
     >
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div className="sidebar-nav-container">
         <nav className="nav-section">
           <Link
             href="/"
@@ -276,7 +276,9 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
       </div>
 
       {/* Vercel Deployment & Manual Redeploy Option */}
-      <DeployWidget />
+      <div className="sidebar-footer">
+        <DeployWidget />
+      </div>
     </aside>
   );
 }
