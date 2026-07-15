@@ -5,7 +5,7 @@ import { microblogs, relatedMicroblogs } from "@/db/schema";
 import { count, eq, like, and, desc, or } from "drizzle-orm";
 import { generateSlug, microblogInputSchema, type MicroblogFormInput } from "./schema";
 import { triggerVercelDeployHook } from "@/lib/deploy-hook";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, unstable_cache, revalidateTag } from "next/cache";
 import { updateRelatedPosts, getRelatedPosts } from "./related";
 
 export type MicroblogListItem = {
@@ -32,21 +32,19 @@ export interface MicroblogFetchResult {
   totalPages: number;
 }
 
-export async function getMicroblogs(filters?: MicroblogFetchParams): Promise<MicroblogFetchResult> {
+async function fetchMicroblogsFromDb(search: string, status: string, page: number, limit: number): Promise<MicroblogFetchResult> {
   try {
     await ensureDbInitialized();
-    const page = Math.max(1, filters?.page || 1);
-    const limit = Math.max(1, filters?.limit || 50);
     const offset = (page - 1) * limit;
 
     const conditions = [];
 
-    if (filters?.status && filters.status !== "all") {
-      conditions.push(eq(microblogs.status, filters.status as any));
+    if (status && status !== "all") {
+      conditions.push(eq(microblogs.status, status as any));
     }
 
-    if (filters?.search && filters.search.trim()) {
-      const queryStr = `%${filters.search.trim()}%`;
+    if (search && search.trim()) {
+      const queryStr = `%${search.trim()}%`;
       conditions.push(
         or(
           like(microblogs.contentMarkdown, queryStr),
@@ -93,10 +91,31 @@ export async function getMicroblogs(filters?: MicroblogFetchParams): Promise<Mic
       items: [],
       total: 0,
       page: 1,
-      limit: filters?.limit || 50,
+      limit,
       totalPages: 1,
     };
   }
+}
+
+import { createCachedQuery, purgeTag } from "@/lib/server-cache";
+
+const getCachedMicroblogs = createCachedQuery(
+  async (search: string, status: string, page: number, limit: number) =>
+    fetchMicroblogsFromDb(search, status, page, limit),
+  ["microblogs-list-query"],
+  {
+    revalidate: 3600,
+    tags: ["microblogs-list"],
+  }
+);
+
+export async function getMicroblogs(filters?: MicroblogFetchParams): Promise<MicroblogFetchResult> {
+  const search = filters?.search || "";
+  const status = filters?.status || "all";
+  const page = Math.max(1, filters?.page || 1);
+  const limit = Math.max(1, filters?.limit || 50);
+
+  return getCachedMicroblogs(search, status, page, limit);
 }
 
 export async function getMicroblogDashboardData() {
@@ -177,6 +196,7 @@ export async function saveMicroblog(input: MicroblogFormInput) {
     await triggerVercelDeployHook();
   }
 
+  purgeTag("microblogs-list");
   revalidatePath("/microblog");
   revalidatePath("/");
   return { success: true, id, slug, relatedPosts: updatedRelated };
@@ -186,6 +206,7 @@ export async function deleteMicroblog(id: string) {
   try {
     await ensureDbInitialized();
     await db.delete(microblogs).where(eq(microblogs.id, id));
+    purgeTag("microblogs-list");
     revalidatePath("/microblog");
     revalidatePath("/");
     return { success: true };
@@ -216,6 +237,7 @@ export async function setMicroblogStatus(id: string, status: "draft" | "publishe
     await triggerVercelDeployHook();
   }
 
+  purgeTag("microblogs-list");
   revalidatePath("/microblog");
   revalidatePath("/");
   return { success: true };

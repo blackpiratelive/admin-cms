@@ -21,11 +21,11 @@ import { CombinedArtist, CombinedAlbum, CombinedTrack, MusicFilterOptions } from
 import { getItemCollectionsAction } from "./collections";
 import { recordActivityAction } from "./activities";
 import { eq, like, desc, asc, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, unstable_cache, revalidateTag } from "next/cache";
 
 import { PaginatedResult } from "../types";
 
-export async function getPaginatedArtistsAction(options?: MusicFilterOptions): Promise<PaginatedResult<CombinedArtist>> {
+async function fetchArtistsFromDb(options?: MusicFilterOptions): Promise<PaginatedResult<CombinedArtist>> {
   await ensureDbInitialized();
   const page = Math.max(1, options?.page || 1);
   const limit = Math.max(1, options?.limit || 25);
@@ -120,6 +120,24 @@ export async function getPaginatedArtistsAction(options?: MusicFilterOptions): P
   };
 }
 
+import { createCachedQuery, purgeTag } from "@/lib/server-cache";
+
+const getCachedPaginatedArtists = createCachedQuery(
+  async (optionsJson: string) => {
+    const options = JSON.parse(optionsJson);
+    return fetchArtistsFromDb(options);
+  },
+  ["music-artists-list-query"],
+  {
+    revalidate: 3600,
+    tags: ["music-artists"],
+  }
+);
+
+export async function getPaginatedArtistsAction(options?: MusicFilterOptions): Promise<PaginatedResult<CombinedArtist>> {
+  return getCachedPaginatedArtists(JSON.stringify(options || {}));
+}
+
 // --- ARTISTS ---
 export async function getArtistsAction(options?: MusicFilterOptions): Promise<CombinedArtist[]> {
   const res = await getPaginatedArtistsAction({ ...options, limit: 1000 });
@@ -201,13 +219,14 @@ export async function updateArtistMetadataAction(
   }
 
   try {
+    purgeTag("music-artists");
     revalidatePath(`/libraries/music`);
     revalidatePath(`/libraries/music/artists/${encodeURIComponent(artistName)}`);
   } catch {}
   return { success: true };
 }
 
-export async function getPaginatedAlbumsAction(options?: MusicFilterOptions): Promise<PaginatedResult<CombinedAlbum>> {
+async function fetchAlbumsFromDb(options?: MusicFilterOptions): Promise<PaginatedResult<CombinedAlbum>> {
   await ensureDbInitialized();
   const page = Math.max(1, options?.page || 1);
   const limit = Math.max(1, options?.limit || 25);
@@ -298,6 +317,22 @@ export async function getPaginatedAlbumsAction(options?: MusicFilterOptions): Pr
   };
 }
 
+const getCachedPaginatedAlbums = createCachedQuery(
+  async (optionsJson: string) => {
+    const options = JSON.parse(optionsJson);
+    return fetchAlbumsFromDb(options);
+  },
+  ["music-albums-list-query"],
+  {
+    revalidate: 3600,
+    tags: ["music-albums"],
+  }
+);
+
+export async function getPaginatedAlbumsAction(options?: MusicFilterOptions): Promise<PaginatedResult<CombinedAlbum>> {
+  return getCachedPaginatedAlbums(JSON.stringify(options || {}));
+}
+
 // --- ALBUMS ---
 export async function getAlbumsAction(options?: MusicFilterOptions): Promise<CombinedAlbum[]> {
   const res = await getPaginatedAlbumsAction({ ...options, limit: 1000 });
@@ -366,11 +401,12 @@ export async function updateAlbumMetadataAction(
     await recordActivityAction("album_favorited", "album", id, `Favorited Album: ${id.replace(":::", " - ")}`);
   }
 
+  purgeTag("music-albums");
   revalidatePath(`/libraries/music`);
   return { success: true };
 }
 
-export async function getPaginatedTracksAction(options?: MusicFilterOptions): Promise<PaginatedResult<CombinedTrack>> {
+async function fetchTracksFromDb(options?: MusicFilterOptions): Promise<PaginatedResult<CombinedTrack>> {
   await ensureDbInitialized();
   const page = Math.max(1, options?.page || 1);
   const limit = Math.max(1, options?.limit || 25);
@@ -461,6 +497,22 @@ export async function getPaginatedTracksAction(options?: MusicFilterOptions): Pr
   };
 }
 
+const getCachedPaginatedTracks = createCachedQuery(
+  async (optionsJson: string) => {
+    const options = JSON.parse(optionsJson);
+    return fetchTracksFromDb(options);
+  },
+  ["music-tracks-list-query"],
+  {
+    revalidate: 3600,
+    tags: ["music-tracks"],
+  }
+);
+
+export async function getPaginatedTracksAction(options?: MusicFilterOptions): Promise<PaginatedResult<CombinedTrack>> {
+  return getCachedPaginatedTracks(JSON.stringify(options || {}));
+}
+
 // --- TRACKS ---
 export async function getTracksAction(options?: MusicFilterOptions): Promise<CombinedTrack[]> {
   const res = await getPaginatedTracksAction({ ...options, limit: 1000 });
@@ -529,11 +581,12 @@ export async function updateTrackMetadataAction(
     await recordActivityAction("track_loved", "track", id, `Loved Track: ${id.replace(":::", " - ")}`);
   }
 
+  purgeTag("music-tracks");
   revalidatePath(`/libraries/music`);
   return { success: true };
 }
 
-export async function getPaginatedHistoryAction(options?: {
+async function fetchHistoryFromDb(options?: {
   timeframe?: "all" | "today" | "yesterday" | "this_week" | "this_month";
   query?: string;
   page?: number;
@@ -579,6 +632,27 @@ export async function getPaginatedHistoryAction(options?: {
     limit,
     totalPages,
   };
+}
+
+const getCachedPaginatedHistory = createCachedQuery(
+  async (optionsJson: string) => {
+    const options = JSON.parse(optionsJson);
+    return fetchHistoryFromDb(options);
+  },
+  ["music-history-list-query"],
+  {
+    revalidate: 3600,
+    tags: ["music-history"],
+  }
+);
+
+export async function getPaginatedHistoryAction(options?: {
+  timeframe?: "all" | "today" | "yesterday" | "this_week" | "this_month";
+  query?: string;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedResult<LastfmScrobbleRecord>> {
+  return getCachedPaginatedHistory(JSON.stringify(options || {}));
 }
 
 // --- LISTENING HISTORY ---

@@ -6,9 +6,9 @@ import { CombinedMovie, MovieFilterOptions, PaginatedResult } from "../types";
 import { getItemCollectionsAction } from "./collections";
 import { recordActivityAction } from "./activities";
 import { eq, inArray, like, desc, asc, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, unstable_cache, revalidateTag } from "next/cache";
 
-export async function getPaginatedMoviesAction(options?: MovieFilterOptions): Promise<PaginatedResult<CombinedMovie>> {
+async function fetchMoviesFromDb(options?: MovieFilterOptions): Promise<PaginatedResult<CombinedMovie>> {
   await ensureDbInitialized();
 
   const page = Math.max(1, options?.page || 1);
@@ -181,6 +181,24 @@ export async function getPaginatedMoviesAction(options?: MovieFilterOptions): Pr
   };
 }
 
+import { createCachedQuery, purgeTag } from "@/lib/server-cache";
+
+const getCachedPaginatedMovies = createCachedQuery(
+  async (optionsJson: string) => {
+    const options = JSON.parse(optionsJson);
+    return fetchMoviesFromDb(options);
+  },
+  ["movies-list-query"],
+  {
+    revalidate: 3600,
+    tags: ["movies-list"],
+  }
+);
+
+export async function getPaginatedMoviesAction(options?: MovieFilterOptions): Promise<PaginatedResult<CombinedMovie>> {
+  return getCachedPaginatedMovies(JSON.stringify(options || {}));
+}
+
 export async function getMoviesAction(options?: MovieFilterOptions): Promise<CombinedMovie[]> {
   const result = await getPaginatedMoviesAction({ ...options, limit: 1000 });
   return result.items;
@@ -319,6 +337,7 @@ export async function updateMovieMetadataAction(
   }
 
   try {
+    purgeTag("movies-list");
     revalidatePath(`/libraries/movies`);
     revalidatePath(`/libraries/movies/${traktId}`);
   } catch {}
@@ -368,6 +387,7 @@ export async function bulkUpdateMoviesAction(
     });
   }
 
+  purgeTag("movies-list");
   revalidatePath(`/libraries/movies`);
   return { success: true };
 }

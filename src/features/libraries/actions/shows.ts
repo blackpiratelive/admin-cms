@@ -6,9 +6,9 @@ import { CombinedShow, ShowFilterOptions, PaginatedResult } from "../types";
 import { getItemCollectionsAction } from "./collections";
 import { recordActivityAction } from "./activities";
 import { desc, eq, inArray } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, unstable_cache, revalidateTag } from "next/cache";
 
-export async function getPaginatedShowsAction(options?: ShowFilterOptions): Promise<PaginatedResult<CombinedShow>> {
+async function fetchShowsFromDb(options?: ShowFilterOptions): Promise<PaginatedResult<CombinedShow>> {
   await ensureDbInitialized();
 
   const page = Math.max(1, options?.page || 1);
@@ -64,7 +64,6 @@ export async function getPaginatedShowsAction(options?: ShowFilterOptions): Prom
   for (const s of showsList) {
     const meta = metadataMap.get(s.traktId) || null;
     const epCount = episodeCountMap.get(s.traktId) || 0;
-    // Mock dummy array with correct length for ep.length read in ShowCard
     const dummyEpisodes = Array.from({ length: epCount }, () => ({}) as any);
 
     combined.push({
@@ -156,6 +155,24 @@ export async function getPaginatedShowsAction(options?: ShowFilterOptions): Prom
     limit,
     totalPages,
   };
+}
+
+import { createCachedQuery, purgeTag } from "@/lib/server-cache";
+
+const getCachedPaginatedShows = createCachedQuery(
+  async (optionsJson: string) => {
+    const options = JSON.parse(optionsJson);
+    return fetchShowsFromDb(options);
+  },
+  ["shows-list-query"],
+  {
+    revalidate: 3600,
+    tags: ["shows-list"],
+  }
+);
+
+export async function getPaginatedShowsAction(options?: ShowFilterOptions): Promise<PaginatedResult<CombinedShow>> {
+  return getCachedPaginatedShows(JSON.stringify(options || {}));
 }
 
 export async function getShowsAction(options?: ShowFilterOptions): Promise<CombinedShow[]> {
@@ -289,6 +306,7 @@ export async function updateShowMetadataAction(
   }
 
   try {
+    purgeTag("shows-list");
     revalidatePath(`/libraries/shows`);
     revalidatePath(`/libraries/shows/${traktId}`);
   } catch {}
@@ -338,6 +356,7 @@ export async function bulkUpdateShowsAction(
     });
   }
 
+  purgeTag("shows-list");
   revalidatePath(`/libraries/shows`);
   return { success: true };
 }
