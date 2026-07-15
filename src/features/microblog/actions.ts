@@ -143,6 +143,52 @@ export async function getMicroblogById(id: string) {
   }
 }
 
+import { syncRegistry } from "@/features/sync/registry";
+import { BlueskySyncProvider } from "@/features/sync/providers/bluesky";
+import { MastodonSyncProvider } from "@/features/sync/providers/mastodon";
+
+export async function crossPostMicroblogToConfiguredProviders(
+  contentMarkdown: string,
+  images: string[] = [],
+  coverImageUrl?: string | null
+) {
+  const imageUrls = Array.from(
+    new Set([...(coverImageUrl ? [coverImageUrl] : []), ...images])
+  ).filter(Boolean);
+
+  const results: Record<string, { success: boolean; error?: string; url?: string }> = {};
+
+  // Bluesky
+  try {
+    const bluesky = syncRegistry.getProvider("bluesky") as BlueskySyncProvider | undefined;
+    if (bluesky) {
+      const status = await bluesky.getStatus();
+      if (status === "connected") {
+        const bskyRes = await bluesky.postMicroblog(contentMarkdown, imageUrls);
+        results.bluesky = { success: bskyRes.success, error: bskyRes.error, url: bskyRes.uri };
+      }
+    }
+  } catch (err: any) {
+    results.bluesky = { success: false, error: err.message || String(err) };
+  }
+
+  // Mastodon
+  try {
+    const mastodon = syncRegistry.getProvider("mastodon") as MastodonSyncProvider | undefined;
+    if (mastodon) {
+      const status = await mastodon.getStatus();
+      if (status === "connected") {
+        const mastoRes = await mastodon.postMicroblog(contentMarkdown, imageUrls);
+        results.mastodon = { success: mastoRes.success, error: mastoRes.error, url: mastoRes.url };
+      }
+    }
+  } catch (err: any) {
+    results.mastodon = { success: false, error: err.message || String(err) };
+  }
+
+  return results;
+}
+
 export async function saveMicroblog(input: MicroblogFormInput) {
   await ensureDbInitialized();
   const validated = microblogInputSchema.parse(input);
@@ -156,6 +202,7 @@ export async function saveMicroblog(input: MicroblogFormInput) {
   const existing = validated.id ? await getMicroblogById(validated.id) : null;
 
   let publishedAt = validated.publishedAt ?? existing?.publishedAt ?? null;
+  const isNewPublish = validated.status === "published" && existing?.status !== "published";
   if (validated.status === "published" && !publishedAt) {
     publishedAt = now;
   }
@@ -192,14 +239,22 @@ export async function saveMicroblog(input: MicroblogFormInput) {
     console.error("Error updating related posts:", err);
   }
 
+  let crossPostSummary: Record<string, any> | null = null;
   if (validated.status === "published") {
     await triggerVercelDeployHook();
+    if (isNewPublish) {
+      crossPostSummary = await crossPostMicroblogToConfiguredProviders(
+        validated.contentMarkdown,
+        validated.images,
+        validated.coverImageUrl
+      );
+    }
   }
 
   purgeTag("microblogs-list");
   revalidatePath("/microblog");
   revalidatePath("/");
-  return { success: true, id, slug, relatedPosts: updatedRelated };
+  return { success: true, id, slug, relatedPosts: updatedRelated, crossPostSummary };
 }
 
 export async function deleteMicroblog(id: string) {
@@ -223,6 +278,7 @@ export async function setMicroblogStatus(id: string, status: "draft" | "publishe
 
   const now = new Date().toISOString();
   let publishedAt = existing.publishedAt;
+  const isNewPublish = status === "published" && existing.status !== "published";
   if (status === "published" && !publishedAt) {
     publishedAt = now;
   }
@@ -233,14 +289,23 @@ export async function setMicroblogStatus(id: string, status: "draft" | "publishe
     updatedAt: now,
   }).where(eq(microblogs.id, id));
 
+  let crossPostSummary: Record<string, any> | null = null;
   if (status === "published") {
     await triggerVercelDeployHook();
+    if (isNewPublish) {
+      const parsedImages = existing.images ? JSON.parse(existing.images) : [];
+      crossPostSummary = await crossPostMicroblogToConfiguredProviders(
+        existing.contentMarkdown,
+        parsedImages,
+        existing.coverImageUrl
+      );
+    }
   }
 
   purgeTag("microblogs-list");
   revalidatePath("/microblog");
   revalidatePath("/");
-  return { success: true };
+  return { success: true, crossPostSummary };
 }
 
 export async function fetchRelatedPosts(postId: string) {

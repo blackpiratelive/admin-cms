@@ -130,6 +130,11 @@ admin-cms/
 - **Real-Time Live UI Log Terminal**: `/api/sync/lastfm/stream` streaming route streams execution progress live to the UI (`ProviderCard`) via Server-Sent Events/ReadableStream without cluttering the persistent `sync_logs` table.
 - **Vercel Execution Budget (`maxDuration = 300`)**: Handlers configured with `maxDuration = 300` allowing extended execution windows up to 5 minutes for bulk history fetching.
 
+### Bluesky & Mastodon Cross-Posting Architecture
+- **Sync Center Connections**: Registered `BlueskySyncProvider` (`slug: "bluesky"`) and `MastodonSyncProvider` (`slug: "mastodon"`) within `SyncProviderRegistry`. Configured via `ConfigureModal` in `/sync` with credentials (Handle/Email + App Password for Bluesky via AT Protocol; Instance URL + Access Token for Mastodon via REST API).
+- **Automated Microblog Cross-Posting**: When a microblog is published in CMS (`saveMicroblog` or `setMicroblogStatus` with status set to `published`), `crossPostMicroblogToConfiguredProviders` checks if Bluesky and/or Mastodon connections are active.
+- **Media & Image Upload Support**: Cross-posting automatically collects attached post images and cover image URLs, uploads them as native binary blobs via AT Protocol `uploadBlob` (Bluesky) or Mastodon `media` endpoints, and embeds them cleanly into the published status.
+
 ---
 
 ## 4. Universal Search & Command Palette (`Ctrl+K`)
