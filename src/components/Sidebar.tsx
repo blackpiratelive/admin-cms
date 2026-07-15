@@ -26,6 +26,7 @@ import {
   Folder,
   MapPin,
   Compass,
+  Users,
 } from "lucide-react";
 
 export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
@@ -225,6 +226,14 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
 
         <div className="nav-section">
           <div className="nav-section-title">Entities</div>
+          <Link
+            href="/people"
+            className={`nav-link ${isActive("/people") ? "active" : ""}`}
+            onClick={handleLinkClick}
+          >
+            <Users size={16} />
+            <span>People</span>
+          </Link>
           <Link
             href="/locations"
             className={`nav-link ${isActive("/locations") ? "active" : ""}`}

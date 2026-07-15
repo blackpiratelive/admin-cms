@@ -422,12 +422,19 @@ export async function ensureDbInitialized(): Promise<void> {
       await client.execute(`
         CREATE TABLE IF NOT EXISTS persons (
           id TEXT PRIMARY KEY,
-          name TEXT NOT NULL,
+          display_name TEXT NOT NULL,
+          first_name TEXT,
+          last_name TEXT,
+          nickname TEXT,
           slug TEXT NOT NULL UNIQUE,
-          role TEXT,
-          bio TEXT,
           avatar_url TEXT,
-          website_url TEXT,
+          relationship_type TEXT,
+          important_dates_json TEXT NOT NULL DEFAULT '[]',
+          notes_markdown TEXT,
+          interests TEXT NOT NULL DEFAULT '[]',
+          social_links_json TEXT NOT NULL DEFAULT '{}',
+          visibility TEXT NOT NULL DEFAULT 'private',
+          favorite INTEGER NOT NULL DEFAULT 0,
           tags TEXT NOT NULL DEFAULT '[]',
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
@@ -608,6 +615,40 @@ export async function ensureDbInitialized(): Promise<void> {
         await client.execute(`ALTER TABLE lastfm_tracks ADD COLUMN first_played TEXT;`);
       } catch (err) {}
 
+      try {
+        await client.execute(`ALTER TABLE persons ADD COLUMN display_name TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE persons ADD COLUMN first_name TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE persons ADD COLUMN last_name TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE persons ADD COLUMN nickname TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE persons ADD COLUMN relationship_type TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE persons ADD COLUMN important_dates_json TEXT NOT NULL DEFAULT '[]';`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE persons ADD COLUMN notes_markdown TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE persons ADD COLUMN interests TEXT NOT NULL DEFAULT '[]';`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE persons ADD COLUMN social_links_json TEXT NOT NULL DEFAULT '{}';`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE persons ADD COLUMN visibility TEXT NOT NULL DEFAULT 'private';`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE persons ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;`);
+      } catch (err) {}
+
       // Keep the frequently rendered dashboard, library, and activity queries on
       // indexes rather than full-table scans as personal data grows.
       await client.executeMultiple(`
@@ -621,6 +662,8 @@ export async function ensureDbInitialized(): Promise<void> {
         CREATE INDEX IF NOT EXISTS trakt_shows_updated_at_idx ON trakt_shows(updated_at DESC);
         CREATE INDEX IF NOT EXISTS trakt_episodes_show_id_idx ON trakt_episodes(show_trakt_id);
         CREATE INDEX IF NOT EXISTS lastfm_scrobbles_played_at_idx ON lastfm_scrobbles(played_at DESC);
+        CREATE INDEX IF NOT EXISTS persons_slug_idx ON persons(slug);
+        CREATE INDEX IF NOT EXISTS persons_created_at_idx ON persons(created_at DESC);
         CREATE INDEX IF NOT EXISTS activities_created_at_idx ON activities(created_at DESC);
       `);
     } catch (err) {

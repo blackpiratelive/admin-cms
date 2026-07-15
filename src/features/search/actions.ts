@@ -8,6 +8,7 @@ import {
   locations,
   trips,
   collections,
+  persons,
   traktMovies,
   traktShows,
   lastfmArtists,
@@ -21,7 +22,7 @@ import { like, or } from "drizzle-orm";
 
 export interface SearchResultItem {
   id: string;
-  type: string; // 'microblog' | 'gallery' | 'project' | 'location' | 'trip' | 'collection' | 'movie' | 'show' | 'artist' | 'album' | 'track' | 'note' | 'bookmark' | 'quote'
+  type: string; // 'microblog' | 'gallery' | 'project' | 'location' | 'trip' | 'collection' | 'person' | 'movie' | 'show' | 'artist' | 'album' | 'track' | 'note' | 'bookmark' | 'quote'
   title: string;
   subtitle?: string;
   url: string;
@@ -34,12 +35,13 @@ export async function searchEverything(query: string): Promise<SearchResultItem[
   const term = `%${query.trim().toLowerCase()}%`;
   // These independent lookups used to run one after another on every keystroke.
   // Running them together keeps the command palette responsive on remote Turso.
-  const [mRes, gRes, pRes, lRes, tRes, movRes, showRes, artRes, colRes] = await Promise.all([
+  const [mRes, gRes, pRes, lRes, tRes, personRes, movRes, showRes, artRes, colRes] = await Promise.all([
     db.select().from(microblogs).where(or(like(microblogs.contentMarkdown, term), like(microblogs.slug, term))).limit(5),
     db.select().from(gallery).where(or(like(gallery.title, term), like(gallery.slug, term), like(gallery.description, term))).limit(5),
     db.select().from(projects).where(or(like(projects.name, term), like(projects.description, term))).limit(5),
     db.select().from(locations).where(or(like(locations.name, term), like(locations.city, term), like(locations.country, term))).limit(5),
     db.select().from(trips).where(or(like(trips.title, term), like(trips.description, term))).limit(5),
+    db.select().from(persons).where(or(like(persons.displayName, term), like(persons.nickname, term), like(persons.relationshipType, term), like(persons.notesMarkdown, term))).limit(5),
     db.select().from(traktMovies).where(like(traktMovies.title, term)).limit(5),
     db.select().from(traktShows).where(like(traktShows.title, term)).limit(5),
     db.select().from(lastfmArtists).where(like(lastfmArtists.artistName, term)).limit(5),
@@ -99,6 +101,17 @@ export async function searchEverything(query: string): Promise<SearchResultItem[
       title: item.title,
       subtitle: item.description || "Trip",
       url: `/trips`,
+    });
+  }
+
+  // 6. People
+  for (const item of personRes) {
+    results.push({
+      id: item.id,
+      type: "person",
+      title: item.displayName,
+      subtitle: item.relationshipType ? `${item.relationshipType}${item.nickname ? ` (${item.nickname})` : ""}` : "Person",
+      url: `/people/${item.slug}`,
     });
   }
 

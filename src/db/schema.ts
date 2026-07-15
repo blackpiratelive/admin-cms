@@ -138,16 +138,24 @@ export const trips = sqliteTable("trips", {
 
 export const persons = sqliteTable("persons", {
   id: text("id").primaryKey(),
-  name: text("name").notNull(),
+  displayName: text("display_name").notNull(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  nickname: text("nickname"),
   slug: text("slug").notNull().unique(),
-  role: text("role"), // author, director, actor, musician, photographer, developer
-  bio: text("bio"),
   avatarUrl: text("avatar_url"),
-  websiteUrl: text("website_url"),
+  relationshipType: text("relationship_type"),
+  importantDatesJson: text("important_dates_json").notNull().default("[]"),
+  notesMarkdown: text("notes_markdown"),
+  interests: text("interests").notNull().default("[]"),
+  socialLinksJson: text("social_links_json").notNull().default("{}"),
+  visibility: text("visibility", { enum: ["public", "private", "unlisted"] }).notNull().default("private"),
+  favorite: integer("favorite").notNull().default(0),
   tags: text("tags").notNull().default("[]"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
+
 
 export const tags = sqliteTable("tags", {
   id: text("id").primaryKey(), // slug identifier

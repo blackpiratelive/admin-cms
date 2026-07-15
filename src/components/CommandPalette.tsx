@@ -10,6 +10,7 @@ import {
   RefreshCw,
   MapPin,
   Compass,
+  Users,
   FolderPlus,
   Settings,
   X,
@@ -68,6 +69,11 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
       label: "Upload Photos",
       icon: Upload,
       action: () => navigateTo("/gallery"),
+    },
+    {
+      label: "Open People",
+      icon: Users,
+      action: () => navigateTo("/people"),
     },
     {
       label: "Open Locations",

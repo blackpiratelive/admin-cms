@@ -28,6 +28,7 @@ admin-cms/
 │   │   │   ├── page.tsx         # Control center overview with modular widgets
 │   │   │   ├── microblog/       # Microblog list & CRUD editor routes
 │   │   │   ├── todos/           # Todo list & Project management route
+│   │   │   ├── people/          # Personal Relationship & Memory Hub routes (/people and /people/[slug])
 │   │   │   ├── locations/       # Reusable geographical locations entity page
 │   │   │   ├── trips/           # Travel itineraries and trip grouping route
 │   │   │   ├── settings/        # Centralized Settings Hub (General, Storage, Providers, etc.)
@@ -45,6 +46,7 @@ admin-cms/
 │   │   ├── attachments/         # Reusable Attachment System for media & files
 │   │   ├── jobs/                # Background Job Queue Engine (queued, running, completed)
 │   │   ├── search/              # Universal fuzzy multi-table search engine
+│   │   ├── people/              # Personal relationship server actions, Zod schemas & Memory Hub widgets
 │   │   ├── locations/           # Location CRUD actions & metadata handlers
 │   │   ├── trips/               # Trip management server actions
 │   │   ├── auth/                # Session cookies, password check, login server actions
@@ -89,6 +91,14 @@ admin-cms/
 - `startDate`, `endDate` (date strings)
 - `status` (`planned` | `ongoing` | `completed` | `cancelled`)
 - `visibility` (`public` | `private` | `unlisted`), `favorite` (0 or 1), `tags` (JSON string array)
+
+### `persons` (Personal Contacts & Memory Hub)
+- `id` (text, primary key): `person_${timestamp}_${rand}`
+- `displayName` (text, not null), `firstName`, `lastName`, `nickname`, `slug` (text, unique, not null)
+- `avatarUrl`, `relationshipType` (`Family`, `Friend`, `Partner`, `Relative`, `Colleague`, `Classmate`, `Neighbor`, `Mentor`, or custom)
+- `importantDatesJson` (JSON array of `{ id, title, date, reminderEnabled, notes }`)
+- `notesMarkdown` (private markdown notes), `interests` (JSON string array), `socialLinksJson` (JSON object)
+- `visibility` (`private` | `unlisted` | `public`, default `private`), `favorite` (0 or 1), `tags` (JSON string array)
 
 ### `relationships` (Generic Relationship Engine)
 - `id` (text, primary key): `rel_${timestamp}_${rand}`
