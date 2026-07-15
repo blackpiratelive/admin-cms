@@ -5,9 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PersonRecord, GalleryPhoto, LocationRecord, TripRecord, Microblog, Project, CollectionRecord } from "@/db/schema";
 import {
-  getPersonByIdOrSlugAction,
-  getPersonConnectionsAction,
-  getPersonTimelineAction,
+  getPersonMemoryHubDataAction,
   deletePersonAction,
   toggleFavoritePersonAction,
   removePersonEntityConnectionAction,
@@ -84,20 +82,12 @@ export default function PersonDetailPage({ params }: { params: Promise<{ slug: s
     }
 
     try {
-      const p = await getPersonByIdOrSlugAction(slug);
-      if (p) {
-        setPerson(p);
-        const [connRes, timelineRes, locs, trps] = await Promise.all([
-          getPersonConnectionsAction(p.id),
-          getPersonTimelineAction(p.id),
-          getLocations(),
-          getTrips(),
-        ]);
-        setConnections(connRes);
-        setTimeline(timelineRes);
-        setAllLocations(locs);
-        setAllTrips(trps);
-        setBrowserCache(cacheKey, { person: p, connections: connRes, timeline: timelineRes });
+      const data = await getPersonMemoryHubDataAction(slug);
+      if (data && data.person) {
+        setPerson(data.person);
+        setConnections(data.connections);
+        setTimeline(data.timeline);
+        setBrowserCache(cacheKey, { person: data.person, connections: data.connections, timeline: data.timeline });
       }
     } catch (err) {
       console.error("Error loading person detail:", err);
@@ -105,6 +95,15 @@ export default function PersonDetailPage({ params }: { params: Promise<{ slug: s
       setLoading(false);
     }
   }, [slug]);
+
+  const handleOpenConnectModal = async () => {
+    setIsConnectModalOpen(true);
+    if (allLocations.length === 0 || allTrips.length === 0) {
+      const [locs, trps] = await Promise.all([getLocations(), getTrips()]);
+      setAllLocations(locs);
+      setAllTrips(trps);
+    }
+  };
 
   useEffect(() => {
     loadPerson();
@@ -537,7 +536,7 @@ export default function PersonDetailPage({ params }: { params: Promise<{ slug: s
             <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0 }}>
               Connected Entities
             </h2>
-            <button className="btn btn-primary" onClick={() => setIsConnectModalOpen(true)}>
+            <button className="btn btn-primary" onClick={handleOpenConnectModal}>
               <Plus size={16} />
               <span>Connect Item</span>
             </button>

@@ -531,38 +531,126 @@ export interface PersonTimelineItem {
   metadata?: any;
 }
 
-async function fetchPersonTimelineRaw(personId: string): Promise<PersonTimelineItem[]> {
+export interface PersonMemoryHubData {
+  person: PersonRecord | null;
+  connections: PersonConnectionsResult;
+  timeline: PersonTimelineItem[];
+}
+
+/**
+ * Ultra-fast single batch composite query for Memory Hub detail page.
+ * Collects Person, Connections, and Timeline in 1 single DB roundtrip (or 0ms via Vercel Data Cache).
+ */
+async function fetchPersonMemoryHubDataRaw(slug: string): Promise<PersonMemoryHubData | null> {
   await ensureDbInitialized();
 
-  const person = await db.select().from(persons).where(eq(persons.id, personId)).limit(1);
-  if (!person[0]) return [];
+  const person = await fetchPersonByIdOrSlugRaw(slug);
+  if (!person) return null;
 
+  const personId = person.id;
+
+  // 1. Relationships query
+  const relRows = await db
+    .select()
+    .from(relationships)
+    .where(
+      or(
+        and(eq(relationships.sourceType, "person"), eq(relationships.sourceId, personId)),
+        and(eq(relationships.targetType, "person"), eq(relationships.targetId, personId))
+      )
+    );
+
+  const photoIds: string[] = [];
+  const locationIds: string[] = [];
+  const tripIds: string[] = [];
+  const microblogIds: string[] = [];
+  const projectIds: string[] = [];
+  const relMap = new Map<string, { relId: string; name: string }>();
+
+  for (const rel of relRows) {
+    const isSource = rel.sourceType === "person" && rel.sourceId === personId;
+    const otherType = isSource ? rel.targetType : rel.sourceType;
+    const otherId = isSource ? rel.targetId : rel.sourceId;
+    const verb = rel.relationship || "connected";
+
+    if (otherType === "gallery" || otherType === "photo") {
+      photoIds.push(otherId);
+      relMap.set(`photo_${otherId}`, { relId: rel.id, name: verb });
+    } else if (otherType === "location") {
+      locationIds.push(otherId);
+      relMap.set(`location_${otherId}`, { relId: rel.id, name: verb });
+    } else if (otherType === "trip") {
+      tripIds.push(otherId);
+      relMap.set(`trip_${otherId}`, { relId: rel.id, name: verb });
+    } else if (otherType === "microblog") {
+      microblogIds.push(otherId);
+      relMap.set(`microblog_${otherId}`, { relId: rel.id, name: verb });
+    } else if (otherType === "project") {
+      projectIds.push(otherId);
+      relMap.set(`project_${otherId}`, { relId: rel.id, name: verb });
+    }
+  }
+
+  // 2. Execute parallel batch IN queries + activity logs in 1 single Promise.all call!
+  const [photosRes, locationsRes, tripsRes, microblogsRes, projectsRes, colItemsRes, actRows] = await Promise.all([
+    photoIds.length > 0 ? db.select().from(gallery).where(inArray(gallery.id, photoIds)) : Promise.resolve([]),
+    locationIds.length > 0 ? db.select().from(locations).where(inArray(locations.id, locationIds)) : Promise.resolve([]),
+    tripIds.length > 0 ? db.select().from(trips).where(inArray(trips.id, tripIds)) : Promise.resolve([]),
+    microblogIds.length > 0 ? db.select().from(microblogs).where(inArray(microblogs.id, microblogIds)) : Promise.resolve([]),
+    projectIds.length > 0 ? db.select().from(projects).where(inArray(projects.id, projectIds)) : Promise.resolve([]),
+    db.select().from(collectionItems).where(and(eq(collectionItems.itemType, "person"), eq(collectionItems.itemId, personId))),
+    db.select().from(activities).where(and(eq(activities.entityType, "person"), eq(activities.entityId, personId))).orderBy(desc(activities.createdAt)).limit(30),
+  ]);
+
+  const collectionIds = colItemsRes.map((ci) => ci.collectionId);
+  const collectionsRes = collectionIds.length > 0 ? await db.select().from(collections).where(inArray(collections.id, collectionIds)) : [];
+
+  const connections: PersonConnectionsResult = {
+    photos: photosRes.map((p) => ({
+      relationshipId: relMap.get(`photo_${p.id}`)?.relId,
+      relationshipName: relMap.get(`photo_${p.id}`)?.name || "appears_in",
+      entity: p,
+    })),
+    locations: locationsRes.map((l) => ({
+      relationshipId: relMap.get(`location_${l.id}`)?.relId,
+      relationshipName: relMap.get(`location_${l.id}`)?.name || "visited",
+      entity: l,
+    })),
+    trips: tripsRes.map((t) => ({
+      relationshipId: relMap.get(`trip_${t.id}`)?.relId,
+      relationshipName: relMap.get(`trip_${t.id}`)?.name || "joined",
+      entity: t,
+    })),
+    microblogs: microblogsRes.map((m) => ({
+      relationshipId: relMap.get(`microblog_${m.id}`)?.relId,
+      relationshipName: relMap.get(`microblog_${m.id}`)?.name || "mentions",
+      entity: m,
+    })),
+    projects: projectsRes.map((pr) => ({
+      relationshipId: relMap.get(`project_${pr.id}`)?.relId,
+      relationshipName: relMap.get(`project_${pr.id}`)?.name || "worked_on",
+      entity: pr,
+    })),
+    collections: collectionsRes,
+  };
+
+  // 3. Assemble timeline directly in memory without extra DB roundtrips!
   const timelineItems: PersonTimelineItem[] = [];
 
   try {
-    const dates: ImportantDate[] = JSON.parse(person[0].importantDatesJson || "[]");
+    const dates: ImportantDate[] = JSON.parse(person.importantDatesJson || "[]");
     for (const d of dates) {
       if (d.date) {
         timelineItems.push({
           id: `date_${d.id}`,
           type: "date",
           date: d.date,
-          title: `${person[0].displayName}'s ${d.title}`,
+          title: `${person.displayName}'s ${d.title}`,
           description: d.notes || undefined,
         });
       }
     }
   } catch {}
-
-  const [actRows, connections] = await Promise.all([
-    db
-      .select()
-      .from(activities)
-      .where(and(eq(activities.entityType, "person"), eq(activities.entityId, personId)))
-      .orderBy(desc(activities.createdAt))
-      .limit(30),
-    getPersonConnectionsAction(personId),
-  ]);
 
   for (const act of actRows) {
     timelineItems.push({
@@ -608,10 +696,99 @@ async function fetchPersonTimelineRaw(personId: string): Promise<PersonTimelineI
     });
   }
 
-  timelineItems.sort((a, b) => {
-    return new Date(b.date).getTime() - new Date(a.date).getTime();
-  });
+  timelineItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+  return {
+    person,
+    connections,
+    timeline: timelineItems,
+  };
+}
+
+export async function getPersonMemoryHubDataAction(slug: string): Promise<PersonMemoryHubData | null> {
+  const cachedFn = createCachedQuery(
+    () => fetchPersonMemoryHubDataRaw(slug),
+    ["person-memoryhub", slug],
+    { tags: ["people-list", `person-${slug}`], revalidate: 3600 }
+  );
+
+  return cachedFn();
+}
+
+async function fetchPersonTimelineRaw(personId: string): Promise<PersonTimelineItem[]> {
+  const conn = await fetchPersonConnectionsRaw(personId);
+  const person = await db.select().from(persons).where(eq(persons.id, personId)).limit(1);
+  if (!person[0]) return [];
+
+  const timelineItems: PersonTimelineItem[] = [];
+
+  try {
+    const dates: ImportantDate[] = JSON.parse(person[0].importantDatesJson || "[]");
+    for (const d of dates) {
+      if (d.date) {
+        timelineItems.push({
+          id: `date_${d.id}`,
+          type: "date",
+          date: d.date,
+          title: `${person[0].displayName}'s ${d.title}`,
+          description: d.notes || undefined,
+        });
+      }
+    }
+  } catch {}
+
+  const actRows = await db
+    .select()
+    .from(activities)
+    .where(and(eq(activities.entityType, "person"), eq(activities.entityId, personId)))
+    .orderBy(desc(activities.createdAt))
+    .limit(30);
+
+  for (const act of actRows) {
+    timelineItems.push({
+      id: act.id,
+      type: "activity",
+      date: act.createdAt,
+      title: act.title,
+      description: act.action,
+    });
+  }
+
+  for (const tripConn of conn.trips) {
+    const t = tripConn.entity;
+    timelineItems.push({
+      id: `trip_${t.id}`,
+      type: "trip",
+      date: t.startDate || t.createdAt,
+      title: `Shared Trip: ${t.title}`,
+      description: t.description || undefined,
+    });
+  }
+
+  for (const photoConn of conn.photos) {
+    const p = photoConn.entity;
+    timelineItems.push({
+      id: `photo_${p.id}`,
+      type: "photo",
+      date: p.takenAt || p.createdAt,
+      title: `Photo: ${p.title}`,
+      description: p.description || undefined,
+      metadata: { thumbnailUrl: p.thumbnailUrl, mediumUrl: p.mediumUrl },
+    });
+  }
+
+  for (const mbConn of conn.microblogs) {
+    const m = mbConn.entity;
+    timelineItems.push({
+      id: `mb_${m.id}`,
+      type: "microblog",
+      date: m.publishedAt || m.createdAt,
+      title: `Microblog post`,
+      description: m.contentMarkdown.slice(0, 100),
+    });
+  }
+
+  timelineItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   return timelineItems;
 }
 
