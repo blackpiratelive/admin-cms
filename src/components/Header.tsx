@@ -40,10 +40,7 @@ export function Header({ onToggleSidebar, sidebarOpen }: HeaderProps) {
               border: "none",
               color: "var(--header-text)",
               cursor: "pointer",
-              display: "none",
               padding: "4px",
-              alignItems: "center",
-              justifyContent: "center",
             }}
           >
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}

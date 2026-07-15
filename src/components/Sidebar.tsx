@@ -118,24 +118,6 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
             <span className="badge-placeholder">soon</span>
           </Link>
           <Link
-            href="/movies"
-            className={`nav-link ${isActive("/movies") ? "active" : ""}`}
-            onClick={handleLinkClick}
-          >
-            <Film size={16} />
-            <span>Movies</span>
-            <span className="badge-placeholder">soon</span>
-          </Link>
-          <Link
-            href="/tv"
-            className={`nav-link ${isActive("/tv") ? "active" : ""}`}
-            onClick={handleLinkClick}
-          >
-            <Tv size={16} />
-            <span>TV Shows</span>
-            <span className="badge-placeholder">soon</span>
-          </Link>
-          <Link
             href="/games"
             className={`nav-link ${isActive("/games") ? "active" : ""}`}
             onClick={handleLinkClick}
