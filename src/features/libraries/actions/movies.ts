@@ -2,18 +2,54 @@
 
 import { ensureDbInitialized, db } from "@/db";
 import { traktMovies, movieMetadata, MovieMetadataRecord, TraktMovieRecord } from "@/db/schema";
-import { CombinedMovie, MovieFilterOptions } from "../types";
+import { CombinedMovie, MovieFilterOptions, PaginatedResult } from "../types";
 import { getItemCollectionsAction } from "./collections";
 import { recordActivityAction } from "./activities";
 import { eq, inArray, like, desc, asc, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-export async function getMoviesAction(options?: MovieFilterOptions): Promise<CombinedMovie[]> {
+export async function getPaginatedMoviesAction(options?: MovieFilterOptions): Promise<PaginatedResult<CombinedMovie>> {
   await ensureDbInitialized();
 
-  let moviesList = await db.select().from(traktMovies);
-  const metadataList = await db.select().from(movieMetadata);
-  const metadataMap = new Map<number, MovieMetadataRecord>();
+  const page = Math.max(1, options?.page || 1);
+  const limit = Math.max(1, options?.limit || 25);
+
+  const moviesList = await db.select({
+    traktId: traktMovies.traktId,
+    tmdbId: traktMovies.tmdbId,
+    title: traktMovies.title,
+    year: traktMovies.year,
+    overview: traktMovies.overview,
+    runtime: traktMovies.runtime,
+    rating: traktMovies.rating,
+    watchedAt: traktMovies.watchedAt,
+    genres: traktMovies.genres,
+    posterPath: traktMovies.posterPath,
+    backdropPath: traktMovies.backdropPath,
+    favorite: traktMovies.favorite,
+    notes: traktMovies.notes,
+    visibility: traktMovies.visibility,
+    customTags: traktMovies.customTags,
+    review: traktMovies.review,
+    createdAt: traktMovies.createdAt,
+    updatedAt: traktMovies.updatedAt,
+  }).from(traktMovies);
+
+  const metadataList = await db.select({
+    traktId: movieMetadata.traktId,
+    favorite: movieMetadata.favorite,
+    personalRating: movieMetadata.personalRating,
+    review: movieMetadata.review,
+    notes: movieMetadata.notes,
+    tags: movieMetadata.tags,
+    visibility: movieMetadata.visibility,
+    featured: movieMetadata.featured,
+    watchLocation: movieMetadata.watchLocation,
+    createdAt: movieMetadata.createdAt,
+    updatedAt: movieMetadata.updatedAt,
+  }).from(movieMetadata);
+
+  const metadataMap = new Map<number, any>();
   metadataList.forEach((m) => metadataMap.set(m.traktId, m));
 
   let combined: CombinedMovie[] = [];
@@ -21,8 +57,8 @@ export async function getMoviesAction(options?: MovieFilterOptions): Promise<Com
   for (const m of moviesList) {
     const meta = metadataMap.get(m.traktId) || null;
     combined.push({
-      movie: m,
-      metadata: meta,
+      movie: m as TraktMovieRecord,
+      metadata: meta as MovieMetadataRecord,
       collections: [],
     });
   }
@@ -41,7 +77,7 @@ export async function getMoviesAction(options?: MovieFilterOptions): Promise<Com
     }
 
     if (options.favorite) {
-      combined = combined.filter((c) => c.metadata?.favorite === 1);
+      combined = combined.filter((c) => c.metadata?.favorite === 1 || c.movie.favorite === 1);
     }
 
     if (options.reviewed === "reviewed") {
@@ -131,7 +167,23 @@ export async function getMoviesAction(options?: MovieFilterOptions): Promise<Com
     });
   }
 
-  return combined;
+  const total = combined.length;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const startIndex = (page - 1) * limit;
+  const paginatedItems = combined.slice(startIndex, startIndex + limit);
+
+  return {
+    items: paginatedItems,
+    total,
+    page,
+    limit,
+    totalPages,
+  };
+}
+
+export async function getMoviesAction(options?: MovieFilterOptions): Promise<CombinedMovie[]> {
+  const result = await getPaginatedMoviesAction({ ...options, limit: 1000 });
+  return result.items;
 }
 
 export async function getRecentMoviesAction(limit = 4): Promise<CombinedMovie[]> {

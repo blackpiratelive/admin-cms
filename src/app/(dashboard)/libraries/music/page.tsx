@@ -1,5 +1,10 @@
 import React from "react";
-import { getArtistsAction, getAlbumsAction, getTracksAction, getListeningHistoryAction } from "@/features/libraries/actions/music";
+import {
+  getPaginatedArtistsAction,
+  getPaginatedAlbumsAction,
+  getPaginatedTracksAction,
+  getPaginatedHistoryAction,
+} from "@/features/libraries/actions/music";
 import { MusicTabs } from "@/features/libraries/components/MusicTabs";
 import { GlobalSearchModal } from "@/features/libraries/components/GlobalSearchModal";
 import { Music } from "lucide-react";
@@ -18,11 +23,11 @@ export default async function MusicLibraryPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const activeTab = params.tab || "artists";
 
-  const [artists, albums, tracks, history] = await Promise.all([
-    getArtistsAction(),
-    getAlbumsAction(),
-    getTracksAction(),
-    getListeningHistoryAction({ limit: 100 }),
+  const [artistsRes, albumsRes, tracksRes, historyRes] = await Promise.all([
+    getPaginatedArtistsAction({ page: 1, limit: 25 }),
+    getPaginatedAlbumsAction({ page: 1, limit: 25 }),
+    getPaginatedTracksAction({ page: 1, limit: 25 }),
+    getPaginatedHistoryAction({ page: 1, limit: 25 }),
   ]);
 
   return (
@@ -41,10 +46,10 @@ export default async function MusicLibraryPage({ searchParams }: PageProps) {
       </div>
 
       <MusicTabs
-        artists={artists}
-        albums={albums}
-        tracks={tracks}
-        history={history}
+        initialArtists={artistsRes}
+        initialAlbums={albumsRes}
+        initialTracks={tracksRes}
+        initialHistory={historyRes}
         activeTab={activeTab}
       />
     </div>

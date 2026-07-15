@@ -13,6 +13,9 @@ import {
   AlbumMetadataRecord,
   TrackMetadataRecord,
   LastfmScrobbleRecord,
+  LastfmArtistRecord,
+  LastfmAlbumRecord,
+  LastfmTrackRecord,
 } from "@/db/schema";
 import { CombinedArtist, CombinedAlbum, CombinedTrack, MusicFilterOptions } from "../types";
 import { getItemCollectionsAction } from "./collections";
@@ -20,22 +23,47 @@ import { recordActivityAction } from "./activities";
 import { eq, like, desc, asc, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-// --- ARTISTS ---
-export async function getArtistsAction(options?: MusicFilterOptions): Promise<CombinedArtist[]> {
-  await ensureDbInitialized();
+import { PaginatedResult } from "../types";
 
-  const artistsList = await db.select().from(lastfmArtists);
-  const metadataList = await db.select().from(artistMetadata);
-  const metadataMap = new Map<string, ArtistMetadataRecord>();
+export async function getPaginatedArtistsAction(options?: MusicFilterOptions): Promise<PaginatedResult<CombinedArtist>> {
+  await ensureDbInitialized();
+  const page = Math.max(1, options?.page || 1);
+  const limit = Math.max(1, options?.limit || 25);
+
+  const artistsList = await db.select({
+    artistName: lastfmArtists.artistName,
+    playCount: lastfmArtists.playCount,
+    lastPlayed: lastfmArtists.lastPlayed,
+    firstPlayed: lastfmArtists.firstPlayed,
+    favorite: lastfmArtists.favorite,
+    notes: lastfmArtists.notes,
+    tags: lastfmArtists.tags,
+    hidden: lastfmArtists.hidden,
+    updatedAt: lastfmArtists.updatedAt,
+  }).from(lastfmArtists);
+
+  const metadataList = await db.select({
+    artistName: artistMetadata.artistName,
+    favorite: artistMetadata.favorite,
+    personalRating: artistMetadata.personalRating,
+    review: artistMetadata.review,
+    notes: artistMetadata.notes,
+    tags: artistMetadata.tags,
+    visibility: artistMetadata.visibility,
+    hidden: artistMetadata.hidden,
+    createdAt: artistMetadata.createdAt,
+    updatedAt: artistMetadata.updatedAt,
+  }).from(artistMetadata);
+
+  const metadataMap = new Map<string, any>();
   metadataList.forEach((m) => metadataMap.set(m.artistName.toLowerCase(), m));
 
   let combined: CombinedArtist[] = [];
-
   for (const a of artistsList) {
     const meta = metadataMap.get(a.artistName.toLowerCase()) || null;
     combined.push({
-      artist: a,
-      metadata: meta,
+      artist: a as LastfmArtistRecord,
+      metadata: meta as ArtistMetadataRecord,
       collections: [],
     });
   }
@@ -52,18 +80,7 @@ export async function getArtistsAction(options?: MusicFilterOptions): Promise<Co
     }
 
     if (options.favorite) {
-      combined = combined.filter((c) => c.metadata?.favorite === 1);
-    }
-
-    if (options.tag) {
-      combined = combined.filter((c) => {
-        try {
-          const tags: string[] = JSON.parse(c.metadata?.tags || "[]");
-          return tags.some((t) => t.toLowerCase() === options.tag?.toLowerCase());
-        } catch {
-          return false;
-        }
-      });
+      combined = combined.filter((c) => c.metadata?.favorite === 1 || c.artist.favorite === 1);
     }
 
     const sortBy = options.sortBy || "play_count";
@@ -90,7 +107,23 @@ export async function getArtistsAction(options?: MusicFilterOptions): Promise<Co
     });
   }
 
-  return combined;
+  const total = combined.length;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const startIndex = (page - 1) * limit;
+
+  return {
+    items: combined.slice(startIndex, startIndex + limit),
+    total,
+    page,
+    limit,
+    totalPages,
+  };
+}
+
+// --- ARTISTS ---
+export async function getArtistsAction(options?: MusicFilterOptions): Promise<CombinedArtist[]> {
+  const res = await getPaginatedArtistsAction({ ...options, limit: 1000 });
+  return res.items;
 }
 
 export async function getArtistDetailAction(artistName: string): Promise<CombinedArtist | null> {
@@ -174,22 +207,44 @@ export async function updateArtistMetadataAction(
   return { success: true };
 }
 
-// --- ALBUMS ---
-export async function getAlbumsAction(options?: MusicFilterOptions): Promise<CombinedAlbum[]> {
+export async function getPaginatedAlbumsAction(options?: MusicFilterOptions): Promise<PaginatedResult<CombinedAlbum>> {
   await ensureDbInitialized();
+  const page = Math.max(1, options?.page || 1);
+  const limit = Math.max(1, options?.limit || 25);
 
-  const albumsList = await db.select().from(lastfmAlbums);
-  const metadataList = await db.select().from(albumMetadata);
-  const metadataMap = new Map<string, AlbumMetadataRecord>();
+  const albumsList = await db.select({
+    id: lastfmAlbums.id,
+    albumName: lastfmAlbums.albumName,
+    artist: lastfmAlbums.artist,
+    playCount: lastfmAlbums.playCount,
+    favorite: lastfmAlbums.favorite,
+    notes: lastfmAlbums.notes,
+    tags: lastfmAlbums.tags,
+    hidden: lastfmAlbums.hidden,
+    updatedAt: lastfmAlbums.updatedAt,
+  }).from(lastfmAlbums);
+
+  const metadataList = await db.select({
+    id: albumMetadata.id,
+    favorite: albumMetadata.favorite,
+    personalRating: albumMetadata.personalRating,
+    review: albumMetadata.review,
+    notes: albumMetadata.notes,
+    tags: albumMetadata.tags,
+    visibility: albumMetadata.visibility,
+    createdAt: albumMetadata.createdAt,
+    updatedAt: albumMetadata.updatedAt,
+  }).from(albumMetadata);
+
+  const metadataMap = new Map<string, any>();
   metadataList.forEach((m) => metadataMap.set(m.id, m));
 
   let combined: CombinedAlbum[] = [];
-
   for (const alb of albumsList) {
     const meta = metadataMap.get(alb.id) || null;
     combined.push({
-      album: alb,
-      metadata: meta,
+      album: alb as LastfmAlbumRecord,
+      metadata: meta as AlbumMetadataRecord,
       collections: [],
     });
   }
@@ -206,7 +261,7 @@ export async function getAlbumsAction(options?: MusicFilterOptions): Promise<Com
     }
 
     if (options.favorite) {
-      combined = combined.filter((c) => c.metadata?.favorite === 1);
+      combined = combined.filter((c) => c.metadata?.favorite === 1 || c.album.favorite === 1);
     }
 
     const sortBy = options.sortBy || "play_count";
@@ -230,7 +285,23 @@ export async function getAlbumsAction(options?: MusicFilterOptions): Promise<Com
     });
   }
 
-  return combined;
+  const total = combined.length;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const startIndex = (page - 1) * limit;
+
+  return {
+    items: combined.slice(startIndex, startIndex + limit),
+    total,
+    page,
+    limit,
+    totalPages,
+  };
+}
+
+// --- ALBUMS ---
+export async function getAlbumsAction(options?: MusicFilterOptions): Promise<CombinedAlbum[]> {
+  const res = await getPaginatedAlbumsAction({ ...options, limit: 1000 });
+  return res.items;
 }
 
 export async function getAlbumDetailAction(id: string): Promise<CombinedAlbum | null> {
@@ -299,22 +370,44 @@ export async function updateAlbumMetadataAction(
   return { success: true };
 }
 
-// --- TRACKS ---
-export async function getTracksAction(options?: MusicFilterOptions): Promise<CombinedTrack[]> {
+export async function getPaginatedTracksAction(options?: MusicFilterOptions): Promise<PaginatedResult<CombinedTrack>> {
   await ensureDbInitialized();
+  const page = Math.max(1, options?.page || 1);
+  const limit = Math.max(1, options?.limit || 25);
 
-  const tracksList = await db.select().from(lastfmTracks);
-  const metadataList = await db.select().from(trackMetadata);
-  const metadataMap = new Map<string, TrackMetadataRecord>();
+  const tracksList = await db.select({
+    id: lastfmTracks.id,
+    trackName: lastfmTracks.trackName,
+    artist: lastfmTracks.artist,
+    playCount: lastfmTracks.playCount,
+    favorite: lastfmTracks.favorite,
+    notes: lastfmTracks.notes,
+    tags: lastfmTracks.tags,
+    hidden: lastfmTracks.hidden,
+    updatedAt: lastfmTracks.updatedAt,
+  }).from(lastfmTracks);
+
+  const metadataList = await db.select({
+    id: trackMetadata.id,
+    favorite: trackMetadata.favorite,
+    loved: trackMetadata.loved,
+    personalRating: trackMetadata.personalRating,
+    notes: trackMetadata.notes,
+    tags: trackMetadata.tags,
+    visibility: trackMetadata.visibility,
+    createdAt: trackMetadata.createdAt,
+    updatedAt: trackMetadata.updatedAt,
+  }).from(trackMetadata);
+
+  const metadataMap = new Map<string, any>();
   metadataList.forEach((m) => metadataMap.set(m.id, m));
 
   let combined: CombinedTrack[] = [];
-
   for (const tr of tracksList) {
     const meta = metadataMap.get(tr.id) || null;
     combined.push({
-      track: tr,
-      metadata: meta,
+      track: tr as LastfmTrackRecord,
+      metadata: meta as TrackMetadataRecord,
       collections: [],
     });
   }
@@ -331,7 +424,7 @@ export async function getTracksAction(options?: MusicFilterOptions): Promise<Com
     }
 
     if (options.favorite) {
-      combined = combined.filter((c) => c.metadata?.favorite === 1 || c.metadata?.loved === 1);
+      combined = combined.filter((c) => c.metadata?.favorite === 1 || c.metadata?.loved === 1 || c.track.favorite === 1);
     }
 
     const sortBy = options.sortBy || "play_count";
@@ -355,7 +448,23 @@ export async function getTracksAction(options?: MusicFilterOptions): Promise<Com
     });
   }
 
-  return combined;
+  const total = combined.length;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const startIndex = (page - 1) * limit;
+
+  return {
+    items: combined.slice(startIndex, startIndex + limit),
+    total,
+    page,
+    limit,
+    totalPages,
+  };
+}
+
+// --- TRACKS ---
+export async function getTracksAction(options?: MusicFilterOptions): Promise<CombinedTrack[]> {
+  const res = await getPaginatedTracksAction({ ...options, limit: 1000 });
+  return res.items;
 }
 
 export async function getTrackDetailAction(id: string): Promise<CombinedTrack | null> {
@@ -424,43 +533,64 @@ export async function updateTrackMetadataAction(
   return { success: true };
 }
 
+export async function getPaginatedHistoryAction(options?: {
+  timeframe?: "all" | "today" | "yesterday" | "this_week" | "this_month";
+  query?: string;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedResult<LastfmScrobbleRecord>> {
+  await ensureDbInitialized();
+  const page = Math.max(1, options?.page || 1);
+  const limit = Math.max(1, options?.limit || 25);
+  const offset = (page - 1) * limit;
+
+  const conditions = [];
+  if (options?.query && options.query.trim()) {
+    const q = `%${options.query.trim()}%`;
+    conditions.push(sql`(${lastfmScrobbles.track} LIKE ${q} OR ${lastfmScrobbles.artist} LIKE ${q} OR ${lastfmScrobbles.album} LIKE ${q})`);
+  }
+
+  const whereClause = conditions.length > 0 ? conditions[0] : undefined;
+
+  const selectColumns = {
+    id: lastfmScrobbles.id,
+    lastfmId: lastfmScrobbles.lastfmId,
+    artist: lastfmScrobbles.artist,
+    album: lastfmScrobbles.album,
+    track: lastfmScrobbles.track,
+    playedAt: lastfmScrobbles.playedAt,
+    duration: lastfmScrobbles.duration,
+    mbid: lastfmScrobbles.mbid,
+    createdAt: lastfmScrobbles.createdAt,
+  };
+
+  const [totals, items] = await Promise.all([
+    db.select({ total: sql<number>`count(*)` }).from(lastfmScrobbles).where(whereClause),
+    db.select(selectColumns).from(lastfmScrobbles).where(whereClause).orderBy(desc(lastfmScrobbles.playedAt)).limit(limit).offset(offset),
+  ]);
+
+  const total = totals[0]?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  return {
+    items,
+    total,
+    page,
+    limit,
+    totalPages,
+  };
+}
+
 // --- LISTENING HISTORY ---
 export async function getListeningHistoryAction(options?: {
   timeframe?: "all" | "today" | "yesterday" | "this_week" | "this_month";
   query?: string;
   limit?: number;
 }): Promise<LastfmScrobbleRecord[]> {
-  await ensureDbInitialized();
-
-  let list = await db.select().from(lastfmScrobbles).orderBy(desc(lastfmScrobbles.playedAt)).limit(options?.limit || 100);
-
-  if (options) {
-    if (options.query) {
-      const q = options.query.toLowerCase().trim();
-      list = list.filter((s) => s.track.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q) || s.album?.toLowerCase().includes(q));
-    }
-
-    if (options.timeframe && options.timeframe !== "all") {
-      const now = new Date();
-      if (options.timeframe === "today") {
-        const todayStr = now.toISOString().slice(0, 10);
-        list = list.filter((s) => s.playedAt.startsWith(todayStr));
-      } else if (options.timeframe === "yesterday") {
-        const yest = new Date(now);
-        yest.setDate(yest.getDate() - 1);
-        const yestStr = yest.toISOString().slice(0, 10);
-        list = list.filter((s) => s.playedAt.startsWith(yestStr));
-      } else if (options.timeframe === "this_week") {
-        const startOfWeek = new Date(now);
-        startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-        const startStr = startOfWeek.toISOString().slice(0, 10);
-        list = list.filter((s) => s.playedAt >= startStr);
-      } else if (options.timeframe === "this_month") {
-        const monthStr = now.toISOString().slice(0, 7);
-        list = list.filter((s) => s.playedAt.startsWith(monthStr));
-      }
-    }
-  }
-
-  return list;
+  const res = await getPaginatedHistoryAction({
+    query: options?.query,
+    limit: options?.limit || 100,
+    page: 1,
+  });
+  return res.items;
 }

@@ -6,6 +6,8 @@ import { getTmdbImageUrl } from "../utils/images";
 import { Heart, Star, Tv, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 
+import { CoverImage } from "@/components/CoverImage";
+
 interface ShowCardProps {
   showData: CombinedShow;
   isSelected?: boolean;
@@ -65,9 +67,7 @@ export function ShowCard({ showData, isSelected, onToggleSelect }: ShowCardProps
       </div>
 
       <Link href={`/libraries/shows/${show.traktId}`} style={{ textDecoration: "none", color: "inherit" }}>
-        <div style={{ position: "relative", width: "100%", aspectRatio: "2/3", background: "#111" }}>
-          <img src={posterUrl} alt={show.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" decoding="async" />
-        </div>
+        <CoverImage src={posterUrl} alt={show.title} />
 
         <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "6px" }}>
           <div style={{ fontWeight: 600, fontSize: "14px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>

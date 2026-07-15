@@ -46,6 +46,14 @@ export interface CombinedTrack {
   collections: CollectionRecord[];
 }
 
+export interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export interface MovieFilterOptions {
   query?: string;
   favorite?: boolean;
@@ -58,6 +66,8 @@ export interface MovieFilterOptions {
   minRating?: number;
   sortBy?: "watched_at" | "title" | "year" | "rating" | "personal_rating";
   sortOrder?: "asc" | "desc";
+  page?: number;
+  limit?: number;
 }
 
 export interface ShowFilterOptions {
@@ -70,6 +80,8 @@ export interface ShowFilterOptions {
   minRating?: number;
   sortBy?: "updated_at" | "title" | "year";
   sortOrder?: "asc" | "desc";
+  page?: number;
+  limit?: number;
 }
 
 export interface MusicFilterOptions {
@@ -79,6 +91,8 @@ export interface MusicFilterOptions {
   timeframe?: "all" | "today" | "yesterday" | "this_week" | "this_month";
   sortBy?: "play_count" | "name" | "last_played";
   sortOrder?: "asc" | "desc";
+  page?: number;
+  limit?: number;
 }
 
 export interface GlobalSearchResult {

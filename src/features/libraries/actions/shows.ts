@@ -2,37 +2,75 @@
 
 import { ensureDbInitialized, db } from "@/db";
 import { traktShows, tvShowMetadata, traktEpisodes, TvShowMetadataRecord, TraktShowRecord } from "@/db/schema";
-import { CombinedShow, ShowFilterOptions } from "../types";
+import { CombinedShow, ShowFilterOptions, PaginatedResult } from "../types";
 import { getItemCollectionsAction } from "./collections";
 import { recordActivityAction } from "./activities";
 import { desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-export async function getShowsAction(options?: ShowFilterOptions): Promise<CombinedShow[]> {
+export async function getPaginatedShowsAction(options?: ShowFilterOptions): Promise<PaginatedResult<CombinedShow>> {
   await ensureDbInitialized();
 
-  const showsList = await db.select().from(traktShows);
-  const metadataList = await db.select().from(tvShowMetadata);
-  const allEpisodes = await db.select().from(traktEpisodes);
+  const page = Math.max(1, options?.page || 1);
+  const limit = Math.max(1, options?.limit || 25);
 
-  const metadataMap = new Map<number, TvShowMetadataRecord>();
+  const showsList = await db.select({
+    traktId: traktShows.traktId,
+    tmdbId: traktShows.tmdbId,
+    title: traktShows.title,
+    overview: traktShows.overview,
+    status: traktShows.status,
+    year: traktShows.year,
+    posterPath: traktShows.posterPath,
+    backdropPath: traktShows.backdropPath,
+    favorite: traktShows.favorite,
+    notes: traktShows.notes,
+    visibility: traktShows.visibility,
+    customTags: traktShows.customTags,
+    review: traktShows.review,
+    createdAt: traktShows.createdAt,
+    updatedAt: traktShows.updatedAt,
+  }).from(traktShows);
+
+  const metadataList = await db.select({
+    traktId: tvShowMetadata.traktId,
+    favorite: tvShowMetadata.favorite,
+    personalRating: tvShowMetadata.personalRating,
+    review: tvShowMetadata.review,
+    notes: tvShowMetadata.notes,
+    tags: tvShowMetadata.tags,
+    visibility: tvShowMetadata.visibility,
+    featured: tvShowMetadata.featured,
+    createdAt: tvShowMetadata.createdAt,
+    updatedAt: tvShowMetadata.updatedAt,
+  }).from(tvShowMetadata);
+
+  const episodeCounts = await db
+    .select({
+      showTraktId: traktEpisodes.showTraktId,
+    })
+    .from(traktEpisodes);
+
+  const metadataMap = new Map<number, any>();
   metadataList.forEach((m) => metadataMap.set(m.traktId, m));
 
-  const episodeMap = new Map<number, typeof allEpisodes>();
-  for (const ep of allEpisodes) {
-    if (!episodeMap.has(ep.showTraktId)) episodeMap.set(ep.showTraktId, []);
-    episodeMap.get(ep.showTraktId)!.push(ep);
+  const episodeCountMap = new Map<number, number>();
+  for (const ep of episodeCounts) {
+    episodeCountMap.set(ep.showTraktId, (episodeCountMap.get(ep.showTraktId) || 0) + 1);
   }
 
   let combined: CombinedShow[] = [];
 
   for (const s of showsList) {
     const meta = metadataMap.get(s.traktId) || null;
-    const episodes = episodeMap.get(s.traktId) || [];
+    const epCount = episodeCountMap.get(s.traktId) || 0;
+    // Mock dummy array with correct length for ep.length read in ShowCard
+    const dummyEpisodes = Array.from({ length: epCount }, () => ({}) as any);
+
     combined.push({
-      show: s,
-      metadata: meta,
-      episodes,
+      show: s as TraktShowRecord,
+      metadata: meta as TvShowMetadataRecord,
+      episodes: dummyEpisodes,
       collections: [],
     });
   }
@@ -51,7 +89,7 @@ export async function getShowsAction(options?: ShowFilterOptions): Promise<Combi
     }
 
     if (options.favorite) {
-      combined = combined.filter((c) => c.metadata?.favorite === 1);
+      combined = combined.filter((c) => c.metadata?.favorite === 1 || c.show.favorite === 1);
     }
 
     if (options.status) {
@@ -106,7 +144,23 @@ export async function getShowsAction(options?: ShowFilterOptions): Promise<Combi
     });
   }
 
-  return combined;
+  const total = combined.length;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const startIndex = (page - 1) * limit;
+  const paginatedItems = combined.slice(startIndex, startIndex + limit);
+
+  return {
+    items: paginatedItems,
+    total,
+    page,
+    limit,
+    totalPages,
+  };
+}
+
+export async function getShowsAction(options?: ShowFilterOptions): Promise<CombinedShow[]> {
+  const res = await getPaginatedShowsAction({ ...options, limit: 1000 });
+  return res.items;
 }
 
 export async function getRecentShowsAction(limit = 4): Promise<CombinedShow[]> {
