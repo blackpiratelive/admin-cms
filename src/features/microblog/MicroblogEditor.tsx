@@ -119,6 +119,23 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
   const charCount = contentMarkdown.length;
   const wordCount = contentMarkdown.trim() ? contentMarkdown.trim().split(/\s+/).length : 0;
 
+  const [postToBluesky, setPostToBluesky] = useState(true);
+  const [postToMastodon, setPostToMastodon] = useState(true);
+  const [socialStatus, setSocialStatus] = useState({ blueskyConnected: false, mastodonConnected: false });
+
+  useEffect(() => {
+    async function loadSocialStatus() {
+      try {
+        const { getConnectedSocialProvidersAction } = await import("./actions");
+        const res = await getConnectedSocialProvidersAction();
+        setSocialStatus(res);
+      } catch (err) {
+        console.error("Failed to load social providers status:", err);
+      }
+    }
+    loadSocialStatus();
+  }, []);
+
   const handleSubmit = async (targetStatus?: "draft" | "published" | "archived") => {
     const finalStatus = targetStatus || status;
     setIsSaving(true);
@@ -136,6 +153,8 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
         locationId: locationId || null,
         tripId: tripId || null,
         images,
+        postToBluesky,
+        postToMastodon,
       });
 
       if (result.success) {
@@ -251,6 +270,8 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
           locationId: locationId || null,
           tripId: tripId || null,
           images,
+          postToBluesky,
+          postToMastodon,
         });
 
         if (result.success) {
@@ -647,6 +668,42 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
                     onChange={(e) => setTags(e.target.value)}
                     placeholder="hugo, thoughts, dev"
                   />
+                </div>
+
+                <div className="form-group" style={{ gridColumn: "1 / -1", background: "var(--bg-sidebar)", padding: "12px", border: "1px solid var(--border-color)", borderRadius: "4px" }}>
+                  <label className="form-label" style={{ fontWeight: "bold", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <Globe size={14} style={{ color: "var(--accent)" }} />
+                    <span>Social Media Cross-Posting Options</span>
+                  </label>
+                  <div style={{ display: "flex", gap: "20px", flexWrap: "wrap", alignItems: "center" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: socialStatus.blueskyConnected ? "pointer" : "not-allowed", fontSize: "13px" }}>
+                      <input
+                        type="checkbox"
+                        checked={postToBluesky && socialStatus.blueskyConnected}
+                        onChange={(e) => setPostToBluesky(e.target.checked)}
+                        disabled={!socialStatus.blueskyConnected}
+                        style={{ width: "16px", height: "16px", accentColor: "var(--accent)" }}
+                      />
+                      <span style={{ fontWeight: 500 }}>Post to Bluesky 🦋</span>
+                      <span style={{ fontSize: "11px", color: socialStatus.blueskyConnected ? "#2e7d32" : "var(--text-muted)" }}>
+                        ({socialStatus.blueskyConnected ? "Connected" : "Not configured in Sync Center"})
+                      </span>
+                    </label>
+
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: socialStatus.mastodonConnected ? "pointer" : "not-allowed", fontSize: "13px" }}>
+                      <input
+                        type="checkbox"
+                        checked={postToMastodon && socialStatus.mastodonConnected}
+                        onChange={(e) => setPostToMastodon(e.target.checked)}
+                        disabled={!socialStatus.mastodonConnected}
+                        style={{ width: "16px", height: "16px", accentColor: "var(--accent)" }}
+                      />
+                      <span style={{ fontWeight: 500 }}>Post to Mastodon 🐘</span>
+                      <span style={{ fontSize: "11px", color: socialStatus.mastodonConnected ? "#2e7d32" : "var(--text-muted)" }}>
+                        ({socialStatus.mastodonConnected ? "Connected" : "Not configured in Sync Center"})
+                      </span>
+                    </label>
+                  </div>
                 </div>
               </div>
             )}

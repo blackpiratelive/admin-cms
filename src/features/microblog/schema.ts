@@ -23,6 +23,8 @@ export const microblogInputSchema = z.object({
   shortUrl: z.string().nullable().optional(),
   locationId: z.string().nullable().optional(),
   tripId: z.string().nullable().optional(),
+  postToBluesky: z.boolean().optional().default(true),
+  postToMastodon: z.boolean().optional().default(true),
   images: z.union([z.array(z.string()), z.string()]).transform((val) => {
     if (Array.isArray(val)) return val;
     if (typeof val === "string") {

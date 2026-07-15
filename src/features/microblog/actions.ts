@@ -147,10 +147,25 @@ import { syncRegistry } from "@/features/sync/registry";
 import { BlueskySyncProvider } from "@/features/sync/providers/bluesky";
 import { MastodonSyncProvider } from "@/features/sync/providers/mastodon";
 
+export async function getConnectedSocialProvidersAction() {
+  await ensureDbInitialized();
+  const bluesky = syncRegistry.getProvider("bluesky");
+  const mastodon = syncRegistry.getProvider("mastodon");
+
+  const blueskyStatus = bluesky ? await bluesky.getStatus() : "disconnected";
+  const mastodonStatus = mastodon ? await mastodon.getStatus() : "disconnected";
+
+  return {
+    blueskyConnected: blueskyStatus === "connected",
+    mastodonConnected: mastodonStatus === "connected",
+  };
+}
+
 export async function crossPostMicroblogToConfiguredProviders(
   contentMarkdown: string,
   images: string[] = [],
-  coverImageUrl?: string | null
+  coverImageUrl?: string | null,
+  options?: { postToBluesky?: boolean; postToMastodon?: boolean }
 ) {
   const imageUrls = Array.from(
     new Set([...(coverImageUrl ? [coverImageUrl] : []), ...images])
@@ -159,31 +174,35 @@ export async function crossPostMicroblogToConfiguredProviders(
   const results: Record<string, { success: boolean; error?: string; url?: string }> = {};
 
   // Bluesky
-  try {
-    const bluesky = syncRegistry.getProvider("bluesky") as BlueskySyncProvider | undefined;
-    if (bluesky) {
-      const status = await bluesky.getStatus();
-      if (status === "connected") {
-        const bskyRes = await bluesky.postMicroblog(contentMarkdown, imageUrls);
-        results.bluesky = { success: bskyRes.success, error: bskyRes.error, url: bskyRes.uri };
+  if (options?.postToBluesky !== false) {
+    try {
+      const bluesky = syncRegistry.getProvider("bluesky") as BlueskySyncProvider | undefined;
+      if (bluesky) {
+        const status = await bluesky.getStatus();
+        if (status === "connected") {
+          const bskyRes = await bluesky.postMicroblog(contentMarkdown, imageUrls);
+          results.bluesky = { success: bskyRes.success, error: bskyRes.error, url: bskyRes.uri };
+        }
       }
+    } catch (err: any) {
+      results.bluesky = { success: false, error: err.message || String(err) };
     }
-  } catch (err: any) {
-    results.bluesky = { success: false, error: err.message || String(err) };
   }
 
   // Mastodon
-  try {
-    const mastodon = syncRegistry.getProvider("mastodon") as MastodonSyncProvider | undefined;
-    if (mastodon) {
-      const status = await mastodon.getStatus();
-      if (status === "connected") {
-        const mastoRes = await mastodon.postMicroblog(contentMarkdown, imageUrls);
-        results.mastodon = { success: mastoRes.success, error: mastoRes.error, url: mastoRes.url };
+  if (options?.postToMastodon !== false) {
+    try {
+      const mastodon = syncRegistry.getProvider("mastodon") as MastodonSyncProvider | undefined;
+      if (mastodon) {
+        const status = await mastodon.getStatus();
+        if (status === "connected") {
+          const mastoRes = await mastodon.postMicroblog(contentMarkdown, imageUrls);
+          results.mastodon = { success: mastoRes.success, error: mastoRes.error, url: mastoRes.url };
+        }
       }
+    } catch (err: any) {
+      results.mastodon = { success: false, error: err.message || String(err) };
     }
-  } catch (err: any) {
-    results.mastodon = { success: false, error: err.message || String(err) };
   }
 
   return results;
@@ -246,7 +265,11 @@ export async function saveMicroblog(input: MicroblogFormInput) {
       crossPostSummary = await crossPostMicroblogToConfiguredProviders(
         validated.contentMarkdown,
         validated.images,
-        validated.coverImageUrl
+        validated.coverImageUrl,
+        {
+          postToBluesky: validated.postToBluesky,
+          postToMastodon: validated.postToMastodon,
+        }
       );
     }
   }

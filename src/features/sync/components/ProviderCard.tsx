@@ -333,7 +333,7 @@ export function ProviderCard({
 
       <div className="sync-card-footer">
         <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-          {provider.slug !== "lastfm" && (provider.slug === "trakt") && provider.connected && !isSyncingActive && (
+          {provider.slug !== "lastfm" && provider.slug === "trakt" && provider.connected && !isSyncingActive && (
             <select
               className="select-input"
               value={syncMode}
@@ -356,7 +356,7 @@ export function ProviderCard({
               <Square size={13} fill="currentColor" />
               <span>{cancelling ? "Stopping..." : "Stop Sync"}</span>
             </button>
-          ) : (
+          ) : provider.slug !== "bluesky" && provider.slug !== "mastodon" ? (
             <button
               className="btn btn-sm btn-primary"
               onClick={handleSync}
@@ -365,7 +365,7 @@ export function ProviderCard({
               <RefreshCw size={13} className={isSyncingActive ? "spin" : ""} />
               <span>Sync Now</span>
             </button>
-          )}
+          ) : null}
 
           {logs.length > 0 && !showLogsTerminal && (
             <button
