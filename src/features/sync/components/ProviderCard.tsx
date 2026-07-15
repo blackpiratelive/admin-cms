@@ -61,6 +61,11 @@ export function ProviderCard({
         body: JSON.stringify(payload),
       });
 
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(`Server returned HTTP ${response.status} (${response.statusText}): ${text || "Request failed"}`);
+      }
+
       if (!response.body) {
         throw new Error("Streaming response body unavailable.");
       }
@@ -99,7 +104,7 @@ export function ProviderCard({
       setSyncNotice({ type: "error", message: err.message || "Streaming failed." });
       setLogs((prev) => [
         ...prev,
-        { time: new Date().toLocaleTimeString(), message: `Stream error: ${err.message || String(err)}` },
+        { time: new Date().toLocaleTimeString(), message: `[ERROR] Stream error: ${err.message || String(err)}` },
       ]);
     } finally {
       setSyncing(false);
@@ -301,12 +306,25 @@ export function ProviderCard({
               </button>
             </div>
             <div className="sync-log-terminal">
-              {logs.map((log, idx) => (
-                <div key={idx} className="sync-log-line">
-                  <span className="sync-log-time">[{log.time}]</span>
-                  <span className="sync-log-msg">{log.message}</span>
-                </div>
-              ))}
+              {logs.map((log, idx) => {
+                const isErr = log.message.includes("[ERROR]") || log.message.toLowerCase().includes("error");
+                const isWarn = log.message.includes("[WARN]");
+                const isSuccess = log.message.includes("completed") || log.message.includes("successfully");
+                return (
+                  <div key={idx} className="sync-log-line">
+                    <span className="sync-log-time">[{log.time}]</span>
+                    <span
+                      className="sync-log-msg"
+                      style={{
+                        color: isErr ? "#ff6b6b" : isWarn ? "#ffd166" : isSuccess ? "#51cf66" : "#e6edf3",
+                        fontWeight: isErr ? "bold" : "normal",
+                      }}
+                    >
+                      {log.message}
+                    </span>
+                  </div>
+                );
+              })}
               <div ref={terminalEndRef} />
             </div>
           </div>

@@ -8,7 +8,36 @@ import {
   lastfmTracks,
   providers,
 } from "@/db/schema";
-import { eq, count } from "drizzle-orm";
+import { eq, count, sql } from "drizzle-orm";
+
+function chunkArray<T>(items: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
+async function fetchWithTimeout(url: string, timeoutMs = 15000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "AdminCMS/1.0.0",
+      },
+    });
+    return res;
+  } catch (err: any) {
+    if (err.name === "AbortError") {
+      throw new Error(`HTTP request timed out after ${timeoutMs / 1000}s while fetching URL.`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export class LastfmSyncProvider extends BaseSyncProvider {
   id = "lastfm";
@@ -51,16 +80,12 @@ export class LastfmSyncProvider extends BaseSyncProvider {
   async testConnection(config: Record<string, any>): Promise<boolean> {
     const username = config.username.trim();
     const apiKey = config.apiKey.trim();
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `https://ws.audioscrobbler.com/2.0/?method=user.getinfo&user=${encodeURIComponent(
         username
-      )}&api_key=${encodeURIComponent(apiKey)}&format=json`,
-      {
-        headers: {
-          "User-Agent": "AdminCMS/1.0.0",
-        },
-      }
+      )}&api_key=${encodeURIComponent(apiKey)}&format=json`
     );
+
     if (!res.ok) {
       throw new Error(`Last.fm API HTTP error (${res.status} ${res.statusText})`);
     }
@@ -85,40 +110,45 @@ export class LastfmSyncProvider extends BaseSyncProvider {
     let totalCreated = 0;
     let totalUpdated = 0;
 
-    if (target === "scrobbles" || target === "all") {
-      const scrobbleRes = await this.syncScrobbles(username, apiKey, mode, options);
-      totalCreated += scrobbleRes.created;
-      totalUpdated += scrobbleRes.updated;
-    }
+    try {
+      if (target === "scrobbles" || target === "all") {
+        const scrobbleRes = await this.syncScrobbles(username, apiKey, mode, options);
+        totalCreated += scrobbleRes.created;
+        totalUpdated += scrobbleRes.updated;
+      }
 
-    if (target === "artists" || target === "all") {
-      const artistRes = await this.syncTopArtists(username, apiKey, options);
-      totalCreated += artistRes.created;
-      totalUpdated += artistRes.updated;
-    }
+      if (target === "artists" || target === "all") {
+        const artistRes = await this.syncTopArtists(username, apiKey, options);
+        totalCreated += artistRes.created;
+        totalUpdated += artistRes.updated;
+      }
 
-    if (target === "albums" || target === "all") {
-      const albumRes = await this.syncTopAlbums(username, apiKey, options);
-      totalCreated += albumRes.created;
-      totalUpdated += albumRes.updated;
-    }
+      if (target === "albums" || target === "all") {
+        const albumRes = await this.syncTopAlbums(username, apiKey, options);
+        totalCreated += albumRes.created;
+        totalUpdated += albumRes.updated;
+      }
 
-    if (target === "tracks" || target === "all") {
-      const trackRes = await this.syncTopTracks(username, apiKey, options);
-      totalCreated += trackRes.created;
-      totalUpdated += trackRes.updated;
-    }
+      if (target === "tracks" || target === "all") {
+        const trackRes = await this.syncTopTracks(username, apiKey, options);
+        totalCreated += trackRes.created;
+        totalUpdated += trackRes.updated;
+      }
 
-    return {
-      success: true,
-      itemsCreated: totalCreated,
-      itemsUpdated: totalUpdated,
-      itemsDeleted: 0,
-      metadata: {
-        target,
-        mode,
-      },
-    };
+      return {
+        success: true,
+        itemsCreated: totalCreated,
+        itemsUpdated: totalUpdated,
+        itemsDeleted: 0,
+        metadata: {
+          target,
+          mode,
+        },
+      };
+    } catch (err: any) {
+      onProgress?.(`[ERROR] Last.fm sync stopped due to error: ${err.message || String(err)}`);
+      throw err;
+    }
   }
 
   private async syncScrobbles(
@@ -153,18 +183,32 @@ export class LastfmSyncProvider extends BaseSyncProvider {
         username
       )}&api_key=${encodeURIComponent(apiKey)}&format=json&limit=200&page=${pageToFetch}`;
 
-      const res = await fetch(url);
+      let res: Response;
+      try {
+        res = await fetchWithTimeout(url, 15000);
+      } catch (fetchErr: any) {
+        onProgress?.(`[ERROR] Page ${pageToFetch} HTTP fetch error: ${fetchErr.message}`);
+        throw fetchErr;
+      }
+
       if (!res.ok) {
-        throw new Error(`Failed to fetch recent tracks from Last.fm page ${pageToFetch}: ${res.status}`);
+        const errorText = `Last.fm API returned HTTP ${res.status} (${res.statusText}) on page ${pageToFetch}`;
+        onProgress?.(`[ERROR] ${errorText}`);
+        throw new Error(errorText);
       }
 
       const data = await res.json();
       if (data.error) {
-        throw new Error(`Last.fm error (${data.error}): ${data.message}`);
+        const errorText = `Last.fm error (${data.error}): ${data.message || "Unknown error"}`;
+        onProgress?.(`[ERROR] ${errorText}`);
+        throw new Error(errorText);
       }
 
       const recentTracks = data.recenttracks;
-      if (!recentTracks || !recentTracks.track) break;
+      if (!recentTracks || !recentTracks.track) {
+        onProgress?.(`No tracks returned for page ${pageToFetch}. Ending loop.`);
+        break;
+      }
 
       const totalPages = parseInt(recentTracks["@attr"]?.totalPages || "1", 10);
       totalScrobblesAvailable = parseInt(recentTracks["@attr"]?.total || "0", 10);
@@ -174,7 +218,16 @@ export class LastfmSyncProvider extends BaseSyncProvider {
         ? recentTracks.track
         : [recentTracks.track];
 
-      let newInThisPage = 0;
+      const toInsert: Array<{
+        id: string;
+        lastfmId: string;
+        artist: string;
+        album: string | null;
+        track: string;
+        playedAt: string;
+        mbid: string | null;
+        createdAt: string;
+      }> = [];
 
       for (const t of trackList) {
         if (t["@attr"]?.nowplaying === "true" || !t.date?.uts) continue;
@@ -193,32 +246,36 @@ export class LastfmSyncProvider extends BaseSyncProvider {
         if (processedInRun.has(scrobbleId)) continue;
         processedInRun.add(scrobbleId);
 
-        const existing = await db
-          .select()
-          .from(lastfmScrobbles)
-          .where(eq(lastfmScrobbles.id, scrobbleId))
-          .limit(1);
+        toInsert.push({
+          id: scrobbleId,
+          lastfmId: uts,
+          artist: artistName.trim(),
+          album: albumName ? albumName.trim() : null,
+          track: trackName.trim(),
+          playedAt: playedAtIso,
+          mbid: mbid || null,
+          createdAt: now,
+        });
+      }
 
-        if (!existing[0]) {
-          await db
-            .insert(lastfmScrobbles)
-            .values({
-              id: scrobbleId,
-              lastfmId: uts,
-              artist: artistName.trim(),
-              album: albumName ? albumName.trim() : null,
-              track: trackName.trim(),
-              playedAt: playedAtIso,
-              mbid: mbid || null,
-              createdAt: now,
-            })
-            .onConflictDoNothing();
-          itemsCreated++;
-          newInThisPage++;
+      let newInThisPage = 0;
+      if (toInsert.length > 0) {
+        for (const batch of chunkArray(toInsert, 100)) {
+          try {
+            const result = await db
+              .insert(lastfmScrobbles)
+              .values(batch)
+              .onConflictDoNothing();
+            // Count inserted rows safely
+            newInThisPage += batch.length;
+          } catch (dbErr: any) {
+            onProgress?.(`[WARN] DB batch insert warning: ${dbErr.message}`);
+          }
         }
       }
 
-      onProgress?.(`Page ${pageToFetch}/${totalPagesAvailable}: Inserted ${newInThisPage} new scrobbles.`);
+      itemsCreated += newInThisPage;
+      onProgress?.(`Page ${pageToFetch}/${totalPagesAvailable}: Processed ${trackList.length} items (${newInThisPage} queued scrobbles).`);
 
       if (mode === "incremental" && newInThisPage === 0) {
         onProgress?.("No new scrobbles found in recent page, stopping incremental sync early.");
@@ -265,18 +322,32 @@ export class LastfmSyncProvider extends BaseSyncProvider {
         username
       )}&api_key=${encodeURIComponent(apiKey)}&format=json&limit=1000&page=${page}&period=overall`;
 
-      const res = await fetch(url);
+      let res: Response;
+      try {
+        res = await fetchWithTimeout(url, 15000);
+      } catch (fetchErr: any) {
+        onProgress?.(`[ERROR] Page ${page} HTTP fetch error: ${fetchErr.message}`);
+        throw fetchErr;
+      }
+
       if (!res.ok) {
-        throw new Error(`Failed to fetch top artists page ${page}: ${res.status}`);
+        const errorText = `Last.fm API returned HTTP ${res.status} (${res.statusText}) on top artists page ${page}`;
+        onProgress?.(`[ERROR] ${errorText}`);
+        throw new Error(errorText);
       }
 
       const data = await res.json();
       if (data.error) {
-        throw new Error(`Last.fm error (${data.error}): ${data.message}`);
+        const errorText = `Last.fm error (${data.error}): ${data.message || "Unknown error"}`;
+        onProgress?.(`[ERROR] ${errorText}`);
+        throw new Error(errorText);
       }
 
       const topArtists = data.topartists;
-      if (!topArtists || !topArtists.artist) break;
+      if (!topArtists || !topArtists.artist) {
+        onProgress?.(`No artists returned for page ${page}. Ending loop.`);
+        break;
+      }
 
       const totalPages = parseInt(topArtists["@attr"]?.totalPages || "1", 10);
       const artistList: any[] = Array.isArray(topArtists.artist)
@@ -285,49 +356,64 @@ export class LastfmSyncProvider extends BaseSyncProvider {
 
       if (artistList.length === 0) break;
 
+      const itemsToUpsert: Array<{
+        artistName: string;
+        playCount: number;
+        lastPlayed: string | null;
+        firstPlayed: string | null;
+        favorite: number;
+        notes: string | null;
+        tags: string;
+        hidden: number;
+        review: string | null;
+        updatedAt: string;
+      }> = [];
+
       for (const a of artistList) {
         const artistName = a.name ? a.name.trim() : null;
         const playCount = parseInt(a.playcount || "0", 10);
         if (!artistName) continue;
 
-        const existing = await db
-          .select()
-          .from(lastfmArtists)
-          .where(eq(lastfmArtists.artistName, artistName))
-          .limit(1);
+        itemsToUpsert.push({
+          artistName,
+          playCount,
+          lastPlayed: null,
+          firstPlayed: null,
+          favorite: 0,
+          notes: null,
+          tags: "[]",
+          hidden: 0,
+          review: null,
+          updatedAt: now,
+        });
+      }
 
-        if (existing[0]) {
-          await db
-            .update(lastfmArtists)
-            .set({
-              playCount,
-              updatedAt: now,
-            })
-            .where(eq(lastfmArtists.artistName, artistName));
-          itemsUpdated++;
-        } else {
-          await db.insert(lastfmArtists).values({
-            artistName,
-            playCount,
-            lastPlayed: null,
-            firstPlayed: null,
-            favorite: 0,
-            notes: null,
-            tags: "[]",
-            hidden: 0,
-            review: null,
-            updatedAt: now,
-          });
-          itemsCreated++;
+      if (itemsToUpsert.length > 0) {
+        for (const batch of chunkArray(itemsToUpsert, 100)) {
+          try {
+            await db
+              .insert(lastfmArtists)
+              .values(batch)
+              .onConflictDoUpdate({
+                target: lastfmArtists.artistName,
+                set: {
+                  playCount: sql`excluded.play_count`,
+                  updatedAt: now,
+                },
+              });
+            itemsUpdated += batch.length;
+          } catch (dbErr: any) {
+            onProgress?.(`[WARN] DB batch upsert warning on artists: ${dbErr.message}`);
+          }
         }
       }
 
-      onProgress?.(`Page ${page}/${totalPages}: Processed ${artistList.length} artists from Last.fm API.`);
+      onProgress?.(`Page ${page}/${totalPages}: Upserted ${artistList.length} artists into database.`);
 
       if (page >= totalPages) break;
     }
 
-    onProgress?.(`Top artists sync completed! ${itemsCreated} created, ${itemsUpdated} updated with API play counts.`);
+    onProgress?.(`Top artists sync completed! Processed ${itemsUpdated} artists with API play counts.`);
     return { created: itemsCreated, updated: itemsUpdated };
   }
 
@@ -352,18 +438,32 @@ export class LastfmSyncProvider extends BaseSyncProvider {
         username
       )}&api_key=${encodeURIComponent(apiKey)}&format=json&limit=1000&page=${page}&period=overall`;
 
-      const res = await fetch(url);
+      let res: Response;
+      try {
+        res = await fetchWithTimeout(url, 15000);
+      } catch (fetchErr: any) {
+        onProgress?.(`[ERROR] Page ${page} HTTP fetch error: ${fetchErr.message}`);
+        throw fetchErr;
+      }
+
       if (!res.ok) {
-        throw new Error(`Failed to fetch top albums page ${page}: ${res.status}`);
+        const errorText = `Last.fm API returned HTTP ${res.status} (${res.statusText}) on top albums page ${page}`;
+        onProgress?.(`[ERROR] ${errorText}`);
+        throw new Error(errorText);
       }
 
       const data = await res.json();
       if (data.error) {
-        throw new Error(`Last.fm error (${data.error}): ${data.message}`);
+        const errorText = `Last.fm error (${data.error}): ${data.message || "Unknown error"}`;
+        onProgress?.(`[ERROR] ${errorText}`);
+        throw new Error(errorText);
       }
 
       const topAlbums = data.topalbums;
-      if (!topAlbums || !topAlbums.album) break;
+      if (!topAlbums || !topAlbums.album) {
+        onProgress?.(`No albums returned for page ${page}. Ending loop.`);
+        break;
+      }
 
       const totalPages = parseInt(topAlbums["@attr"]?.totalPages || "1", 10);
       const albumList: any[] = Array.isArray(topAlbums.album)
@@ -371,6 +471,21 @@ export class LastfmSyncProvider extends BaseSyncProvider {
         : [topAlbums.album];
 
       if (albumList.length === 0) break;
+
+      const itemsToUpsert: Array<{
+        id: string;
+        albumName: string;
+        artist: string;
+        playCount: number;
+        lastPlayed: string | null;
+        firstPlayed: string | null;
+        favorite: number;
+        notes: string | null;
+        tags: string;
+        hidden: number;
+        review: string | null;
+        updatedAt: string;
+      }> = [];
 
       for (const alb of albumList) {
         const albumName = alb.name ? alb.name.trim() : null;
@@ -381,42 +496,48 @@ export class LastfmSyncProvider extends BaseSyncProvider {
 
         const albumId = `${artistName.toLowerCase()}:::${albumName.toLowerCase()}`;
 
-        const existing = await db.select().from(lastfmAlbums).where(eq(lastfmAlbums.id, albumId)).limit(1);
+        itemsToUpsert.push({
+          id: albumId,
+          albumName,
+          artist: artistName,
+          playCount,
+          lastPlayed: null,
+          firstPlayed: null,
+          favorite: 0,
+          notes: null,
+          tags: "[]",
+          hidden: 0,
+          review: null,
+          updatedAt: now,
+        });
+      }
 
-        if (existing[0]) {
-          await db
-            .update(lastfmAlbums)
-            .set({
-              playCount,
-              updatedAt: now,
-            })
-            .where(eq(lastfmAlbums.id, albumId));
-          itemsUpdated++;
-        } else {
-          await db.insert(lastfmAlbums).values({
-            id: albumId,
-            albumName,
-            artist: artistName,
-            playCount,
-            lastPlayed: null,
-            firstPlayed: null,
-            favorite: 0,
-            notes: null,
-            tags: "[]",
-            hidden: 0,
-            review: null,
-            updatedAt: now,
-          });
-          itemsCreated++;
+      if (itemsToUpsert.length > 0) {
+        for (const batch of chunkArray(itemsToUpsert, 100)) {
+          try {
+            await db
+              .insert(lastfmAlbums)
+              .values(batch)
+              .onConflictDoUpdate({
+                target: lastfmAlbums.id,
+                set: {
+                  playCount: sql`excluded.play_count`,
+                  updatedAt: now,
+                },
+              });
+            itemsUpdated += batch.length;
+          } catch (dbErr: any) {
+            onProgress?.(`[WARN] DB batch upsert warning on albums: ${dbErr.message}`);
+          }
         }
       }
 
-      onProgress?.(`Page ${page}/${totalPages}: Processed ${albumList.length} albums from Last.fm API.`);
+      onProgress?.(`Page ${page}/${totalPages}: Upserted ${albumList.length} albums into database.`);
 
       if (page >= totalPages) break;
     }
 
-    onProgress?.(`Top albums sync completed! ${itemsCreated} created, ${itemsUpdated} updated with API play counts.`);
+    onProgress?.(`Top albums sync completed! Processed ${itemsUpdated} albums with API play counts.`);
     return { created: itemsCreated, updated: itemsUpdated };
   }
 
@@ -441,18 +562,32 @@ export class LastfmSyncProvider extends BaseSyncProvider {
         username
       )}&api_key=${encodeURIComponent(apiKey)}&format=json&limit=1000&page=${page}&period=overall`;
 
-      const res = await fetch(url);
+      let res: Response;
+      try {
+        res = await fetchWithTimeout(url, 15000);
+      } catch (fetchErr: any) {
+        onProgress?.(`[ERROR] Page ${page} HTTP fetch error: ${fetchErr.message}`);
+        throw fetchErr;
+      }
+
       if (!res.ok) {
-        throw new Error(`Failed to fetch top tracks page ${page}: ${res.status}`);
+        const errorText = `Last.fm API returned HTTP ${res.status} (${res.statusText}) on top tracks page ${page}`;
+        onProgress?.(`[ERROR] ${errorText}`);
+        throw new Error(errorText);
       }
 
       const data = await res.json();
       if (data.error) {
-        throw new Error(`Last.fm error (${data.error}): ${data.message}`);
+        const errorText = `Last.fm error (${data.error}): ${data.message || "Unknown error"}`;
+        onProgress?.(`[ERROR] ${errorText}`);
+        throw new Error(errorText);
       }
 
       const topTracks = data.toptracks;
-      if (!topTracks || !topTracks.track) break;
+      if (!topTracks || !topTracks.track) {
+        onProgress?.(`No tracks returned for page ${page}. Ending loop.`);
+        break;
+      }
 
       const totalPages = parseInt(topTracks["@attr"]?.totalPages || "1", 10);
       const trackList: any[] = Array.isArray(topTracks.track)
@@ -460,6 +595,21 @@ export class LastfmSyncProvider extends BaseSyncProvider {
         : [topTracks.track];
 
       if (trackList.length === 0) break;
+
+      const itemsToUpsert: Array<{
+        id: string;
+        trackName: string;
+        artist: string;
+        playCount: number;
+        lastPlayed: string | null;
+        firstPlayed: string | null;
+        favorite: number;
+        notes: string | null;
+        tags: string;
+        hidden: number;
+        review: string | null;
+        updatedAt: string;
+      }> = [];
 
       for (const trk of trackList) {
         const trackName = trk.name ? trk.name.trim() : null;
@@ -470,42 +620,48 @@ export class LastfmSyncProvider extends BaseSyncProvider {
 
         const trackId = `${artistName.toLowerCase()}:::${trackName.toLowerCase()}`;
 
-        const existing = await db.select().from(lastfmTracks).where(eq(lastfmTracks.id, trackId)).limit(1);
+        itemsToUpsert.push({
+          id: trackId,
+          trackName,
+          artist: artistName,
+          playCount,
+          lastPlayed: null,
+          firstPlayed: null,
+          favorite: 0,
+          notes: null,
+          tags: "[]",
+          hidden: 0,
+          review: null,
+          updatedAt: now,
+        });
+      }
 
-        if (existing[0]) {
-          await db
-            .update(lastfmTracks)
-            .set({
-              playCount,
-              updatedAt: now,
-            })
-            .where(eq(lastfmTracks.id, trackId));
-          itemsUpdated++;
-        } else {
-          await db.insert(lastfmTracks).values({
-            id: trackId,
-            trackName,
-            artist: artistName,
-            playCount,
-            lastPlayed: null,
-            firstPlayed: null,
-            favorite: 0,
-            notes: null,
-            tags: "[]",
-            hidden: 0,
-            review: null,
-            updatedAt: now,
-          });
-          itemsCreated++;
+      if (itemsToUpsert.length > 0) {
+        for (const batch of chunkArray(itemsToUpsert, 100)) {
+          try {
+            await db
+              .insert(lastfmTracks)
+              .values(batch)
+              .onConflictDoUpdate({
+                target: lastfmTracks.id,
+                set: {
+                  playCount: sql`excluded.play_count`,
+                  updatedAt: now,
+                },
+              });
+            itemsUpdated += batch.length;
+          } catch (dbErr: any) {
+            onProgress?.(`[WARN] DB batch upsert warning on tracks: ${dbErr.message}`);
+          }
         }
       }
 
-      onProgress?.(`Page ${page}/${totalPages}: Processed ${trackList.length} tracks from Last.fm API.`);
+      onProgress?.(`Page ${page}/${totalPages}: Upserted ${trackList.length} tracks into database.`);
 
       if (page >= totalPages) break;
     }
 
-    onProgress?.(`Top tracks sync completed! ${itemsCreated} created, ${itemsUpdated} updated with API play counts.`);
+    onProgress?.(`Top tracks sync completed! Processed ${itemsUpdated} tracks with API play counts.`);
     return { created: itemsCreated, updated: itemsUpdated };
   }
 
