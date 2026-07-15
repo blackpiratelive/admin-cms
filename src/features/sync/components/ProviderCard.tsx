@@ -117,7 +117,7 @@ export function ProviderCard({
       await executeStreamAction({
         target: syncTarget,
         mode: syncMode,
-        batchSize: 10,
+        batchSize: 50,
       });
     } else {
       setSyncing(true);

@@ -165,7 +165,7 @@ export class LastfmSyncProvider extends BaseSyncProvider {
     let itemsUpdated = 0;
     const now = new Date().toISOString();
 
-    const maxPagesToFetch = mode === "batch" ? (options?.batchSize || 10) : 3;
+    const maxPagesToFetch = mode === "batch" ? (options?.batchSize || 50) : 5;
     let startPage = mode === "batch" ? backfillPage : 1;
     let totalPagesAvailable = 1;
     let totalScrobblesAvailable = 0;

@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
           const res = await provider.sync({
             target: target || "scrobbles",
             mode: mode || "incremental",
-            batchSize: batchSize ? parseInt(batchSize, 10) : 10,
+            batchSize: batchSize ? parseInt(batchSize, 10) : 50,
             onProgress: (msg: string) => log(msg),
           });
 
