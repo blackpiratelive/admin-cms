@@ -123,6 +123,13 @@ admin-cms/
   - `/api/gallery`: Serves public gallery photos with resolved EXIF, `location` and `trip` objects.
   - `/api/movies`: Serves public movies with ratings, reviews, `location` and `trip` objects.
 
+### Last.fm Sync Engine & Architecture
+- **Target Selection**: Independent options to sync `scrobbles` (listening history), `artists` (fetches overall top artists with play counts directly from Last.fm API), `albums` (top albums with play counts directly from API), `tracks` (top tracks with play counts directly from API), or `all`.
+- **API Play Counts & Blank Dates**: Directly uses Last.fm API total play counts for artists, albums, and tracks rather than computing solely from synced scrobbles. First and last played dates are left blank if not provided by Last.fm.
+- **Manual Date Calculation Engine**: Provides a manual recalculation action (`calculateLastFmPlayedDatesAction`) that queries local `lastfm_scrobbles` database for `MIN(played_at)` and `MAX(played_at)` per artist/album/track.
+- **Real-Time Live UI Log Terminal**: `/api/sync/lastfm/stream` streaming route streams execution progress live to the UI (`ProviderCard`) via Server-Sent Events/ReadableStream without cluttering the persistent `sync_logs` table.
+- **Vercel Execution Budget (`maxDuration = 300`)**: Handlers configured with `maxDuration = 300` allowing extended execution windows up to 5 minutes for bulk history fetching.
+
 ---
 
 ## 4. Universal Search & Command Palette (`Ctrl+K`)

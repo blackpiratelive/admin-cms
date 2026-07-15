@@ -928,6 +928,39 @@ a:hover {
   border: 1px solid #ffcdd2;
 }
 
+.sync-log-terminal {
+  background: #0d1117;
+  color: #c9d1d9;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 10px;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sync-log-line {
+  display: flex;
+  gap: 8px;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+.sync-log-time {
+  color: #8b949e;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.sync-log-msg {
+  color: #e6edf3;
+}
+
 .status-badge.status-disconnected {
   background: var(--bg-sidebar);
   color: var(--text-secondary);

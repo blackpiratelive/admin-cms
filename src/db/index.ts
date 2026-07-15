@@ -595,6 +595,19 @@ export async function ensureDbInitialized(): Promise<void> {
         await client.execute(`ALTER TABLE projects ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public';`);
       } catch (err) {}
 
+      try {
+        await client.execute(`ALTER TABLE lastfm_albums ADD COLUMN last_played TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE lastfm_albums ADD COLUMN first_played TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE lastfm_tracks ADD COLUMN last_played TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE lastfm_tracks ADD COLUMN first_played TEXT;`);
+      } catch (err) {}
+
       // Keep the frequently rendered dashboard, library, and activity queries on
       // indexes rather than full-table scans as personal data grows.
       await client.executeMultiple(`

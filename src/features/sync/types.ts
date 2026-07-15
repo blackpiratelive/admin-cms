@@ -2,10 +2,14 @@ export type ProviderStatus = "connected" | "disconnected" | "syncing" | "error" 
 
 export type SyncMode = "incremental" | "full" | "batch";
 
+export type SyncTarget = "scrobbles" | "artists" | "albums" | "tracks" | "all";
+
 export interface SyncOptions {
   mode?: SyncMode;
+  target?: SyncTarget | string;
   batchPage?: number;
   batchSize?: number;
+  onProgress?: (message: string) => void;
   [key: string]: any;
 }
 

@@ -1,10 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { ProviderOverviewDTO, syncProviderAction, cancelProviderSyncAction } from "../actions";
 import { ConfigureModal } from "./ConfigureModal";
 import Link from "next/link";
-import { RefreshCw, Settings, ListFilter, Square } from "lucide-react";
+import { RefreshCw, Settings, ListFilter, Square, Calculator, Terminal, ChevronDown, ChevronUp } from "lucide-react";
+
+interface LogEntry {
+  time: string;
+  message: string;
+}
 
 export function ProviderCard({
   provider,
@@ -17,7 +22,19 @@ export function ProviderCard({
   const [syncing, setSyncing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [syncMode, setSyncMode] = useState<"incremental" | "batch">("incremental");
+  const [syncTarget, setSyncTarget] = useState<"scrobbles" | "artists" | "albums" | "tracks" | "all">("scrobbles");
   const [syncNotice, setSyncNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  // Live Terminal Logs State
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [showLogsTerminal, setShowLogsTerminal] = useState(false);
+  const terminalEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (showLogsTerminal && terminalEndRef.current) {
+      terminalEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [logs, showLogsTerminal]);
 
   const formatLastSync = (iso: string | null) => {
     if (!iso) return "Never";
@@ -31,25 +48,95 @@ export function ProviderCard({
     return date.toLocaleDateString();
   };
 
-  const handleSync = async () => {
+  const executeStreamAction = async (payload: { action?: string; target?: string; mode?: string; batchSize?: number }) => {
     setSyncing(true);
     setSyncNotice(null);
+    setShowLogsTerminal(true);
+    setLogs([{ time: new Date().toLocaleTimeString(), message: "Connecting to server stream..." }]);
 
-    const res = await syncProviderAction(provider.slug, { mode: syncMode });
-    setSyncing(false);
+    try {
+      const response = await fetch("/api/sync/lastfm/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    if (res.success) {
-      const created = res.itemsCreated ?? 0;
-      const updated = res.itemsUpdated ?? 0;
-      const createdStr = created > 0 ? `${created} added` : "";
-      const updatedStr = updated > 0 ? `${updated} updated` : "";
-      const msg = [createdStr, updatedStr].filter(Boolean).join(", ") || "Up to date";
-      setSyncNotice({ type: "success", message: `Sync successful! ${msg}` });
-      onRefresh();
-    } else {
-      setSyncNotice({ type: "error", message: res.errorMessage || "Sync failed" });
+      if (!response.body) {
+        throw new Error("Streaming response body unavailable.");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(trimmed.slice(6));
+              if (data.type === "log") {
+                setLogs((prev) => [...prev, { time: data.time, message: data.message }]);
+              } else if (data.type === "done") {
+                if (data.success) {
+                  setSyncNotice({ type: "success", message: "Process completed successfully!" });
+                } else {
+                  setSyncNotice({ type: "error", message: data.error || "Execution failed." });
+                }
+              }
+            } catch {}
+          }
+        }
+      }
+    } catch (err: any) {
+      setSyncNotice({ type: "error", message: err.message || "Streaming failed." });
+      setLogs((prev) => [
+        ...prev,
+        { time: new Date().toLocaleTimeString(), message: `Stream error: ${err.message || String(err)}` },
+      ]);
+    } finally {
+      setSyncing(false);
       onRefresh();
     }
+  };
+
+  const handleSync = async () => {
+    if (provider.slug === "lastfm") {
+      await executeStreamAction({
+        target: syncTarget,
+        mode: syncMode,
+        batchSize: 10,
+      });
+    } else {
+      setSyncing(true);
+      setSyncNotice(null);
+      const res = await syncProviderAction(provider.slug, { mode: syncMode });
+      setSyncing(false);
+
+      if (res.success) {
+        const created = res.itemsCreated ?? 0;
+        const updated = res.itemsUpdated ?? 0;
+        const createdStr = created > 0 ? `${created} added` : "";
+        const updatedStr = updated > 0 ? `${updated} updated` : "";
+        const msg = [createdStr, updatedStr].filter(Boolean).join(", ") || "Up to date";
+        setSyncNotice({ type: "success", message: `Sync successful! ${msg}` });
+        onRefresh();
+      } else {
+        setSyncNotice({ type: "error", message: res.errorMessage || "Sync failed" });
+        onRefresh();
+      }
+    }
+  };
+
+  const handleCalculateDatesManually = async () => {
+    await executeStreamAction({ action: "calculate_dates" });
   };
 
   const handleStopSync = async () => {
@@ -103,6 +190,74 @@ export function ProviderCard({
           )}
         </div>
 
+        {/* Last.fm Options Panel */}
+        {provider.slug === "lastfm" && provider.connected && (
+          <div
+            style={{
+              marginTop: "12px",
+              padding: "10px",
+              background: "var(--bg-sidebar)",
+              border: "1px solid var(--border-color)",
+              borderRadius: "4px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+            }}
+          >
+            <div style={{ fontSize: "11px", fontWeight: "bold", textTransform: "uppercase", color: "var(--text-muted)" }}>
+              Sync Options & Target Selection
+            </div>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                <label style={{ fontSize: "10px", color: "var(--text-muted)" }}>Target</label>
+                <select
+                  className="select-input"
+                  value={syncTarget}
+                  onChange={(e) => setSyncTarget(e.target.value as any)}
+                  style={{ padding: "3px 6px", fontSize: "11px", width: "auto" }}
+                  disabled={isSyncingActive}
+                >
+                  <option value="scrobbles">Scrobbles (Listening History)</option>
+                  <option value="artists">Artists (API Total Plays)</option>
+                  <option value="albums">Albums (API Total Plays)</option>
+                  <option value="tracks">Tracks (API Total Plays)</option>
+                  <option value="all">All (Full Sync)</option>
+                </select>
+              </div>
+
+              {(syncTarget === "scrobbles" || syncTarget === "all") && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                  <label style={{ fontSize: "10px", color: "var(--text-muted)" }}>Mode</label>
+                  <select
+                    className="select-input"
+                    value={syncMode}
+                    onChange={(e) => setSyncMode(e.target.value as any)}
+                    style={{ padding: "3px 6px", fontSize: "11px", width: "auto" }}
+                    disabled={isSyncingActive}
+                  >
+                    <option value="incremental">Incremental</option>
+                    <option value="batch">Batch History</option>
+                  </select>
+                </div>
+              )}
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "2px", marginLeft: "auto" }}>
+                <label style={{ fontSize: "10px", color: "var(--text-muted)" }}>Manual Date Calc</label>
+                <button
+                  className="btn btn-sm"
+                  onClick={handleCalculateDatesManually}
+                  disabled={isSyncingActive}
+                  title="Calculate first & last played dates from local scrobbles"
+                  style={{ fontSize: "11px", padding: "3px 8px" }}
+                >
+                  <Calculator size={12} />
+                  <span>Calculate Dates</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {syncNotice && (
           <div
             style={{
@@ -118,11 +273,49 @@ export function ProviderCard({
             {syncNotice.message}
           </div>
         )}
+
+        {/* Streaming Terminal Log Viewer */}
+        {showLogsTerminal && (
+          <div style={{ marginTop: "12px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                fontSize: "11px",
+                fontWeight: "bold",
+                color: "var(--text-muted)",
+                marginBottom: "4px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <Terminal size={12} />
+                <span>Live Action Terminal Logs</span>
+              </div>
+              <button
+                className="btn btn-sm"
+                style={{ padding: "2px 6px", fontSize: "10px" }}
+                onClick={() => setShowLogsTerminal(false)}
+              >
+                Hide Logs
+              </button>
+            </div>
+            <div className="sync-log-terminal">
+              {logs.map((log, idx) => (
+                <div key={idx} className="sync-log-line">
+                  <span className="sync-log-time">[{log.time}]</span>
+                  <span className="sync-log-msg">{log.message}</span>
+                </div>
+              ))}
+              <div ref={terminalEndRef} />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="sync-card-footer">
         <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-          {(provider.slug === "lastfm" || provider.slug === "trakt") && provider.connected && !isSyncingActive && (
+          {provider.slug !== "lastfm" && (provider.slug === "trakt") && provider.connected && !isSyncingActive && (
             <select
               className="select-input"
               value={syncMode}
@@ -151,8 +344,19 @@ export function ProviderCard({
               onClick={handleSync}
               disabled={!provider.connected}
             >
-              <RefreshCw size={13} />
+              <RefreshCw size={13} className={isSyncingActive ? "spin" : ""} />
               <span>Sync Now</span>
+            </button>
+          )}
+
+          {logs.length > 0 && !showLogsTerminal && (
+            <button
+              className="btn btn-sm"
+              onClick={() => setShowLogsTerminal(true)}
+              title="Show live terminal logs"
+            >
+              <Terminal size={12} />
+              <span>Show Live Logs</span>
             </button>
           )}
         </div>

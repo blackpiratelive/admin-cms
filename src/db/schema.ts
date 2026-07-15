@@ -355,6 +355,8 @@ export const lastfmAlbums = sqliteTable("lastfm_albums", {
   albumName: text("album_name").notNull(),
   artist: text("artist").notNull(),
   playCount: integer("play_count").notNull().default(0),
+  lastPlayed: text("last_played"),
+  firstPlayed: text("first_played"),
   // Personal Metadata (Preserved during sync)
   favorite: integer("favorite").notNull().default(0),
   notes: text("notes"),
@@ -369,6 +371,8 @@ export const lastfmTracks = sqliteTable("lastfm_tracks", {
   trackName: text("track_name").notNull(),
   artist: text("artist").notNull(),
   playCount: integer("play_count").notNull().default(0),
+  lastPlayed: text("last_played"),
+  firstPlayed: text("first_played"),
   // Personal Metadata (Preserved during sync)
   favorite: integer("favorite").notNull().default(0),
   notes: text("notes"),

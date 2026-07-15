@@ -8,14 +8,14 @@ import {
   lastfmTracks,
   providers,
 } from "@/db/schema";
-import { eq, count, sql } from "drizzle-orm";
+import { eq, count } from "drizzle-orm";
 
 export class LastfmSyncProvider extends BaseSyncProvider {
   id = "lastfm";
   name = "Last.fm";
   slug = "lastfm";
   icon = "🎵";
-  description = "Sync listening history, scrobbles, top artists, albums, and tracks from Last.fm.";
+  description = "Sync listening history, scrobbles, top artists, top albums, and top tracks from Last.fm.";
 
   getConfigFields(): ConfigField[] {
     return [
@@ -78,8 +78,56 @@ export class LastfmSyncProvider extends BaseSyncProvider {
     await ensureDbInitialized();
     const username = config.username.trim();
     const apiKey = config.apiKey.trim();
+    const target = options?.target || "scrobbles";
     const mode = options?.mode || "incremental";
+    const onProgress = options?.onProgress;
 
+    let totalCreated = 0;
+    let totalUpdated = 0;
+
+    if (target === "scrobbles" || target === "all") {
+      const scrobbleRes = await this.syncScrobbles(username, apiKey, mode, options);
+      totalCreated += scrobbleRes.created;
+      totalUpdated += scrobbleRes.updated;
+    }
+
+    if (target === "artists" || target === "all") {
+      const artistRes = await this.syncTopArtists(username, apiKey, options);
+      totalCreated += artistRes.created;
+      totalUpdated += artistRes.updated;
+    }
+
+    if (target === "albums" || target === "all") {
+      const albumRes = await this.syncTopAlbums(username, apiKey, options);
+      totalCreated += albumRes.created;
+      totalUpdated += albumRes.updated;
+    }
+
+    if (target === "tracks" || target === "all") {
+      const trackRes = await this.syncTopTracks(username, apiKey, options);
+      totalCreated += trackRes.created;
+      totalUpdated += trackRes.updated;
+    }
+
+    return {
+      success: true,
+      itemsCreated: totalCreated,
+      itemsUpdated: totalUpdated,
+      itemsDeleted: 0,
+      metadata: {
+        target,
+        mode,
+      },
+    };
+  }
+
+  private async syncScrobbles(
+    username: string,
+    apiKey: string,
+    mode: string,
+    options?: SyncOptions
+  ): Promise<{ created: number; updated: number }> {
+    const onProgress = options?.onProgress;
     const currentConfig = await this.getConfig();
     let backfillPage = options?.batchPage || currentConfig.nextBackfillPage || 1;
 
@@ -87,22 +135,20 @@ export class LastfmSyncProvider extends BaseSyncProvider {
     let itemsUpdated = 0;
     const now = new Date().toISOString();
 
-    // Determine page iteration count to fit well within Vercel's 10s execution window
-    // 200 items per page. 2 pages per batch in incremental, 3-5 pages per batch call
-    const maxPagesToFetch = mode === "batch" ? (options?.batchSize || 3) : 2;
+    const maxPagesToFetch = mode === "batch" ? (options?.batchSize || 10) : 3;
     let startPage = mode === "batch" ? backfillPage : 1;
     let totalPagesAvailable = 1;
     let totalScrobblesAvailable = 0;
 
-    const touchedArtists = new Map<string, { artistName: string; playedAt: string }>();
-    const touchedAlbums = new Map<string, { artistName: string; albumName: string }>();
-    const touchedTracks = new Map<string, { artistName: string; trackName: string }>();
-
     const processedInRun = new Set<string>();
+
+    onProgress?.(`Starting Scrobbles sync (mode: ${mode}, fetching max ${maxPagesToFetch} pages)...`);
 
     for (let p = 0; p < maxPagesToFetch; p++) {
       this.checkCancelled();
       const pageToFetch = startPage + p;
+      onProgress?.(`Fetching scrobbles page ${pageToFetch}...`);
+
       const url = `https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${encodeURIComponent(
         username
       )}&api_key=${encodeURIComponent(apiKey)}&format=json&limit=200&page=${pageToFetch}`;
@@ -113,6 +159,10 @@ export class LastfmSyncProvider extends BaseSyncProvider {
       }
 
       const data = await res.json();
+      if (data.error) {
+        throw new Error(`Last.fm error (${data.error}): ${data.message}`);
+      }
+
       const recentTracks = data.recenttracks;
       if (!recentTracks || !recentTracks.track) break;
 
@@ -127,7 +177,6 @@ export class LastfmSyncProvider extends BaseSyncProvider {
       let newInThisPage = 0;
 
       for (const t of trackList) {
-        // Skip live "nowplaying" scrobbles without fixed date
         if (t["@attr"]?.nowplaying === "true" || !t.date?.uts) continue;
 
         const uts = t.date.uts;
@@ -139,7 +188,6 @@ export class LastfmSyncProvider extends BaseSyncProvider {
 
         if (!artistName || !trackName) continue;
 
-        // Unique Scrobble ID
         const scrobbleId = `${uts}_${artistName.trim().toLowerCase()}_${trackName.trim().toLowerCase()}`;
 
         if (processedInRun.has(scrobbleId)) continue;
@@ -168,164 +216,16 @@ export class LastfmSyncProvider extends BaseSyncProvider {
           itemsCreated++;
           newInThisPage++;
         }
-
-        // Track changes for aggregate updates
-        touchedArtists.set(artistName.trim().toLowerCase(), { artistName: artistName.trim(), playedAt: playedAtIso });
-        if (albumName && albumName.trim()) {
-          const albumKey = `${artistName.trim().toLowerCase()}:::${albumName.trim().toLowerCase()}`;
-          touchedAlbums.set(albumKey, { artistName: artistName.trim(), albumName: albumName.trim() });
-        }
-        const trackKey = `${artistName.trim().toLowerCase()}:::${trackName.trim().toLowerCase()}`;
-        touchedTracks.set(trackKey, { artistName: artistName.trim(), trackName: trackName.trim() });
       }
 
-      // In incremental mode, if we encountered 0 new tracks in page 1, we can stop early
+      onProgress?.(`Page ${pageToFetch}/${totalPagesAvailable}: Inserted ${newInThisPage} new scrobbles.`);
+
       if (mode === "incremental" && newInThisPage === 0) {
+        onProgress?.("No new scrobbles found in recent page, stopping incremental sync early.");
         break;
       }
     }
 
-    // Update aggregate Tables preserving personal metadata
-    // 1. Artists
-    for (const [key, info] of Array.from(touchedArtists.entries())) {
-      const existingArtist = await db
-        .select()
-        .from(lastfmArtists)
-        .where(eq(lastfmArtists.artistName, info.artistName))
-        .limit(1);
-
-      const scrobbleCountRes = await db
-        .select({ count: count() })
-        .from(lastfmScrobbles)
-        .where(sql`LOWER(${lastfmScrobbles.artist}) = ${key}`);
-
-      const playCount = scrobbleCountRes[0]?.count || 0;
-
-      if (existingArtist[0]) {
-        await db
-          .update(lastfmArtists)
-          .set({
-            playCount,
-            lastPlayed: info.playedAt,
-            favorite: existingArtist[0].favorite,
-            notes: existingArtist[0].notes,
-            tags: existingArtist[0].tags,
-            hidden: existingArtist[0].hidden,
-            review: existingArtist[0].review,
-            updatedAt: now,
-          })
-          .where(eq(lastfmArtists.artistName, info.artistName));
-        itemsUpdated++;
-      } else {
-        await db.insert(lastfmArtists).values({
-          artistName: info.artistName,
-          playCount,
-          lastPlayed: info.playedAt,
-          firstPlayed: info.playedAt,
-          favorite: 0,
-          notes: null,
-          tags: "[]",
-          hidden: 0,
-          review: null,
-          updatedAt: now,
-        });
-        itemsCreated++;
-      }
-    }
-
-    // 2. Albums
-    for (const [key, info] of Array.from(touchedAlbums.entries())) {
-      const existingAlbum = await db.select().from(lastfmAlbums).where(eq(lastfmAlbums.id, key)).limit(1);
-
-      const scrobbleCountRes = await db
-        .select({ count: count() })
-        .from(lastfmScrobbles)
-        .where(
-          sql`LOWER(${lastfmScrobbles.artist}) = ${info.artistName.toLowerCase()} AND LOWER(${
-            lastfmScrobbles.album
-          }) = ${info.albumName.toLowerCase()}`
-        );
-
-      const playCount = scrobbleCountRes[0]?.count || 0;
-
-      if (existingAlbum[0]) {
-        await db
-          .update(lastfmAlbums)
-          .set({
-            playCount,
-            favorite: existingAlbum[0].favorite,
-            notes: existingAlbum[0].notes,
-            tags: existingAlbum[0].tags,
-            hidden: existingAlbum[0].hidden,
-            review: existingAlbum[0].review,
-            updatedAt: now,
-          })
-          .where(eq(lastfmAlbums.id, key));
-        itemsUpdated++;
-      } else {
-        await db.insert(lastfmAlbums).values({
-          id: key,
-          albumName: info.albumName,
-          artist: info.artistName,
-          playCount,
-          favorite: 0,
-          notes: null,
-          tags: "[]",
-          hidden: 0,
-          review: null,
-          updatedAt: now,
-        });
-        itemsCreated++;
-      }
-    }
-
-    // 3. Tracks
-    for (const [key, info] of Array.from(touchedTracks.entries())) {
-      const existingTrack = await db.select().from(lastfmTracks).where(eq(lastfmTracks.id, key)).limit(1);
-
-      const scrobbleCountRes = await db
-        .select({ count: count() })
-        .from(lastfmScrobbles)
-        .where(
-          sql`LOWER(${lastfmScrobbles.artist}) = ${info.artistName.toLowerCase()} AND LOWER(${
-            lastfmScrobbles.track
-          }) = ${info.trackName.toLowerCase()}`
-        );
-
-      const playCount = scrobbleCountRes[0]?.count || 0;
-
-      if (existingTrack[0]) {
-        await db
-          .update(lastfmTracks)
-          .set({
-            playCount,
-            favorite: existingTrack[0].favorite,
-            notes: existingTrack[0].notes,
-            tags: existingTrack[0].tags,
-            hidden: existingTrack[0].hidden,
-            review: existingTrack[0].review,
-            updatedAt: now,
-          })
-          .where(eq(lastfmTracks.id, key));
-        itemsUpdated++;
-      } else {
-        await db.insert(lastfmTracks).values({
-          id: key,
-          trackName: info.trackName,
-          artist: info.artistName,
-          playCount,
-          favorite: 0,
-          notes: null,
-          tags: "[]",
-          hidden: 0,
-          review: null,
-          updatedAt: now,
-        });
-        itemsCreated++;
-      }
-    }
-
-    // Advance backfill page pointer for subsequent batch imports
     const nextBackfillPage = mode === "batch" ? startPage + maxPagesToFetch : backfillPage;
     await db
       .update(providers)
@@ -340,19 +240,273 @@ export class LastfmSyncProvider extends BaseSyncProvider {
       })
       .where(eq(providers.slug, this.slug));
 
-    return {
-      success: true,
-      itemsCreated,
-      itemsUpdated,
-      itemsDeleted: 0,
-      metadata: {
-        mode,
-        pagesFetched: maxPagesToFetch,
-        nextBackfillPage,
-        totalPagesAvailable,
-        totalScrobblesAvailable,
-      },
-    };
+    onProgress?.(`Scrobbles sync completed. ${itemsCreated} total new scrobbles added.`);
+    return { created: itemsCreated, updated: itemsUpdated };
+  }
+
+  private async syncTopArtists(
+    username: string,
+    apiKey: string,
+    options?: SyncOptions
+  ): Promise<{ created: number; updated: number }> {
+    const onProgress = options?.onProgress;
+    let itemsCreated = 0;
+    let itemsUpdated = 0;
+    const now = new Date().toISOString();
+
+    const maxPages = options?.batchSize || 10;
+    onProgress?.(`Fetching top artists directly from Last.fm API (period: overall)...`);
+
+    for (let page = 1; page <= maxPages; page++) {
+      this.checkCancelled();
+      onProgress?.(`Fetching top artists page ${page}...`);
+
+      const url = `https://ws.audioscrobbler.com/2.0/?method=user.gettopartists&user=${encodeURIComponent(
+        username
+      )}&api_key=${encodeURIComponent(apiKey)}&format=json&limit=1000&page=${page}&period=overall`;
+
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch top artists page ${page}: ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(`Last.fm error (${data.error}): ${data.message}`);
+      }
+
+      const topArtists = data.topartists;
+      if (!topArtists || !topArtists.artist) break;
+
+      const totalPages = parseInt(topArtists["@attr"]?.totalPages || "1", 10);
+      const artistList: any[] = Array.isArray(topArtists.artist)
+        ? topArtists.artist
+        : [topArtists.artist];
+
+      if (artistList.length === 0) break;
+
+      for (const a of artistList) {
+        const artistName = a.name ? a.name.trim() : null;
+        const playCount = parseInt(a.playcount || "0", 10);
+        if (!artistName) continue;
+
+        const existing = await db
+          .select()
+          .from(lastfmArtists)
+          .where(eq(lastfmArtists.artistName, artistName))
+          .limit(1);
+
+        if (existing[0]) {
+          await db
+            .update(lastfmArtists)
+            .set({
+              playCount,
+              updatedAt: now,
+            })
+            .where(eq(lastfmArtists.artistName, artistName));
+          itemsUpdated++;
+        } else {
+          await db.insert(lastfmArtists).values({
+            artistName,
+            playCount,
+            lastPlayed: null,
+            firstPlayed: null,
+            favorite: 0,
+            notes: null,
+            tags: "[]",
+            hidden: 0,
+            review: null,
+            updatedAt: now,
+          });
+          itemsCreated++;
+        }
+      }
+
+      onProgress?.(`Page ${page}/${totalPages}: Processed ${artistList.length} artists from Last.fm API.`);
+
+      if (page >= totalPages) break;
+    }
+
+    onProgress?.(`Top artists sync completed! ${itemsCreated} created, ${itemsUpdated} updated with API play counts.`);
+    return { created: itemsCreated, updated: itemsUpdated };
+  }
+
+  private async syncTopAlbums(
+    username: string,
+    apiKey: string,
+    options?: SyncOptions
+  ): Promise<{ created: number; updated: number }> {
+    const onProgress = options?.onProgress;
+    let itemsCreated = 0;
+    let itemsUpdated = 0;
+    const now = new Date().toISOString();
+
+    const maxPages = options?.batchSize || 10;
+    onProgress?.(`Fetching top albums directly from Last.fm API (period: overall)...`);
+
+    for (let page = 1; page <= maxPages; page++) {
+      this.checkCancelled();
+      onProgress?.(`Fetching top albums page ${page}...`);
+
+      const url = `https://ws.audioscrobbler.com/2.0/?method=user.gettopalbums&user=${encodeURIComponent(
+        username
+      )}&api_key=${encodeURIComponent(apiKey)}&format=json&limit=1000&page=${page}&period=overall`;
+
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch top albums page ${page}: ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(`Last.fm error (${data.error}): ${data.message}`);
+      }
+
+      const topAlbums = data.topalbums;
+      if (!topAlbums || !topAlbums.album) break;
+
+      const totalPages = parseInt(topAlbums["@attr"]?.totalPages || "1", 10);
+      const albumList: any[] = Array.isArray(topAlbums.album)
+        ? topAlbums.album
+        : [topAlbums.album];
+
+      if (albumList.length === 0) break;
+
+      for (const alb of albumList) {
+        const albumName = alb.name ? alb.name.trim() : null;
+        const artistName = typeof alb.artist === "object" ? alb.artist.name?.trim() : alb.artist?.trim();
+        const playCount = parseInt(alb.playcount || "0", 10);
+
+        if (!albumName || !artistName) continue;
+
+        const albumId = `${artistName.toLowerCase()}:::${albumName.toLowerCase()}`;
+
+        const existing = await db.select().from(lastfmAlbums).where(eq(lastfmAlbums.id, albumId)).limit(1);
+
+        if (existing[0]) {
+          await db
+            .update(lastfmAlbums)
+            .set({
+              playCount,
+              updatedAt: now,
+            })
+            .where(eq(lastfmAlbums.id, albumId));
+          itemsUpdated++;
+        } else {
+          await db.insert(lastfmAlbums).values({
+            id: albumId,
+            albumName,
+            artist: artistName,
+            playCount,
+            lastPlayed: null,
+            firstPlayed: null,
+            favorite: 0,
+            notes: null,
+            tags: "[]",
+            hidden: 0,
+            review: null,
+            updatedAt: now,
+          });
+          itemsCreated++;
+        }
+      }
+
+      onProgress?.(`Page ${page}/${totalPages}: Processed ${albumList.length} albums from Last.fm API.`);
+
+      if (page >= totalPages) break;
+    }
+
+    onProgress?.(`Top albums sync completed! ${itemsCreated} created, ${itemsUpdated} updated with API play counts.`);
+    return { created: itemsCreated, updated: itemsUpdated };
+  }
+
+  private async syncTopTracks(
+    username: string,
+    apiKey: string,
+    options?: SyncOptions
+  ): Promise<{ created: number; updated: number }> {
+    const onProgress = options?.onProgress;
+    let itemsCreated = 0;
+    let itemsUpdated = 0;
+    const now = new Date().toISOString();
+
+    const maxPages = options?.batchSize || 10;
+    onProgress?.(`Fetching top tracks directly from Last.fm API (period: overall)...`);
+
+    for (let page = 1; page <= maxPages; page++) {
+      this.checkCancelled();
+      onProgress?.(`Fetching top tracks page ${page}...`);
+
+      const url = `https://ws.audioscrobbler.com/2.0/?method=user.gettoptracks&user=${encodeURIComponent(
+        username
+      )}&api_key=${encodeURIComponent(apiKey)}&format=json&limit=1000&page=${page}&period=overall`;
+
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch top tracks page ${page}: ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(`Last.fm error (${data.error}): ${data.message}`);
+      }
+
+      const topTracks = data.toptracks;
+      if (!topTracks || !topTracks.track) break;
+
+      const totalPages = parseInt(topTracks["@attr"]?.totalPages || "1", 10);
+      const trackList: any[] = Array.isArray(topTracks.track)
+        ? topTracks.track
+        : [topTracks.track];
+
+      if (trackList.length === 0) break;
+
+      for (const trk of trackList) {
+        const trackName = trk.name ? trk.name.trim() : null;
+        const artistName = typeof trk.artist === "object" ? trk.artist.name?.trim() : trk.artist?.trim();
+        const playCount = parseInt(trk.playcount || "0", 10);
+
+        if (!trackName || !artistName) continue;
+
+        const trackId = `${artistName.toLowerCase()}:::${trackName.toLowerCase()}`;
+
+        const existing = await db.select().from(lastfmTracks).where(eq(lastfmTracks.id, trackId)).limit(1);
+
+        if (existing[0]) {
+          await db
+            .update(lastfmTracks)
+            .set({
+              playCount,
+              updatedAt: now,
+            })
+            .where(eq(lastfmTracks.id, trackId));
+          itemsUpdated++;
+        } else {
+          await db.insert(lastfmTracks).values({
+            id: trackId,
+            trackName,
+            artist: artistName,
+            playCount,
+            lastPlayed: null,
+            firstPlayed: null,
+            favorite: 0,
+            notes: null,
+            tags: "[]",
+            hidden: 0,
+            review: null,
+            updatedAt: now,
+          });
+          itemsCreated++;
+        }
+      }
+
+      onProgress?.(`Page ${page}/${totalPages}: Processed ${trackList.length} tracks from Last.fm API.`);
+
+      if (page >= totalPages) break;
+    }
+
+    onProgress?.(`Top tracks sync completed! ${itemsCreated} created, ${itemsUpdated} updated with API play counts.`);
+    return { created: itemsCreated, updated: itemsUpdated };
   }
 
   async getStatistics(): Promise<Record<string, number | string>> {
