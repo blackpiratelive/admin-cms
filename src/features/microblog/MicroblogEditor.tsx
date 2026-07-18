@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { saveMicroblog, deleteMicroblog, recalculateRelatedAction } from "./actions";
+import { notify } from "@/lib/notifications";
 import { getLocations } from "@/features/locations/actions";
 import { getTrips } from "@/features/trips/actions";
 import { type LocationRecord, type TripRecord, type Microblog } from "@/db/schema";
@@ -136,67 +137,78 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
     loadSocialStatus();
   }, []);
 
-  const handleSubmit = async (targetStatus?: "draft" | "published" | "archived") => {
+  const handleSubmit = (targetStatus?: "draft" | "published" | "archived") => {
     const finalStatus = targetStatus || status;
-    setIsSaving(true);
-    setSavingAction(finalStatus === "published" ? "published" : "draft");
-    try {
-      const result = await saveMicroblog({
-        id,
-        slug,
-        contentMarkdown,
-        status: finalStatus,
-        createdAt: toIsoDateTime(createdAt),
-        publishedAt: toIsoDateTime(publishedAt),
-        tags,
-        coverImageUrl: coverImageUrl || null,
-        locationId: locationId || null,
-        tripId: tripId || null,
-        images,
-        postToBluesky,
-        postToMastodon,
-      });
+    setStatus(finalStatus);
+    setLastAutosavedTime(`Saving ${finalStatus}...`);
 
-      if (result.success) {
-        setId(result.id);
-        setLastSavedState({
-          contentMarkdown,
+    notify.bg({
+      title: finalStatus === "published" ? "Publish Post" : "Save Draft",
+      loadingMessage: `Saving ${finalStatus} in background...`,
+      successMessage: `Microblog ${finalStatus === "published" ? "published" : "draft saved"} successfully!`,
+      errorMessage: (err) => `Failed to save microblog: ${err?.message || String(err)}`,
+      task: () =>
+        saveMicroblog({
+          id,
           slug,
+          contentMarkdown,
+          status: finalStatus,
+          createdAt: toIsoDateTime(createdAt),
+          publishedAt: toIsoDateTime(publishedAt),
           tags,
-          coverImageUrl,
+          coverImageUrl: coverImageUrl || null,
+          locationId: locationId || null,
+          tripId: tripId || null,
           images,
-          createdAt,
-          publishedAt,
-        });
-        if (result.relatedPosts) {
-          setRelatedPosts(result.relatedPosts);
-        }
-        if (!id) {
-          router.push(`/microblog/${result.id}`);
+          postToBluesky,
+          postToMastodon,
+        }),
+      onSuccess: (result) => {
+        if (result.success) {
+          setId(result.id);
+          setLastSavedState({
+            contentMarkdown,
+            slug,
+            tags,
+            coverImageUrl,
+            images,
+            createdAt,
+            publishedAt,
+          });
+          setLastAutosavedTime(new Date().toLocaleTimeString());
+          if (result.relatedPosts) {
+            setRelatedPosts(result.relatedPosts);
+          }
+          if (!id) {
+            router.push(`/microblog/${result.id}`);
+          } else {
+            router.refresh();
+          }
         } else {
-          router.refresh();
+          notify.show({
+            type: "error",
+            title: "Save Failed",
+            message: (result as any).error || "Could not save microblog.",
+          });
         }
-      }
-    } catch (err) {
-      alert("Error saving microblog post.");
-    } finally {
-      setIsSaving(false);
-      setSavingAction(null);
-    }
+      },
+    });
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!id) return;
     if (!confirm("Are you sure you want to delete this microblog post?")) return;
-    setIsSaving(true);
-    setSavingAction("delete");
-    try {
-      await deleteMicroblog(id);
-      router.push("/microblog");
-    } finally {
-      setIsSaving(false);
-      setSavingAction(null);
-    }
+
+    notify.bg({
+      title: "Delete Microblog",
+      loadingMessage: "Deleting post in background...",
+      successMessage: "Microblog post deleted.",
+      errorMessage: "Failed to delete microblog post.",
+      task: () => deleteMicroblog(id),
+      onSuccess: () => {
+        router.push("/microblog");
+      },
+    });
   };
 
   const handleImageUploaded = (url: string) => {

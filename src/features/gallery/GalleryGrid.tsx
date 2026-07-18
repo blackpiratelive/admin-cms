@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { type GalleryPhoto, type LocationRecord, type TripRecord } from "@/db/schema";
 import { deleteGalleryPhoto, saveGalleryPhoto } from "./actions";
+import { notify } from "@/lib/notifications";
 import { generatePhotoSlug } from "./schema";
 import { getLocations } from "@/features/locations/actions";
 import { getTrips } from "@/features/trips/actions";
@@ -274,109 +275,111 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
     setTimeout(() => setPhotoCopiedShortUrl(false), 2000);
   };
 
-  const handleSaveEdit = async (e: React.FormEvent) => {
+  const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPhoto) return;
 
-    setIsSaving(true);
-    try {
-      const tagsArray = editForm.tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
+    const currentPhoto = editingPhoto;
+    const currentForm = { ...editForm };
+    const tagsArray = currentForm.tags
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
 
-      const res = await saveGalleryPhoto({
-        id: editingPhoto.id,
-        title: editForm.title,
-        slug: editForm.slug || generatePhotoSlug(editForm.title),
-        description: editForm.description || null,
-        originalUrl: editingPhoto.originalUrl,
-        largeUrl: editingPhoto.largeUrl,
-        mediumUrl: editingPhoto.mediumUrl,
-        thumbnailUrl: editingPhoto.thumbnailUrl,
-        width: editingPhoto.width,
-        height: editingPhoto.height,
-        fileSize: editingPhoto.fileSize,
-        mimeType: editingPhoto.mimeType,
-        camera: editForm.camera || null,
-        lens: editForm.lens || null,
-        focalLength: editForm.focalLength || null,
-        aperture: editForm.aperture || null,
-        shutterSpeed: editForm.shutterSpeed || null,
-        iso: editForm.iso ? Number(editForm.iso) : null,
-        takenAt: editForm.takenAt || null,
-        latitude: editForm.latitude ? Number(editForm.latitude) : null,
-        longitude: editForm.longitude ? Number(editForm.longitude) : null,
-        locationName: editForm.locationName || null,
-        locationId: editForm.locationId || null,
-        tripId: editForm.tripId || null,
-        visibility: editForm.visibility,
-        featured: editForm.featured,
-        processingStatus: editingPhoto.processingStatus as any,
-        tags: tagsArray,
-        album: editForm.album || null,
-        shortUrl: editForm.shortUrl || null,
-      });
+    const updatedPhotoRecord: GalleryPhoto = {
+      ...currentPhoto,
+      title: currentForm.title,
+      slug: currentForm.slug,
+      description: currentForm.description || null,
+      album: currentForm.album || null,
+      tags: JSON.stringify(tagsArray),
+      visibility: currentForm.visibility,
+      featured: currentForm.featured ? 1 : 0,
+      camera: currentForm.camera || null,
+      lens: currentForm.lens || null,
+      focalLength: currentForm.focalLength || null,
+      aperture: currentForm.aperture || null,
+      shutterSpeed: currentForm.shutterSpeed || null,
+      iso: currentForm.iso ? Number(currentForm.iso) : null,
+      takenAt: currentForm.takenAt || null,
+      latitude: currentForm.latitude ? Number(currentForm.latitude) : null,
+      longitude: currentForm.longitude ? Number(currentForm.longitude) : null,
+      locationName: currentForm.locationName || null,
+      locationId: currentForm.locationId || null,
+      tripId: currentForm.tripId || null,
+      shortUrl: currentForm.shortUrl || null,
+    };
 
-      if (res.success) {
-        const updatedPhotoRecord: GalleryPhoto = {
-          ...editingPhoto,
-          title: editForm.title,
-          slug: editForm.slug,
-          description: editForm.description || null,
-          album: editForm.album || null,
-          tags: JSON.stringify(tagsArray),
-          visibility: editForm.visibility,
-          featured: editForm.featured ? 1 : 0,
-          camera: editForm.camera || null,
-          lens: editForm.lens || null,
-          focalLength: editForm.focalLength || null,
-          aperture: editForm.aperture || null,
-          shutterSpeed: editForm.shutterSpeed || null,
-          iso: editForm.iso ? Number(editForm.iso) : null,
-          takenAt: editForm.takenAt || null,
-          latitude: editForm.latitude ? Number(editForm.latitude) : null,
-          longitude: editForm.longitude ? Number(editForm.longitude) : null,
-          locationName: editForm.locationName || null,
-          locationId: editForm.locationId || null,
-          tripId: editForm.tripId || null,
-          shortUrl: editForm.shortUrl || null,
-        };
-
-        setPhotos((prev) =>
-          prev.map((p) => (p.id === editingPhoto.id ? updatedPhotoRecord : p))
-        );
-        if (selectedPhoto?.id === editingPhoto.id) {
-          setSelectedPhoto(updatedPhotoRecord);
-        }
-        setEditingPhoto(null);
-        if (onRefresh) onRefresh();
-      } else {
-        alert(res.error || "Failed to update photo.");
-      }
-    } catch (err: any) {
-      alert(err.message || "Error updating photo.");
-    } finally {
-      setIsSaving(false);
+    setPhotos((prev) =>
+      prev.map((p) => (p.id === currentPhoto.id ? updatedPhotoRecord : p))
+    );
+    if (selectedPhoto?.id === currentPhoto.id) {
+      setSelectedPhoto(updatedPhotoRecord);
     }
+    setEditingPhoto(null);
+
+    notify.bg({
+      title: "Save Photo Metadata",
+      loadingMessage: `Saving photo '${currentForm.title}' in background...`,
+      successMessage: `Photo '${currentForm.title}' saved successfully!`,
+      errorMessage: (err) => `Failed to save photo: ${err?.message || String(err)}`,
+      task: () =>
+        saveGalleryPhoto({
+          id: currentPhoto.id,
+          title: currentForm.title,
+          slug: currentForm.slug || generatePhotoSlug(currentForm.title),
+          description: currentForm.description || null,
+          originalUrl: currentPhoto.originalUrl,
+          largeUrl: currentPhoto.largeUrl,
+          mediumUrl: currentPhoto.mediumUrl,
+          thumbnailUrl: currentPhoto.thumbnailUrl,
+          width: currentPhoto.width,
+          height: currentPhoto.height,
+          fileSize: currentPhoto.fileSize,
+          mimeType: currentPhoto.mimeType,
+          camera: currentForm.camera || null,
+          lens: currentForm.lens || null,
+          focalLength: currentForm.focalLength || null,
+          aperture: currentForm.aperture || null,
+          shutterSpeed: currentForm.shutterSpeed || null,
+          iso: currentForm.iso ? Number(currentForm.iso) : null,
+          takenAt: currentForm.takenAt || null,
+          latitude: currentForm.latitude ? Number(currentForm.latitude) : null,
+          longitude: currentForm.longitude ? Number(currentForm.longitude) : null,
+          locationName: currentForm.locationName || null,
+          locationId: currentForm.locationId || null,
+          tripId: currentForm.tripId || null,
+          visibility: currentForm.visibility,
+          featured: currentForm.featured,
+          processingStatus: currentPhoto.processingStatus as any,
+          tags: tagsArray,
+          album: currentForm.album || null,
+          shortUrl: currentForm.shortUrl || null,
+        }),
+      onSuccess: () => {
+        if (onRefresh) onRefresh();
+      },
+    });
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     if (!confirm("Permanently delete this photo entry from the gallery?")) return;
-    setDeletingId(id);
-    try {
-      const res = await deleteGalleryPhoto(id);
-      if (res.success) {
-        setPhotos((prev) => prev.filter((p) => p.id !== id));
-        if (selectedPhoto?.id === id) setSelectedPhoto(null);
-        if (editingPhoto?.id === id) setEditingPhoto(null);
-        if (onRefresh) onRefresh();
-      } else {
-        alert(res.error || "Failed to delete photo.");
-      }
-    } finally {
-      setDeletingId(null);
+    const target = photos.find((p) => p.id === id);
+    setPhotos((prev) => prev.filter((p) => p.id !== id));
+    if (selectedPhoto?.id === id) {
+      setSelectedPhoto(null);
     }
+
+    notify.bg({
+      title: "Delete Photo",
+      loadingMessage: `Deleting photo ${target?.title ? `'${target.title}' ` : ""}...`,
+      successMessage: `Photo deleted.`,
+      errorMessage: "Failed to delete photo.",
+      task: () => deleteGalleryPhoto(id),
+      onSuccess: () => {
+        if (onRefresh) onRefresh();
+      },
+    });
   };
 
   return (

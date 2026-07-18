@@ -6,6 +6,7 @@ import {
   createPersonAction,
   updatePersonAction,
 } from "@/features/people/actions";
+import { notify } from "@/lib/notifications";
 import {
   DEFAULT_RELATIONSHIP_TYPES,
   DEFAULT_IMPORTANT_DATE_TYPES,
@@ -143,21 +144,19 @@ export function PersonFormModal({
     );
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!displayName.trim()) {
       setError("Display name is required");
       return;
     }
 
-    setSaving(true);
-    setError(null);
-
+    const personName = displayName.trim();
     const finalRelationship =
       relationshipType === "Custom" ? customRelationship.trim() || "Contact" : relationshipType;
 
     const payload = {
-      displayName: displayName.trim(),
+      displayName: personName,
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       nickname: nickname.trim(),
@@ -173,21 +172,32 @@ export function PersonFormModal({
       favorite,
     };
 
-    let result;
-    if (personToEdit) {
-      result = await updatePersonAction(personToEdit.id, payload);
-    } else {
-      result = await createPersonAction(payload);
-    }
+    onClose();
 
-    setSaving(false);
-
-    if (result.success) {
-      onSuccess?.();
-      onClose();
-    } else {
-      setError(result.error || "Operation failed");
-    }
+    notify.bg({
+      title: personToEdit ? "Update Person" : "Create Person",
+      loadingMessage: `Saving person '${personName}' in background...`,
+      successMessage: `Person '${personName}' saved successfully!`,
+      errorMessage: (err) => `Failed to save person: ${err?.message || String(err)}`,
+      task: async () => {
+        if (personToEdit) {
+          return await updatePersonAction(personToEdit.id, payload);
+        } else {
+          return await createPersonAction(payload);
+        }
+      },
+      onSuccess: (result) => {
+        if (result.success) {
+          onSuccess?.();
+        } else {
+          notify.show({
+            type: "error",
+            title: "Save Failed",
+            message: result.error || "Failed to save person.",
+          });
+        }
+      },
+    });
   };
 
   return (

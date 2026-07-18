@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { CollectionRecord } from "@/db/schema";
 import { createCollectionAction, deleteCollectionAction } from "../actions/collections";
+import { notify } from "@/lib/notifications";
 import { Folder, Plus, Trash2, Tag, Check } from "lucide-react";
 
 interface CollectionsManagerProps {
@@ -16,27 +17,51 @@ export function CollectionsManager({ collections: initialCollections }: Collecti
   const [color, setColor] = useState("#ff6600");
   const [loading, setLoading] = useState(false);
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    const colName = name.trim();
+    const colDesc = description.trim();
+    const colColor = color;
+    setName("");
+    setDescription("");
 
-    setLoading(true);
-    try {
-      const res = await createCollectionAction(name.trim(), description.trim() || undefined, color);
-      if (res.success) {
-        setName("");
-        setDescription("");
-        window.location.reload();
-      }
-    } finally {
-      setLoading(false);
-    }
+    notify.bg({
+      title: "Create Collection",
+      loadingMessage: `Creating collection '${colName}' in background...`,
+      successMessage: `Collection '${colName}' created successfully!`,
+      errorMessage: (err) => `Failed to create collection: ${err?.message || String(err)}`,
+      task: () => createCollectionAction(colName, colDesc || undefined, colColor),
+      onSuccess: (res) => {
+        if (res.success && res.id) {
+          const newCol: CollectionRecord = {
+            id: res.id,
+            name: colName,
+            slug: colName.toLowerCase().replace(/[^\w\s-]/g, "").replace(/[\s_-]+/g, "-"),
+            description: colDesc || null,
+            color: colColor,
+            icon: "Folder",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          setCollectionsList((prev) => [...prev, newCol]);
+        }
+      },
+    });
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     if (!confirm("Are you sure you want to delete this collection? Media items will NOT be deleted.")) return;
-    await deleteCollectionAction(id);
-    window.location.reload();
+    const target = collectionsList.find((c) => c.id === id);
+    setCollectionsList((prev) => prev.filter((c) => c.id !== id));
+
+    notify.bg({
+      title: "Delete Collection",
+      loadingMessage: `Deleting collection ${target?.name ? `'${target.name}' ` : ""}...`,
+      successMessage: `Collection deleted.`,
+      errorMessage: "Failed to delete collection.",
+      task: () => deleteCollectionAction(id),
+    });
   };
 
   return (

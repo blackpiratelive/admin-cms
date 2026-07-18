@@ -4,6 +4,7 @@ import { useState, Suspense } from "react";
 import { Header } from "@/components/Header";
 import { Sidebar } from "@/components/Sidebar";
 import { NavigationProgressBar } from "@/components/NavigationProgressBar";
+import { ToastNotification } from "@/components/ToastNotification";
 
 export default function DashboardLayout({
   children,
@@ -17,6 +18,7 @@ export default function DashboardLayout({
       <Suspense fallback={null}>
         <NavigationProgressBar />
       </Suspense>
+      <ToastNotification />
       <Header onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} sidebarOpen={sidebarOpen} />
       <div className="body-layout">
         {sidebarOpen && (

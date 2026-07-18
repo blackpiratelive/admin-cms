@@ -37,6 +37,17 @@
   animation: spin 1s linear infinite;
 }
 
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 @keyframes shimmer {
   100% {
     transform: translateX(100%);

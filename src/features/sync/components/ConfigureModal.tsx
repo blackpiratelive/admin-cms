@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { ProviderOverviewDTO, connectProviderAction, disconnectProviderAction, testProviderConnectionAction } from "../actions";
+import { notify } from "@/lib/notifications";
 import { Loader2, CheckCircle2, AlertCircle, X } from "lucide-react";
 
 export function ConfigureModal({
@@ -48,36 +49,53 @@ export function ConfigureModal({
     }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
-    setErrorMsg(null);
+    const currentForm = { ...formData };
+    onClose();
 
-    const res = await connectProviderAction(provider.slug, formData);
-    setSaving(false);
-
-    if (res.success) {
-      onUpdated();
-      onClose();
-    } else {
-      setErrorMsg(res.error || "Failed to save configuration.");
-    }
+    notify.bg({
+      title: `Configure ${provider.name}`,
+      loadingMessage: `Connecting to ${provider.name}...`,
+      successMessage: `Connected ${provider.name} successfully!`,
+      errorMessage: (err) => `Failed to connect ${provider.name}: ${err?.message || String(err)}`,
+      task: () => connectProviderAction(provider.slug, currentForm),
+      onSuccess: (res) => {
+        if (res.success) {
+          onUpdated();
+        } else {
+          notify.show({
+            type: "error",
+            title: "Connection Failed",
+            message: res.error || `Failed to save ${provider.name} configuration.`,
+          });
+        }
+      },
+    });
   };
 
-  const handleDisconnect = async () => {
+  const handleDisconnect = () => {
     if (!confirm(`Are you sure you want to disconnect ${provider.name}?`)) return;
-    setDisconnecting(true);
-    setErrorMsg(null);
+    onClose();
 
-    const res = await disconnectProviderAction(provider.slug);
-    setDisconnecting(false);
-
-    if (res.success) {
-      onUpdated();
-      onClose();
-    } else {
-      setErrorMsg(res.error || "Failed to disconnect.");
-    }
+    notify.bg({
+      title: `Disconnect ${provider.name}`,
+      loadingMessage: `Disconnecting ${provider.name}...`,
+      successMessage: `Disconnected ${provider.name}.`,
+      errorMessage: `Failed to disconnect ${provider.name}.`,
+      task: () => disconnectProviderAction(provider.slug),
+      onSuccess: (res) => {
+        if (res.success) {
+          onUpdated();
+        } else {
+          notify.show({
+            type: "error",
+            title: "Disconnect Failed",
+            message: res.error || `Failed to disconnect ${provider.name}.`,
+          });
+        }
+      },
+    });
   };
 
   return (

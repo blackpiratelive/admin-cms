@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import type { Project, Todo } from "@/db/schema";
 import { deleteProject, deleteTodo, saveProject, saveTodo, setTodoCompleted } from "./actions";
+import { notify } from "@/lib/notifications";
 import { Check, FolderPlus, Pencil, Plus, Tag, Trash2 } from "lucide-react";
 
 type TodoForm = {
@@ -39,33 +40,52 @@ export function TodoDashboard({ initialTodos, initialProjects }: { initialTodos:
 
   const updateForm = (key: keyof TodoForm, value: string) => setForm((current) => ({ ...current, [key]: value }));
 
-  async function submitTodo(event: FormEvent) {
+  function submitTodo(event: FormEvent) {
     event.preventDefault();
-    setIsSaving(true);
-    const result = await saveTodo({ ...form, id: editingId || undefined });
-    setIsSaving(false);
-    if (!result.success) return alert(result.error);
+    const taskTitle = form.title.trim();
+    const currentForm = { ...form };
+    const currentEditingId = editingId;
     const tags = [...new Set(form.tags.split(",").map((tag) => tag.trim()).filter(Boolean))];
     const now = new Date().toISOString();
-    if (editingId) {
-      setTodos((current) => current.map((todo) => todo.id === editingId ? { ...todo, title: form.title.trim(), description: form.description.trim() || null, dueDate: form.dueDate || null, priority: form.priority, projectId: form.projectId || null, tags: JSON.stringify(tags), updatedAt: now } : todo));
+
+    if (currentEditingId) {
+      setTodos((current) => current.map((todo) => todo.id === currentEditingId ? { ...todo, title: taskTitle, description: currentForm.description.trim() || null, dueDate: currentForm.dueDate || null, priority: currentForm.priority, projectId: currentForm.projectId || null, tags: JSON.stringify(tags), updatedAt: now } : todo));
     } else {
-      setTodos((current) => [{ id: result.id!, title: form.title.trim(), description: form.description.trim() || null, dueDate: form.dueDate || null, priority: form.priority, projectId: form.projectId || null, tags: JSON.stringify(tags), completed: 0, createdAt: now, updatedAt: now }, ...current]);
+      const tempId = `temp_${Date.now()}`;
+      setTodos((current) => [{ id: tempId, title: taskTitle, description: currentForm.description.trim() || null, dueDate: currentForm.dueDate || null, priority: currentForm.priority, projectId: currentForm.projectId || null, tags: JSON.stringify(tags), completed: 0, createdAt: now, updatedAt: now }, ...current]);
     }
+
     setForm(blankTodo); setEditingId(null); setIsComposerExpanded(false);
+
+    notify.bg({
+      title: currentEditingId ? "Edit Task" : "Add Task",
+      loadingMessage: `Saving task '${taskTitle}' in background...`,
+      successMessage: `Task '${taskTitle}' saved successfully!`,
+      errorMessage: (err) => `Failed to save task: ${err?.message || String(err)}`,
+      task: () => saveTodo({ ...currentForm, id: currentEditingId || undefined }),
+      onSuccess: (result) => {
+        if (result.success && result.id && !currentEditingId) {
+          setTodos((current) => current.map((todo) => todo.id.startsWith("temp_") ? { ...todo, id: result.id! } : todo));
+        }
+      },
+    });
   }
 
-  async function submitProject(event: FormEvent) {
+  function submitProject(event: FormEvent) {
     event.preventDefault();
-    const result = await saveProject({ name: projectName, description: projectDescription });
-    if (!result.success) return alert(result.error);
+    const pName = projectName.trim();
+    const pDesc = projectDescription.trim();
+    setShowProjectForm(false);
+    setProjectName("");
+    setProjectDescription("");
+
     setProjects((current) => [
       ...current,
       {
-        id: "",
-        name: projectName.trim(),
+        id: `proj_${Date.now()}`,
+        name: pName,
         slug: null,
-        description: projectDescription.trim() || null,
+        description: pDesc || null,
         repositoryUrl: null,
         websiteUrl: null,
         status: "active",
@@ -73,31 +93,56 @@ export function TodoDashboard({ initialTodos, initialProjects }: { initialTodos:
         startDate: null,
         completedDate: null,
         visibility: "public",
-        createdAt: "",
-        updatedAt: "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       },
     ]);
-    // Refreshing after a server action supplies the authoritative ID for the next selection.
-    window.location.reload();
+
+    notify.bg({
+      title: "Create Project",
+      loadingMessage: `Creating project '${pName}' in background...`,
+      successMessage: `Project '${pName}' created successfully!`,
+      errorMessage: (err) => `Failed to create project: ${err?.message || String(err)}`,
+      task: () => saveProject({ name: pName, description: pDesc }),
+    });
   }
 
-  async function toggleTodo(todo: Todo) {
+  function toggleTodo(todo: Todo) {
     const completed = !todo.completed;
     setTodos((current) => current.map((item) => item.id === todo.id ? { ...item, completed: completed ? 1 : 0 } : item));
-    await setTodoCompleted(todo.id, completed);
+
+    notify.bg({
+      title: "Task Update",
+      successMessage: completed ? `Marked '${todo.title}' completed!` : `Marked '${todo.title}' incomplete!`,
+      errorMessage: "Failed to update task status.",
+      task: () => setTodoCompleted(todo.id, completed),
+    });
   }
 
-  async function removeTodo(id: string) {
+  function removeTodo(id: string) {
     if (!confirm("Delete this task?")) return;
+    const target = todos.find((t) => t.id === id);
     setTodos((current) => current.filter((todo) => todo.id !== id));
-    await deleteTodo(id);
+
+    notify.bg({
+      title: "Delete Task",
+      successMessage: `Task ${target?.title ? `'${target.title}' ` : ""}deleted.`,
+      errorMessage: "Failed to delete task.",
+      task: () => deleteTodo(id),
+    });
   }
 
-  async function removeProject(project: Project) {
+  function removeProject(project: Project) {
     if (!confirm(`Delete “${project.name}”? Its tasks will remain unassigned.`)) return;
     setProjects((current) => current.filter((item) => item.id !== project.id));
     setTodos((current) => current.map((todo) => todo.projectId === project.id ? { ...todo, projectId: null } : todo));
-    await deleteProject(project.id);
+
+    notify.bg({
+      title: "Delete Project",
+      successMessage: `Project '${project.name}' deleted.`,
+      errorMessage: "Failed to delete project.",
+      task: () => deleteProject(project.id),
+    });
   }
 
   function beginEdit(todo: Todo) {

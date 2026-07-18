@@ -93,6 +93,9 @@ admin-cms/
   - Mobile `.sidebar-backdrop` uses `z-index: 1000` with blur, while `.sidebar` uses `z-index: 1005 !important` (top: 42px) to ensure navigation links are fully clickable and interactive without backdrop blur blocking touch events.
   - `.sidebar` is split into `.sidebar-nav-container` (`flex: 1; overflow-y: auto`) and `.sidebar-footer` (`flex-shrink: 0; border-top: 1px solid var(--border-color)`) so Vercel Deploy widgets sit at the bottom without overlapping navigation items.
 - **Route Feedback & Navigation Progress**: `NavigationProgressBar` (`src/components/NavigationProgressBar.tsx`) is rendered globally in `src/app/(dashboard)/layout.tsx`. It intercepts internal link navigation clicks instantly (0ms latency visual feedback), showing a glowing top accent progress bar across the screen.
+- **Non-Blocking Background DB Write Engine & Toast Notifications**:
+  - Global notification manager (`src/lib/notifications.ts`) and floating client toast container (`src/components/ToastNotification.tsx`) enable zero-latency, instant UI responses on all save, publish, save draft, update, and delete actions across Microblogs, Locations, Trips, People, Todos, Links, Gallery, Libraries, and Sync Provider settings.
+  - Modals and forms close instantly (0ms latency) without blocking user input or showing modal loading spinners, executing server actions non-blockingly in the background and presenting floating completion/error toast notifications.
 
 ---
 

@@ -5,6 +5,7 @@ import { CombinedShow } from "../types";
 import { getTmdbImageUrl } from "../utils/images";
 import { updateShowMetadataAction } from "../actions/shows";
 import { addItemToCollectionAction, removeItemFromCollectionAction } from "../actions/collections";
+import { notify } from "@/lib/notifications";
 import { CollectionRecord } from "@/db/schema";
 import { Heart, Tv, ArrowLeft, ExternalLink, FolderPlus, Save, Check } from "lucide-react";
 import Link from "next/link";
@@ -36,40 +37,46 @@ export function ShowDetailView({ showData, allCollections }: ShowDetailViewProps
   const backdropUrl = getTmdbImageUrl(show.backdropPath, "backdrop");
   const posterUrl = getTmdbImageUrl(show.posterPath, "poster") || "https://placehold.co/300x450/1a1a1a/cccccc?text=No+Poster";
 
-  const handleSaveMetadata = async () => {
-    setSaving(true);
-    setSavedSuccess(false);
-
+  const handleSaveMetadata = () => {
     const tags = tagsInput
       .split(",")
       .map((t: string) => t.trim())
       .filter(Boolean);
 
-    try {
-      await updateShowMetadataAction(show.traktId, {
-        favorite,
-        personalRating: personalRating === "" ? null : Number(personalRating),
-        review: review.trim() || null,
-        notes: notes.trim() || null,
-        tags,
-        visibility,
-      });
-
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 3000);
-    } finally {
-      setSaving(false);
-    }
+    notify.bg({
+      title: "Save Show Metadata",
+      loadingMessage: `Saving metadata for '${show.title}' in background...`,
+      successMessage: `Metadata for '${show.title}' saved successfully!`,
+      errorMessage: (err) => `Failed to save metadata: ${err?.message || String(err)}`,
+      task: () =>
+        updateShowMetadataAction(show.traktId, {
+          favorite,
+          personalRating: personalRating === "" ? null : Number(personalRating),
+          review: review.trim() || null,
+          notes: notes.trim() || null,
+          tags,
+          visibility,
+        }),
+    });
   };
 
-  const handleToggleCollection = async (collectionId: string) => {
+  const handleToggleCollection = (collectionId: string) => {
     const isAdded = currentCollections.some((c) => c.id === collectionId);
-    if (isAdded) {
-      await removeItemFromCollectionAction(collectionId, "show", show.traktId);
-    } else {
-      await addItemToCollectionAction(collectionId, "show", show.traktId);
-    }
-    window.location.reload();
+    notify.bg({
+      title: "Collection Update",
+      loadingMessage: `Updating collection for '${show.title}'...`,
+      successMessage: isAdded
+        ? `Removed '${show.title}' from collection.`
+        : `Added '${show.title}' to collection!`,
+      errorMessage: "Failed to update collection.",
+      task: async () => {
+        if (isAdded) {
+          return await removeItemFromCollectionAction(collectionId, "show", show.traktId);
+        } else {
+          return await addItemToCollectionAction(collectionId, "show", show.traktId);
+        }
+      },
+    });
   };
 
   return (

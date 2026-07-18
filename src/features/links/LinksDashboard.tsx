@@ -15,6 +15,7 @@ import {
   addDomain,
   deleteDomain,
 } from "./actions";
+import { notify } from "@/lib/notifications";
 import {
   Link2,
   FileText,
@@ -119,34 +120,43 @@ export function LinksDashboard({
   };
 
   // Create Short Link handler
-  const handleCreateLinkSubmit = async (e: React.FormEvent) => {
+  const handleCreateLinkSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      const res = await createShortLink(linkForm);
-      if (res.success && res.slug) {
-        const newRecord: ShortLink = {
-          slug: res.slug,
-          url: linkForm.url.trim(),
-          hostname: linkForm.hostname,
-          clickCount: 0,
-          password: linkForm.password.trim() ? "hashed" : null,
-          createdAt: new Date().toISOString(),
-        };
-        setLinksList((prev) => [newRecord, ...prev]);
-        setShowNewLinkModal(false);
-        setLinkForm({
-          url: "",
-          slug: "",
-          hostname: domainsList[0]?.hostname || "lnk.to",
-          password: "",
-        });
-      } else {
-        alert(res.error || "Failed to create short link.");
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
+    const currentForm = { ...linkForm };
+    setShowNewLinkModal(false);
+    setLinkForm({
+      url: "",
+      slug: "",
+      hostname: domainsList[0]?.hostname || "lnk.to",
+      password: "",
+    });
+
+    notify.bg({
+      title: "Create Short Link",
+      loadingMessage: "Creating short link in background...",
+      successMessage: (res: any) => `Short link /${res.slug || currentForm.slug} created successfully!`,
+      errorMessage: (err) => `Failed to create short link: ${err?.message || String(err)}`,
+      task: () => createShortLink(currentForm),
+      onSuccess: (res) => {
+        if (res.success && res.slug) {
+          const newRecord: ShortLink = {
+            slug: res.slug,
+            url: currentForm.url.trim(),
+            hostname: currentForm.hostname,
+            clickCount: 0,
+            password: currentForm.password.trim() ? "hashed" : null,
+            createdAt: new Date().toISOString(),
+          };
+          setLinksList((prev) => [newRecord, ...prev]);
+        } else {
+          notify.show({
+            type: "error",
+            title: "Create Failed",
+            message: res.error || "Failed to create short link.",
+          });
+        }
+      },
+    });
   };
 
   // Open Edit Link Modal
@@ -162,161 +172,182 @@ export function LinksDashboard({
   };
 
   // Edit Link submit handler
-  const handleEditLinkSubmit = async (e: React.FormEvent) => {
+  const handleEditLinkSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingLink) return;
+    const currentLink = editingLink;
+    const currentForm = { ...editLinkForm };
 
-    setIsSubmitting(true);
-    try {
-      const passwordValue = editLinkForm.keepExistingPassword
-        ? undefined
-        : editLinkForm.password;
+    setEditingLink(null);
 
-      const res = await updateShortLink({
-        originalSlug: editingLink.slug,
-        newSlug: editLinkForm.slug,
-        url: editLinkForm.url,
-        hostname: editLinkForm.hostname,
-        password: passwordValue,
-      });
+    const passwordValue = currentForm.keepExistingPassword
+      ? undefined
+      : currentForm.password;
 
-      if (res.success && res.slug) {
-        setLinksList((prev) =>
-          prev.map((l) =>
-            l.slug === editingLink.slug
-              ? {
-                  ...l,
-                  slug: res.slug!,
-                  url: editLinkForm.url.trim(),
-                  hostname: editLinkForm.hostname,
-                  password: passwordValue !== undefined
-                    ? (passwordValue ? "hashed" : null)
-                    : l.password,
-                }
-              : l
-          )
-        );
-        setEditingLink(null);
-      } else {
-        alert(res.error || "Failed to update short link.");
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
+    notify.bg({
+      title: "Update Short Link",
+      loadingMessage: `Updating link /${currentLink.slug} in background...`,
+      successMessage: `Short link /${currentForm.slug || currentLink.slug} updated successfully!`,
+      errorMessage: (err) => `Failed to update short link: ${err?.message || String(err)}`,
+      task: () =>
+        updateShortLink({
+          originalSlug: currentLink.slug,
+          newSlug: currentForm.slug,
+          url: currentForm.url,
+          hostname: currentForm.hostname,
+          password: passwordValue,
+        }),
+      onSuccess: (res) => {
+        if (res.success && res.slug) {
+          setLinksList((prev) =>
+            prev.map((l) =>
+              l.slug === currentLink.slug
+                ? {
+                    ...l,
+                    slug: res.slug!,
+                    url: currentForm.url.trim(),
+                    hostname: currentForm.hostname,
+                    password: passwordValue !== undefined
+                      ? (passwordValue ? "hashed" : null)
+                      : l.password,
+                  }
+                : l
+            )
+          );
+        } else {
+          notify.show({
+            type: "error",
+            title: "Update Failed",
+            message: res.error || "Failed to update short link.",
+          });
+        }
+      },
+    });
   };
 
   // Delete Link handler
-  const handleDeleteLink = async (slug: string) => {
+  const handleDeleteLink = (slug: string) => {
     if (!confirm(`Delete short link "/${slug}"?`)) return;
-    setDeletingSlug(slug);
-    try {
-      const res = await deleteShortLink(slug);
-      if (res.success) {
-        setLinksList((prev) => prev.filter((l) => l.slug !== slug));
-      } else {
-        alert(res.error || "Failed to delete link.");
-      }
-    } finally {
-      setDeletingSlug(null);
-    }
+    setLinksList((prev) => prev.filter((l) => l.slug !== slug));
+
+    notify.bg({
+      title: "Delete Short Link",
+      loadingMessage: `Deleting link /${slug}...`,
+      successMessage: `Short link /${slug} deleted.`,
+      errorMessage: "Failed to delete short link.",
+      task: () => deleteShortLink(slug),
+    });
   };
 
   // Create Paste handler
-  const handleCreatePasteSubmit = async (e: React.FormEvent) => {
+  const handleCreatePasteSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      const res = await createPaste(pasteForm);
-      if (res.success && res.slug) {
-        let expiresAt: string | null = null;
-        if (pasteForm.expires !== "never") {
-          const now = new Date();
-          if (pasteForm.expires === "1hour") now.setHours(now.getHours() + 1);
-          if (pasteForm.expires === "1day") now.setDate(now.getDate() + 1);
-          if (pasteForm.expires === "1week") now.setDate(now.getDate() + 7);
-          expiresAt = now.toISOString();
+    const currentForm = { ...pasteForm };
+    setShowNewPasteModal(false);
+    setPasteForm({
+      content: "",
+      slug: "",
+      hostname: domainsList[0]?.hostname || "lnk.to",
+      password: "",
+      expires: "never",
+    });
+
+    notify.bg({
+      title: "Create Paste",
+      loadingMessage: "Creating markdown paste in background...",
+      successMessage: (res: any) => `Paste /p/${res.slug || currentForm.slug} created successfully!`,
+      errorMessage: (err) => `Failed to create paste: ${err?.message || String(err)}`,
+      task: () => createPaste(currentForm),
+      onSuccess: (res) => {
+        if (res.success && res.slug) {
+          let expiresAt: string | null = null;
+          if (currentForm.expires !== "never") {
+            const now = new Date();
+            if (currentForm.expires === "1hour") now.setHours(now.getHours() + 1);
+            if (currentForm.expires === "1day") now.setDate(now.getDate() + 1);
+            if (currentForm.expires === "1week") now.setDate(now.getDate() + 7);
+            expiresAt = now.toISOString();
+          }
+
+          const newRecord: PasteItem = {
+            slug: res.slug,
+            content: currentForm.content,
+            hostname: currentForm.hostname,
+            password: currentForm.password ? "hashed" : null,
+            expiresAt,
+            createdAt: new Date().toISOString(),
+          };
+
+          setPastesList((prev) => [newRecord, ...prev]);
+        } else {
+          notify.show({
+            type: "error",
+            title: "Create Failed",
+            message: res.error || "Failed to create paste.",
+          });
         }
-
-        const newRecord: PasteItem = {
-          slug: res.slug,
-          content: pasteForm.content,
-          hostname: pasteForm.hostname,
-          password: pasteForm.password ? "hashed" : null,
-          expiresAt,
-          createdAt: new Date().toISOString(),
-        };
-
-        setPastesList((prev) => [newRecord, ...prev]);
-        setShowNewPasteModal(false);
-        setPasteForm({
-          content: "",
-          slug: "",
-          hostname: domainsList[0]?.hostname || "lnk.to",
-          password: "",
-          expires: "never",
-        });
-      } else {
-        alert(res.error || "Failed to create paste.");
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
+      },
+    });
   };
 
   // Delete Paste handler
-  const handleDeletePaste = async (slug: string) => {
+  const handleDeletePaste = (slug: string) => {
     if (!confirm(`Delete markdown paste "/p/${slug}"?`)) return;
-    setDeletingSlug(slug);
-    try {
-      const res = await deletePaste(slug);
-      if (res.success) {
-        setPastesList((prev) => prev.filter((p) => p.slug !== slug));
-      } else {
-        alert(res.error || "Failed to delete paste.");
-      }
-    } finally {
-      setDeletingSlug(null);
-    }
+    setPastesList((prev) => prev.filter((p) => p.slug !== slug));
+
+    notify.bg({
+      title: "Delete Paste",
+      loadingMessage: `Deleting paste /p/${slug}...`,
+      successMessage: `Paste /p/${slug} deleted.`,
+      errorMessage: "Failed to delete paste.",
+      task: () => deletePaste(slug),
+    });
   };
 
   // Add Domain handler
-  const handleAddDomainSubmit = async (e: React.FormEvent) => {
+  const handleAddDomainSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDomainHost.trim()) return;
+    const domainHost = newDomainHost.trim();
+    setShowAddDomainModal(false);
+    setNewDomainHost("");
 
-    setIsSubmitting(true);
-    try {
-      const res = await addDomain(newDomainHost);
-      if (res.success && res.hostname) {
-        const newRecord: ShortDomain = {
-          hostname: res.hostname,
-          addedAt: new Date().toISOString(),
-        };
-        setDomainsList((prev) => [...prev, newRecord]);
-        setShowAddDomainModal(false);
-        setNewDomainHost("");
-      } else {
-        alert(res.error || "Failed to add domain.");
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
+    notify.bg({
+      title: "Add Domain",
+      loadingMessage: `Adding domain '${domainHost}'...`,
+      successMessage: `Domain '${domainHost}' added successfully!`,
+      errorMessage: (err) => `Failed to add domain: ${err?.message || String(err)}`,
+      task: () => addDomain(domainHost),
+      onSuccess: (res) => {
+        if (res.success && res.hostname) {
+          const newRecord: ShortDomain = {
+            hostname: res.hostname,
+            addedAt: new Date().toISOString(),
+          };
+          setDomainsList((prev) => [...prev, newRecord]);
+        } else {
+          notify.show({
+            type: "error",
+            title: "Add Failed",
+            message: res.error || "Failed to add domain.",
+          });
+        }
+      },
+    });
   };
 
   // Delete Domain handler
-  const handleDeleteDomain = async (hostname: string) => {
+  const handleDeleteDomain = (hostname: string) => {
     if (!confirm(`Delete domain "${hostname}"?`)) return;
-    setDeletingDomain(hostname);
-    try {
-      const res = await deleteDomain(hostname);
-      if (res.success) {
-        setDomainsList((prev) => prev.filter((d) => d.hostname !== hostname));
-      } else {
-        alert(res.error || "Failed to delete domain.");
-      }
-    } finally {
-      setDeletingDomain(null);
-    }
+    setDomainsList((prev) => prev.filter((d) => d.hostname !== hostname));
+
+    notify.bg({
+      title: "Delete Domain",
+      loadingMessage: `Deleting domain '${hostname}'...`,
+      successMessage: `Domain '${hostname}' deleted.`,
+      errorMessage: "Failed to delete domain.",
+      task: () => deleteDomain(hostname),
+    });
   };
 
   // Filter lists

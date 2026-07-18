@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { connectPersonToEntityAction } from "@/features/people/actions";
 import { addItemToCollectionAction, getCollectionsAction } from "@/features/libraries/actions/collections";
 import { CollectionRecord } from "@/db/schema";
+import { notify } from "@/lib/notifications";
 import { X, Link2, Plus } from "lucide-react";
 
 interface ConnectEntityModalProps {
@@ -59,37 +60,49 @@ export function ConnectEntityModal({
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTargetId) {
       setError("Please select an item to connect.");
       return;
     }
 
-    setSaving(true);
-    setError(null);
+    const currentTargetId = selectedTargetId;
+    const currentTargetType = targetType;
+    const currentRelLabel = relationshipLabel.trim() || "connected_to";
 
-    let res;
-    if (targetType === "collection") {
-      res = await addItemToCollectionAction(selectedTargetId, "person", personId);
-    } else {
-      res = await connectPersonToEntityAction(
-        personId,
-        targetType,
-        selectedTargetId,
-        relationshipLabel.trim() || "connected_to"
-      );
-    }
+    onClose();
 
-    setSaving(false);
-
-    if (res.success) {
-      onSuccess?.();
-      onClose();
-    } else {
-      const errMsg = "error" in res ? (res as { error?: string }).error : undefined;
-      setError(errMsg || "Failed to create connection");
-    }
+    notify.bg({
+      title: "Connect Entity",
+      loadingMessage: `Connecting ${personName}...`,
+      successMessage: `Connection created for ${personName}!`,
+      errorMessage: (err) => `Failed to connect entity: ${err?.message || String(err)}`,
+      task: async () => {
+        if (currentTargetType === "collection") {
+          return await addItemToCollectionAction(currentTargetId, "person", personId);
+        } else {
+          return await connectPersonToEntityAction(
+            personId,
+            currentTargetType,
+            currentTargetId,
+            currentRelLabel
+          );
+        }
+      },
+      onSuccess: (res) => {
+        if (res.success) {
+          onSuccess?.();
+        } else {
+          const errMsg = "error" in res ? (res as { error?: string }).error : undefined;
+          notify.show({
+            type: "error",
+            title: "Connection Failed",
+            message: errMsg || "Failed to create connection",
+          });
+        }
+      },
+    });
   };
 
   return (

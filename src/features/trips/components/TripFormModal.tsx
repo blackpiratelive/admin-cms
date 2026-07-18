@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { TripRecord } from "@/db/schema";
 import { createTrip, updateTrip } from "@/features/trips/actions";
+import { notify } from "@/lib/notifications";
 import { X } from "lucide-react";
 
 interface TripFormModalProps {
@@ -55,18 +56,16 @@ export function TripFormModal({
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
       setError("Trip title is required");
       return;
     }
 
-    setSaving(true);
-    setError(null);
-
+    const tripTitle = title.trim();
     const payload = {
-      title: title.trim(),
+      title: tripTitle,
       slug: slug.trim() || undefined,
       description: description.trim() || undefined,
       startDate: startDate || undefined,
@@ -76,19 +75,18 @@ export function TripFormModal({
       favorite: favorite ? 1 : 0,
     };
 
-    try {
-      if (tripToEdit) {
-        await updateTrip(tripToEdit.id, payload);
-      } else {
-        await createTrip(payload);
-      }
-      onSuccess?.();
-      onClose();
-    } catch (err: any) {
-      setError(err.message || "Operation failed");
-    } finally {
-      setSaving(false);
-    }
+    onClose();
+
+    notify.bg({
+      title: tripToEdit ? "Update Trip" : "Create Trip",
+      loadingMessage: `Saving trip '${tripTitle}' in background...`,
+      successMessage: `Trip '${tripTitle}' saved successfully!`,
+      errorMessage: (err) => `Failed to save trip: ${err?.message || String(err)}`,
+      task: () => (tripToEdit ? updateTrip(tripToEdit.id, payload) : createTrip(payload)),
+      onSuccess: () => {
+        onSuccess?.();
+      },
+    });
   };
 
   return (

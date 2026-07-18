@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { LocationRecord } from "@/db/schema";
 import { createLocation, updateLocation } from "@/features/locations/actions";
+import { notify } from "@/lib/notifications";
 import { X } from "lucide-react";
 
 interface LocationFormModalProps {
@@ -79,18 +80,16 @@ export function LocationFormModal({
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       setError("Location name is required");
       return;
     }
 
-    setSaving(true);
-    setError(null);
-
+    const locName = name.trim();
     const payload = {
-      name: name.trim(),
+      name: locName,
       slug: slug.trim() || undefined,
       city: city.trim() || undefined,
       state: state.trim() || undefined,
@@ -108,19 +107,18 @@ export function LocationFormModal({
       favorite: favorite ? 1 : 0,
     };
 
-    try {
-      if (locationToEdit) {
-        await updateLocation(locationToEdit.id, payload);
-      } else {
-        await createLocation(payload);
-      }
-      onSuccess?.();
-      onClose();
-    } catch (err: any) {
-      setError(err.message || "Operation failed");
-    } finally {
-      setSaving(false);
-    }
+    onClose();
+
+    notify.bg({
+      title: locationToEdit ? "Update Location" : "Create Location",
+      loadingMessage: `Saving location '${locName}' in background...`,
+      successMessage: `Location '${locName}' saved successfully!`,
+      errorMessage: (err) => `Failed to save location: ${err?.message || String(err)}`,
+      task: () => (locationToEdit ? updateLocation(locationToEdit.id, payload) : createLocation(payload)),
+      onSuccess: () => {
+        onSuccess?.();
+      },
+    });
   };
 
   return (

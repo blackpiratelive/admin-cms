@@ -5,6 +5,7 @@ import { CombinedMovie } from "../types";
 import { getTmdbImageUrl } from "../utils/images";
 import { updateMovieMetadataAction } from "../actions/movies";
 import { addItemToCollectionAction, removeItemFromCollectionAction } from "../actions/collections";
+import { notify } from "@/lib/notifications";
 import { getLocations } from "@/features/locations/actions";
 import { getTrips } from "@/features/trips/actions";
 import { CollectionRecord, LocationRecord, TripRecord } from "@/db/schema";
@@ -65,43 +66,49 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
     genres = JSON.parse(movie.genres || "[]");
   } catch {}
 
-  const handleSaveMetadata = async () => {
-    setSaving(true);
-    setSavedSuccess(false);
-
+  const handleSaveMetadata = () => {
     const tags = tagsInput
       .split(",")
       .map((t: string) => t.trim())
       .filter(Boolean);
 
-    try {
-      await updateMovieMetadataAction(movie.traktId, {
-        favorite,
-        personalRating: personalRating === "" ? null : Number(personalRating),
-        review: review.trim() || null,
-        notes: notes.trim() || null,
-        tags,
-        visibility,
-        featured,
-        locationId: locationId || null,
-        tripId: tripId || null,
-      });
-
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 3000);
-    } finally {
-      setSaving(false);
-    }
+    notify.bg({
+      title: "Save Movie Metadata",
+      loadingMessage: `Saving metadata for '${movie.title}' in background...`,
+      successMessage: `Metadata for '${movie.title}' saved successfully!`,
+      errorMessage: (err) => `Failed to save metadata: ${err?.message || String(err)}`,
+      task: () =>
+        updateMovieMetadataAction(movie.traktId, {
+          favorite,
+          personalRating: personalRating === "" ? null : Number(personalRating),
+          review: review.trim() || null,
+          notes: notes.trim() || null,
+          tags,
+          visibility,
+          featured,
+          locationId: locationId || null,
+          tripId: tripId || null,
+        }),
+    });
   };
 
-  const handleToggleCollection = async (collectionId: string) => {
+  const handleToggleCollection = (collectionId: string) => {
     const isAdded = currentCollections.some((c) => c.id === collectionId);
-    if (isAdded) {
-      await removeItemFromCollectionAction(collectionId, "movie", movie.traktId);
-    } else {
-      await addItemToCollectionAction(collectionId, "movie", movie.traktId);
-    }
-    window.location.reload();
+    notify.bg({
+      title: "Collection Update",
+      loadingMessage: `Updating collection for '${movie.title}'...`,
+      successMessage: isAdded
+        ? `Removed '${movie.title}' from collection.`
+        : `Added '${movie.title}' to collection!`,
+      errorMessage: "Failed to update collection.",
+      task: async () => {
+        if (isAdded) {
+          return await removeItemFromCollectionAction(collectionId, "movie", movie.traktId);
+        } else {
+          return await addItemToCollectionAction(collectionId, "movie", movie.traktId);
+        }
+      },
+    });
   };
 
   return (
