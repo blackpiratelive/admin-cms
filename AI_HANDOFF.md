@@ -96,6 +96,9 @@ admin-cms/
 - **Non-Blocking Background DB Write Engine & Toast Notifications**:
   - Global notification manager (`src/lib/notifications.ts`) and floating client toast container (`src/components/ToastNotification.tsx`) enable zero-latency, instant UI responses on all save, publish, save draft, update, and delete actions across Microblogs, Locations, Trips, People, Todos, Links, Gallery, Libraries, and Sync Provider settings.
   - Modals and forms close instantly (0ms latency) without blocking user input or showing modal loading spinners, executing server actions non-blockingly in the background and presenting floating completion/error toast notifications.
+- **People Module Cloudinary Avatar Manager & Facebook Social Links**:
+  - Replaced legacy text URL inputs in [PersonFormModal.tsx](file:///home/dog/git/admin-cms/src/features/people/components/PersonFormModal.tsx) with a Cloudinary direct image upload engine (`uploadDirectToCloudinary`) and Cloudinary media library grid selector (`getCloudinaryResources`).
+  - Added Facebook social link support in `SocialLinks` interface, `personInputSchema` ([schema.ts](file:///home/dog/git/admin-cms/src/features/people/schema.ts)), [PersonFormModal.tsx](file:///home/dog/git/admin-cms/src/features/people/components/PersonFormModal.tsx), and Person Detail View ([/people/[slug]/page.tsx](file:///home/dog/git/admin-cms/src/app/(dashboard)/people/[slug]/page.tsx)).
 
 ---
 
