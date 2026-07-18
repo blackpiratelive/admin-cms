@@ -38,6 +38,7 @@ import {
   ExternalLink,
   Github,
   Instagram,
+  Facebook,
   Linkedin,
   Clock,
   ChevronRight,
@@ -285,6 +286,17 @@ export default function PersonDetailPage({ params }: { params: Promise<{ slug: s
               >
                 <Instagram size={14} style={{ color: "#e1306c" }} />
                 <span>Instagram</span>
+              </a>
+            )}
+            {socialLinks.facebook && (
+              <a
+                href={socialLinks.facebook.startsWith("http") ? socialLinks.facebook : `https://facebook.com/${socialLinks.facebook}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ fontSize: "12px", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "4px", textDecoration: "none" }}
+              >
+                <Facebook size={14} style={{ color: "#1877f2" }} />
+                <span>Facebook</span>
               </a>
             )}
             {socialLinks.github && (

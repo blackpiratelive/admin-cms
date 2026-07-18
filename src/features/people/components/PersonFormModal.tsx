@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { PersonRecord } from "@/db/schema";
 import {
   createPersonAction,
@@ -13,7 +13,9 @@ import {
   ImportantDate,
   SocialLinks,
 } from "@/features/people/schema";
-import { X, Plus, Trash2, Calendar, Lock, Globe, EyeOff, Star, Tag, Link2 } from "lucide-react";
+import { uploadDirectToCloudinary } from "@/lib/cloudinary";
+import { getCloudinaryResources, CloudinaryResource } from "@/features/media/cloudinaryActions";
+import { X, Plus, Trash2, Calendar, Lock, Globe, EyeOff, Star, Tag, Link2, Upload, Image as ImageIcon, Facebook, Check } from "lucide-react";
 
 interface PersonFormModalProps {
   isOpen: boolean;
@@ -45,10 +47,18 @@ export function PersonFormModal({
 
   const [socialLinks, setSocialLinks] = useState<SocialLinks>({
     instagram: "",
+    facebook: "",
     github: "",
     linkedin: "",
     website: "",
   });
+
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [isCloudinaryPickerOpen, setIsCloudinaryPickerOpen] = useState(false);
+  const [cloudinaryResources, setCloudinaryResources] = useState<CloudinaryResource[]>([]);
+  const [loadingCloudinary, setLoadingCloudinary] = useState(false);
+  const [showManualUrl, setShowManualUrl] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,7 +124,7 @@ export function PersonFormModal({
       setNotesMarkdown("");
       setInterests("");
       setTags("");
-      setSocialLinks({ instagram: "", github: "", linkedin: "", website: "" });
+      setSocialLinks({ instagram: "", facebook: "", github: "", linkedin: "", website: "" });
       setVisibility("private");
       setFavorite(false);
     }
@@ -142,6 +152,53 @@ export function PersonFormModal({
     setImportantDates(
       importantDates.map((d) => (d.id === id ? { ...d, ...updates } : d))
     );
+  };
+
+  const handleAvatarFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingAvatar(true);
+    try {
+      const res = await uploadDirectToCloudinary(file);
+      if (res.secure_url) {
+        setAvatarUrl(res.secure_url);
+        notify.show({
+          type: "success",
+          title: "Avatar Uploaded",
+          message: "New avatar uploaded to Cloudinary successfully!",
+        });
+      }
+    } catch (err: any) {
+      notify.show({
+        type: "error",
+        title: "Upload Failed",
+        message: err?.message || "Failed to upload avatar to Cloudinary",
+      });
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleOpenCloudinaryPicker = async () => {
+    setIsCloudinaryPickerOpen(!isCloudinaryPickerOpen);
+    if (!isCloudinaryPickerOpen && cloudinaryResources.length === 0) {
+      setLoadingCloudinary(true);
+      const res = await getCloudinaryResources();
+      if (res.success && res.resources) {
+        setCloudinaryResources(res.resources);
+      } else if (res.error) {
+        notify.show({
+          type: "error",
+          title: "Cloudinary Error",
+          message: res.error,
+        });
+      }
+      setLoadingCloudinary(false);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -384,28 +441,38 @@ export function PersonFormModal({
 
           {/* Avatar Section */}
           <div style={{ marginBottom: "20px" }}>
-            <label className="form-label">Avatar Image URL</label>
-            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="https://... image URL or media path"
-                value={avatarUrl}
-                onChange={(e) => setAvatarUrl(e.target.value)}
-                style={{ flex: 1 }}
-              />
-              {avatarUrl && (
-                <div
-                  style={{
-                    width: "36px",
-                    height: "36px",
-                    borderRadius: "50%",
-                    overflow: "hidden",
-                    border: "1px solid var(--border-color)",
-                    backgroundColor: "var(--bg-hover)",
-                    flexShrink: 0,
-                  }}
-                >
+            <label className="form-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>Profile Avatar (Cloudinary)</span>
+              <button
+                type="button"
+                onClick={() => setShowManualUrl(!showManualUrl)}
+                style={{ background: "none", border: "none", color: "var(--accent)", fontSize: "11px", cursor: "pointer", textDecoration: "underline" }}
+              >
+                {showManualUrl ? "Hide URL Input" : "Edit URL Manually"}
+              </button>
+            </label>
+
+            <div style={{ display: "flex", gap: "14px", alignItems: "center", backgroundColor: "var(--bg-hover)", padding: "14px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
+              {/* Avatar Preview */}
+              <div
+                style={{
+                  width: "60px",
+                  height: "60px",
+                  borderRadius: "50%",
+                  overflow: "hidden",
+                  border: "2px solid var(--accent)",
+                  backgroundColor: "var(--bg-card)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  fontSize: "20px",
+                  fontWeight: "bold",
+                  color: "var(--text-muted)",
+                }}
+              >
+                {avatarUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
                   <img
                     src={avatarUrl}
                     alt="Avatar preview"
@@ -414,9 +481,150 @@ export function PersonFormModal({
                       (e.target as HTMLElement).style.display = "none";
                     }}
                   />
+                ) : (
+                  (displayName.trim().charAt(0) || "P").toUpperCase()
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1 }}>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarFileUpload}
+                    style={{ display: "none" }}
+                    id="person-avatar-upload"
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingAvatar}
+                    style={{ fontSize: "12px", padding: "6px 12px" }}
+                  >
+                    <Upload size={14} />
+                    <span>{uploadingAvatar ? "Uploading..." : "Upload to Cloudinary"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={handleOpenCloudinaryPicker}
+                    style={{ fontSize: "12px", padding: "6px 12px" }}
+                  >
+                    <ImageIcon size={14} />
+                    <span>{isCloudinaryPickerOpen ? "Close Media Library" : "Choose from Cloudinary"}</span>
+                  </button>
+
+                  {avatarUrl && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => setAvatarUrl("")}
+                      style={{ fontSize: "12px", padding: "6px 10px", color: "#ef4444" }}
+                    >
+                      <Trash2 size={13} />
+                      <span>Remove</span>
+                    </button>
+                  )}
                 </div>
-              )}
+
+                <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                  Upload a photo directly to Cloudinary or select an existing photo from your Cloudinary library.
+                </div>
+              </div>
             </div>
+
+            {/* Cloudinary Media Library Grid Picker */}
+            {isCloudinaryPickerOpen && (
+              <div
+                style={{
+                  marginTop: "12px",
+                  padding: "12px",
+                  backgroundColor: "var(--bg-card)",
+                  border: "1px solid var(--border-color)",
+                  borderRadius: "8px",
+                  maxHeight: "220px",
+                  overflowY: "auto",
+                }}
+              >
+                <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "8px", display: "flex", justifyContent: "space-between" }}>
+                  <span>Select Avatar from Cloudinary:</span>
+                  <span>{cloudinaryResources.length} images</span>
+                </div>
+
+                {loadingCloudinary ? (
+                  <div style={{ fontSize: "12px", color: "var(--text-muted)", padding: "16px", textAlign: "center" }}>
+                    Loading Cloudinary media library...
+                  </div>
+                ) : cloudinaryResources.length === 0 ? (
+                  <div style={{ fontSize: "12px", color: "var(--text-muted)", padding: "16px", textAlign: "center" }}>
+                    No Cloudinary images found. Upload a new photo above!
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(60px, 1fr))", gap: "8px" }}>
+                    {cloudinaryResources.map((res) => {
+                      const isSelected = avatarUrl === res.secure_url;
+                      return (
+                        <div
+                          key={res.public_id}
+                          onClick={() => {
+                            setAvatarUrl(res.secure_url);
+                            setIsCloudinaryPickerOpen(false);
+                          }}
+                          style={{
+                            aspectRatio: "1",
+                            borderRadius: "6px",
+                            overflow: "hidden",
+                            border: isSelected ? "2px solid var(--accent)" : "1px solid var(--border-color)",
+                            cursor: "pointer",
+                            position: "relative",
+                            backgroundColor: "var(--bg-hover)",
+                          }}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={res.secure_url}
+                            alt={res.public_id}
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          />
+                          {isSelected && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                inset: 0,
+                                backgroundColor: "rgba(0,0,0,0.4)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                color: "#fff",
+                              }}
+                            >
+                              <Check size={16} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Manual URL Input */}
+            {showManualUrl && (
+              <div style={{ marginTop: "10px" }}>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="https://res.cloudinary.com/..."
+                  value={avatarUrl}
+                  onChange={(e) => setAvatarUrl(e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           {/* Important Dates Section */}
@@ -535,6 +743,16 @@ export function PersonFormModal({
                   placeholder="username or URL"
                   value={socialLinks.instagram || ""}
                   onChange={(e) => setSocialLinks({ ...socialLinks, instagram: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="form-label">Facebook</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="username or profile URL"
+                  value={socialLinks.facebook || ""}
+                  onChange={(e) => setSocialLinks({ ...socialLinks, facebook: e.target.value })}
                 />
               </div>
               <div>

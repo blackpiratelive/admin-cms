@@ -30,6 +30,7 @@ export interface ImportantDate {
 
 export interface SocialLinks {
   instagram?: string;
+  facebook?: string;
   github?: string;
   linkedin?: string;
   website?: string;
@@ -71,6 +72,7 @@ export const personInputSchema = z.object({
   socialLinks: z
     .object({
       instagram: z.string().optional().default(""),
+      facebook: z.string().optional().default(""),
       github: z.string().optional().default(""),
       linkedin: z.string().optional().default(""),
       website: z.string().optional().default(""),
