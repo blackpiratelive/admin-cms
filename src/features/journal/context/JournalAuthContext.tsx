@@ -19,6 +19,8 @@ import {
 } from "../actions";
 import { JournalSettingsRecord, JournalKeyRecord } from "@/db/schema";
 
+import { getBrowserCache, setBrowserCache } from "@/lib/client-cache";
+
 interface JournalAuthContextType {
   isUnlocked: boolean;
   isConfigured: boolean;
@@ -36,22 +38,32 @@ interface JournalAuthContextType {
 const JournalAuthContext = createContext<JournalAuthContextType | null>(null);
 
 export function JournalAuthProvider({ children }: { children: React.ReactNode }) {
-  const [loading, setLoading] = useState(true);
-  const [settings, setSettings] = useState<JournalSettingsRecord | null>(null);
-  const [keyRecord, setKeyRecord] = useState<JournalKeyRecord | null>(null);
+  const [settings, setSettings] = useState<JournalSettingsRecord | null>(() => {
+    const cached = getBrowserCache<{ settings: JournalSettingsRecord | null }>("journal_config_cache");
+    return cached?.settings || null;
+  });
+  const [keyRecord, setKeyRecord] = useState<JournalKeyRecord | null>(() => {
+    const cached = getBrowserCache<{ keyRecord: JournalKeyRecord | null }>("journal_config_cache");
+    return cached?.keyRecord || null;
+  });
+  const [loading, setLoading] = useState<boolean>(() => {
+    const cached = getBrowserCache<{ keyRecord: any; settings: any }>("journal_config_cache");
+    return !cached;
+  });
+
   const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null); // In-memory DEK
   const [isUnlocked, setIsUnlocked] = useState(false);
   const lockTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchConfiguration = useCallback(async () => {
     try {
-      setLoading(true);
       const [sRes, kRes] = await Promise.all([
         getJournalSettings(),
         getJournalKeyRecord(),
       ]);
       setSettings(sRes);
       setKeyRecord(kRes);
+      setBrowserCache("journal_config_cache", { settings: sRes, keyRecord: kRes });
     } catch (err) {
       console.error("Error loading journal encryption config:", err);
     } finally {

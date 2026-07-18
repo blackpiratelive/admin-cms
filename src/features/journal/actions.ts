@@ -29,10 +29,19 @@ import { eventBus } from "@/lib/event-bus";
 
 // --- DEK / KEK JOURNAL KEY ACTIONS ---
 
-export async function getJournalKeyRecord(): Promise<JournalKeyRecord | null> {
+async function fetchJournalKeyRecordRaw(): Promise<JournalKeyRecord | null> {
   await ensureDbInitialized();
   const rows = await db.select().from(journalKeys).where(eq(journalKeys.id, "default")).limit(1);
   return rows[0] || null;
+}
+
+export async function getJournalKeyRecord(): Promise<JournalKeyRecord | null> {
+  const cachedFn = createCachedQuery(
+    fetchJournalKeyRecordRaw,
+    ["journal-key-record"],
+    { tags: ["journal-keys"], revalidate: 3600 }
+  );
+  return cachedFn();
 }
 
 export async function saveJournalKeyRecord(data: {
@@ -92,10 +101,19 @@ export async function saveJournalKeyRecord(data: {
 
 // --- SETTINGS ACTIONS ---
 
-export async function getJournalSettings(): Promise<JournalSettingsRecord | null> {
+async function fetchJournalSettingsRaw(): Promise<JournalSettingsRecord | null> {
   await ensureDbInitialized();
   const rows = await db.select().from(journalSettings).where(eq(journalSettings.id, "default")).limit(1);
   return rows[0] || null;
+}
+
+export async function getJournalSettings(): Promise<JournalSettingsRecord | null> {
+  const cachedFn = createCachedQuery(
+    fetchJournalSettingsRaw,
+    ["journal-settings-record"],
+    { tags: ["journal-settings"], revalidate: 3600 }
+  );
+  return cachedFn();
 }
 
 export async function saveJournalSettings(data: {

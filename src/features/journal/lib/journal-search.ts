@@ -12,28 +12,26 @@ export async function decryptAllEntries(
   records: JournalEntryRecord[],
   key: CryptoKey
 ): Promise<DecryptedEntryItem[]> {
-  const results: DecryptedEntryItem[] = [];
-
-  for (const rec of records) {
-    try {
-      const content = await decryptJournalPayload(rec.encryptedContent, rec.iv, key);
-      const plaintextBody = extractPlaintextFromLexicalState(content.lexicalState) || content.markdown || "";
-      results.push({
-        record: rec,
-        content,
-        plaintextBody,
-      });
-    } catch (err) {
-      results.push({
-        record: rec,
-        content: null,
-        plaintextBody: "",
-        decryptionError: true,
-      });
-    }
-  }
-
-  return results;
+  return Promise.all(
+    records.map(async (rec) => {
+      try {
+        const content = await decryptJournalPayload(rec.encryptedContent, rec.iv, key);
+        const plaintextBody = extractPlaintextFromLexicalState(content.lexicalState) || content.markdown || "";
+        return {
+          record: rec,
+          content,
+          plaintextBody,
+        };
+      } catch (err) {
+        return {
+          record: rec,
+          content: null,
+          plaintextBody: "",
+          decryptionError: true,
+        };
+      }
+    })
+  );
 }
 
 export function searchDecryptedEntries(

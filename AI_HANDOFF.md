@@ -101,6 +101,10 @@ admin-cms/
 - **People Module Cloudinary Avatar Manager & Facebook Social Links**:
   - Replaced legacy text URL inputs in [PersonFormModal.tsx](file:///home/dog/git/admin-cms/src/features/people/components/PersonFormModal.tsx) with a Cloudinary direct image upload engine (`uploadDirectToCloudinary`) and Cloudinary media library grid selector (`getCloudinaryResources`).
   - Added Facebook social link support in `SocialLinks` interface, `personInputSchema` ([schema.ts](file:///home/dog/git/admin-cms/src/features/people/schema.ts)), [PersonFormModal.tsx](file:///home/dog/git/admin-cms/src/features/people/components/PersonFormModal.tsx), and Person Detail View ([/people/[slug]/page.tsx](file:///home/dog/git/admin-cms/src/app/(dashboard)/people/[slug]/page.tsx)).
+- **Journal / Diary Non-Blocking Encryption & Fast Unlock**:
+  - `getJournalKeyRecord()` and `getJournalSettings()` wrapped with Vercel Data Cache (`createCachedQuery` & `purgeTag`) and client SWR caching (`getBrowserCache` / `setBrowserCache`), eliminating the multi-second "Checking encryption status..." initial load delay.
+  - Yielding browser event loop in `deriveKEK` ([crypto.ts](file:///home/dog/git/admin-cms/src/features/journal/lib/crypto.ts)) before executing Argon2id Wasm derivation ensures main UI thread repaints instantly, showing a smooth animated spinner during key derivation without freezing or making the browser unresponsive.
+  - `decryptAllEntries` ([journal-search.ts](file:///home/dog/git/admin-cms/src/features/journal/lib/journal-search.ts)) uses `Promise.all` for parallel Web Crypto API (`window.crypto.subtle.decrypt`) payload decryption.
 
 ---
 

@@ -58,6 +58,9 @@ export async function deriveKEK(
 ): Promise<CryptoKey> {
   const saltBuffer = new Uint8Array(base64ToArrayBuffer(saltBase64));
 
+  // Yield to browser event loop so React can render submitting state & spinner before heavy CPU computation
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
   const binaryKek = await argon2id({
     password,
     salt: saltBuffer,

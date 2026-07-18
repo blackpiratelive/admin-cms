@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useJournalAuth } from "../context/JournalAuthContext";
-import { Lock, KeyRound, ShieldCheck, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { Lock, KeyRound, ShieldCheck, AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react";
 
 export function LockScreenModal() {
   const { isConfigured, unlock, setupPassword, loading } = useJournalAuth();
@@ -19,15 +19,19 @@ export function LockScreenModal() {
         style={{
           position: "fixed",
           inset: 0,
-          backgroundColor: "var(--bg-primary)",
+          backgroundColor: "rgba(0, 0, 0, 0.65)",
+          backdropFilter: "blur(8px)",
           zIndex: 9999,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          color: "var(--text-muted)",
+          color: "var(--text-primary)",
         }}
       >
-        <span>Checking encryption status...</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", backgroundColor: "var(--bg-card)", padding: "16px 24px", borderRadius: "10px", border: "1px solid var(--border-color)", boxShadow: "0 10px 30px rgba(0,0,0,0.3)" }}>
+          <Loader2 size={20} className="spin" style={{ color: "var(--accent)" }} />
+          <span style={{ fontSize: "14px", fontWeight: 500 }}>Initializing Journal Encryption Vault...</span>
+        </div>
       </div>
     );
   }
@@ -213,8 +217,8 @@ export function LockScreenModal() {
                 gap: "8px",
               }}
             >
-              <ShieldCheck size={18} />
-              <span>{submitting ? "Decrypting..." : "Unlock Memory Vault"}</span>
+              {submitting ? <Loader2 size={18} className="spin" /> : <ShieldCheck size={18} />}
+              <span>{submitting ? "Deriving Key & Decrypting..." : "Unlock Memory Vault"}</span>
             </button>
           </form>
         ) : (
