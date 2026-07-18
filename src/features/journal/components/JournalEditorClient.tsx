@@ -219,8 +219,8 @@ export function JournalEditorClient() {
           alignItems: "center",
           justifyContent: "space-between",
           padding: "12px 18px",
-          backgroundColor: "var(--bg-card, #141416)",
-          border: "1px solid var(--border-color, #27272a)",
+          backgroundColor: "var(--bg-card)",
+          border: "1px solid var(--border-color)",
           borderRadius: "8px",
         }}
       >
@@ -228,7 +228,7 @@ export function JournalEditorClient() {
           onClick={() => router.push("/journal")}
           style={{
             padding: "6px 12px",
-            backgroundColor: "var(--bg-input, #09090b)",
+            backgroundColor: "var(--bg-input)",
             border: "1px solid var(--border-color)",
             borderRadius: "6px",
             color: "var(--text-primary)",
@@ -250,7 +250,7 @@ export function JournalEditorClient() {
               onClick={() => setShowRevisionsModal(true)}
               style={{
                 padding: "6px 12px",
-                backgroundColor: "var(--bg-input, #09090b)",
+                backgroundColor: "var(--bg-input)",
                 border: "1px solid var(--border-color)",
                 borderRadius: "6px",
                 color: "var(--text-primary)",
@@ -271,8 +271,8 @@ export function JournalEditorClient() {
             disabled={saving}
             style={{
               padding: "8px 16px",
-              backgroundColor: "var(--accent, #f97316)",
-              color: "#fff",
+              backgroundColor: "var(--accent)",
+              color: "var(--accent-text)",
               border: "none",
               borderRadius: "6px",
               fontWeight: 600,
@@ -298,8 +298,8 @@ export function JournalEditorClient() {
           <div
             style={{
               padding: "16px",
-              backgroundColor: "var(--bg-card, #141416)",
-              border: "1px solid var(--border-color, #27272a)",
+              backgroundColor: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
               borderRadius: "8px",
               display: "grid",
               gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
@@ -317,7 +317,7 @@ export function JournalEditorClient() {
                 onChange={(e) => setEntryDate(e.target.value)}
                 style={{
                   padding: "8px",
-                  backgroundColor: "var(--bg-input, #09090b)",
+                  backgroundColor: "var(--bg-input)",
                   border: "1px solid var(--border-color)",
                   borderRadius: "4px",
                   color: "var(--text-primary)",
@@ -336,7 +336,7 @@ export function JournalEditorClient() {
                 onChange={(e) => setEntryType(e.target.value)}
                 style={{
                   padding: "8px",
-                  backgroundColor: "var(--bg-input, #09090b)",
+                  backgroundColor: "var(--bg-input)",
                   border: "1px solid var(--border-color)",
                   borderRadius: "4px",
                   color: "var(--text-primary)",
@@ -361,7 +361,7 @@ export function JournalEditorClient() {
                 onChange={(e) => setMood(e.target.value)}
                 style={{
                   padding: "8px",
-                  backgroundColor: "var(--bg-input, #09090b)",
+                  backgroundColor: "var(--bg-input)",
                   border: "1px solid var(--border-color)",
                   borderRadius: "4px",
                   color: "var(--text-primary)",
@@ -387,7 +387,7 @@ export function JournalEditorClient() {
                   defaultValue=""
                   style={{
                     padding: "8px",
-                    backgroundColor: "var(--bg-input, #09090b)",
+                    backgroundColor: "var(--bg-input)",
                     border: "1px solid var(--border-color)",
                     borderRadius: "4px",
                     color: "var(--text-primary)",
@@ -416,8 +416,8 @@ export function JournalEditorClient() {
             style={{
               width: "100%",
               padding: "14px 16px",
-              backgroundColor: "var(--bg-card, #141416)",
-              border: "1px solid var(--border-color, #27272a)",
+              backgroundColor: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
               borderRadius: "8px",
               color: "var(--text-primary)",
               fontSize: "20px",

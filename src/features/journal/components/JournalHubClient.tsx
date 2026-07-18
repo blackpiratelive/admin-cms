@@ -153,8 +153,8 @@ export function JournalHubClient() {
         <div
           style={{
             padding: "24px",
-            backgroundColor: "var(--bg-card, #141416)",
-            border: "1px solid var(--border-color, #27272a)",
+            backgroundColor: "var(--bg-card)",
+            border: "1px solid var(--border-color)",
             borderRadius: "8px",
             color: "var(--text-primary)",
             display: "flex",

@@ -66,7 +66,7 @@ export function JournalRevisionsModal({
       style={{
         position: "fixed",
         inset: 0,
-        backgroundColor: "rgba(0,0,0,0.7)",
+        backgroundColor: "rgba(0, 0, 0, 0.65)",
         backdropFilter: "blur(4px)",
         zIndex: 9999,
         display: "flex",
@@ -81,8 +81,8 @@ export function JournalRevisionsModal({
           width: "100%",
           maxWidth: "720px",
           maxHeight: "85vh",
-          backgroundColor: "var(--bg-card, #141416)",
-          border: "1px solid var(--border-color, #27272a)",
+          backgroundColor: "var(--bg-card)",
+          border: "1px solid var(--border-color)",
           borderRadius: "10px",
           display: "flex",
           flexDirection: "column",
@@ -134,8 +134,8 @@ export function JournalRevisionsModal({
                       textAlign: "left",
                       padding: "10px 12px",
                       borderRadius: "6px",
-                      backgroundColor: isSelected ? "var(--bg-input, #09090b)" : "transparent",
-                      border: isSelected ? "1px solid var(--accent, #f97316)" : "1px solid transparent",
+                      backgroundColor: isSelected ? "var(--bg-input)" : "transparent",
+                      border: isSelected ? "1px solid var(--accent)" : "1px solid transparent",
                       color: "var(--text-primary)",
                       cursor: "pointer",
                       display: "flex",
@@ -170,8 +170,8 @@ export function JournalRevisionsModal({
                     }}
                     style={{
                       padding: "6px 12px",
-                      backgroundColor: "var(--accent, #f97316)",
-                      color: "#fff",
+                      backgroundColor: "var(--accent)",
+                      color: "var(--accent-text)",
                       border: "none",
                       borderRadius: "4px",
                       fontWeight: 600,
@@ -189,7 +189,7 @@ export function JournalRevisionsModal({
                 <div
                   style={{
                     padding: "14px",
-                    backgroundColor: "var(--bg-input, #09090b)",
+                    backgroundColor: "var(--bg-input)",
                     borderRadius: "6px",
                     fontSize: "13px",
                     lineHeight: 1.6,

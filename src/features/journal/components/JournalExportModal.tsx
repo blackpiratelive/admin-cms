@@ -95,7 +95,7 @@ export function JournalExportModal({ items, isOpen, onClose }: JournalExportModa
       style={{
         position: "fixed",
         inset: 0,
-        backgroundColor: "rgba(0,0,0,0.7)",
+        backgroundColor: "rgba(0, 0, 0, 0.65)",
         backdropFilter: "blur(4px)",
         zIndex: 9999,
         display: "flex",
@@ -109,8 +109,8 @@ export function JournalExportModal({ items, isOpen, onClose }: JournalExportModa
         style={{
           width: "100%",
           maxWidth: "480px",
-          backgroundColor: "var(--bg-card, #141416)",
-          border: "1px solid var(--border-color, #27272a)",
+          backgroundColor: "var(--bg-card)",
+          border: "1px solid var(--border-color)",
           borderRadius: "10px",
           padding: "24px",
           display: "flex",
@@ -139,7 +139,7 @@ export function JournalExportModal({ items, isOpen, onClose }: JournalExportModa
             style={{
               padding: "10px 14px",
               borderRadius: "6px",
-              backgroundColor: exportFormat === "markdown" ? "rgba(249, 115, 22, 0.12)" : "var(--bg-input, #09090b)",
+              backgroundColor: exportFormat === "markdown" ? "rgba(249, 115, 22, 0.12)" : "var(--bg-input)",
               border: exportFormat === "markdown" ? "1px solid var(--accent)" : "1px solid var(--border-color)",
               cursor: "pointer",
               display: "flex",
@@ -157,7 +157,7 @@ export function JournalExportModal({ items, isOpen, onClose }: JournalExportModa
             style={{
               padding: "10px 14px",
               borderRadius: "6px",
-              backgroundColor: exportFormat === "json" ? "rgba(249, 115, 22, 0.12)" : "var(--bg-input, #09090b)",
+              backgroundColor: exportFormat === "json" ? "rgba(249, 115, 22, 0.12)" : "var(--bg-input)",
               border: exportFormat === "json" ? "1px solid var(--accent)" : "1px solid var(--border-color)",
               cursor: "pointer",
               display: "flex",
@@ -175,7 +175,7 @@ export function JournalExportModal({ items, isOpen, onClose }: JournalExportModa
             style={{
               padding: "10px 14px",
               borderRadius: "6px",
-              backgroundColor: exportFormat === "html" ? "rgba(249, 115, 22, 0.12)" : "var(--bg-input, #09090b)",
+              backgroundColor: exportFormat === "html" ? "rgba(249, 115, 22, 0.12)" : "var(--bg-input)",
               border: exportFormat === "html" ? "1px solid var(--accent)" : "1px solid var(--border-color)",
               cursor: "pointer",
               display: "flex",
@@ -193,7 +193,7 @@ export function JournalExportModal({ items, isOpen, onClose }: JournalExportModa
             style={{
               padding: "10px 14px",
               borderRadius: "6px",
-              backgroundColor: exportFormat === "encrypted_backup" ? "rgba(249, 115, 22, 0.12)" : "var(--bg-input, #09090b)",
+              backgroundColor: exportFormat === "encrypted_backup" ? "rgba(249, 115, 22, 0.12)" : "var(--bg-input)",
               border: exportFormat === "encrypted_backup" ? "1px solid var(--accent)" : "1px solid var(--border-color)",
               cursor: "pointer",
               display: "flex",
@@ -212,8 +212,8 @@ export function JournalExportModal({ items, isOpen, onClose }: JournalExportModa
           onClick={handleExport}
           style={{
             padding: "12px",
-            backgroundColor: "var(--accent, #f97316)",
-            color: "#fff",
+            backgroundColor: "var(--accent)",
+            color: "var(--accent-text)",
             border: "none",
             borderRadius: "6px",
             fontWeight: 600,

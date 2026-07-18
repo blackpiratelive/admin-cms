@@ -156,8 +156,8 @@ function Toolbar({ wordCount, characterCount, readingTime, autosaveStatus, onSav
         alignItems: "center",
         justifyContent: "space-between",
         padding: "8px 12px",
-        backgroundColor: "var(--bg-card, #18181b)",
-        borderBottom: "1px solid var(--border-color, #27272a)",
+        backgroundColor: "var(--bg-main)",
+        borderBottom: "1px solid var(--border-color)",
         flexWrap: "wrap",
         gap: "8px",
         fontSize: "13px",
@@ -459,9 +459,9 @@ export function LexicalJournalEditor({
           display: "flex",
           flexDirection: "column",
           borderRadius: "8px",
-          border: "1px solid var(--border-color, #27272a)",
+          border: "1px solid var(--border-color)",
           overflow: "hidden",
-          backgroundColor: "var(--bg-input, #09090b)",
+          backgroundColor: "var(--bg-card)",
           minHeight: "420px",
         }}
       >
@@ -482,7 +482,7 @@ export function LexicalJournalEditor({
                   outline: "none",
                   fontSize: "15px",
                   lineHeight: "1.7",
-                  color: "var(--text-primary, #f4f4f5)",
+                  color: "var(--text-primary)",
                 }}
               />
             }
@@ -492,7 +492,7 @@ export function LexicalJournalEditor({
                   position: "absolute",
                   top: "16px",
                   left: "20px",
-                  color: "var(--text-muted, #71717a)",
+                  color: "var(--text-muted)",
                   pointerEvents: "none",
                   fontSize: "15px",
                 }}

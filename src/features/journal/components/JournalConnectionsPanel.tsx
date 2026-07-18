@@ -72,10 +72,10 @@ export function JournalConnectionsPanel({
         flexDirection: "column",
         gap: "20px",
         padding: "16px",
-        backgroundColor: "var(--bg-card, #141416)",
-        border: "1px solid var(--border-color, #27272a)",
+        backgroundColor: "var(--bg-card)",
+        border: "1px solid var(--border-color)",
         borderRadius: "8px",
-        color: "var(--text-primary, #f4f4f5)",
+        color: "var(--text-primary)",
       }}
     >
       <div style={{ fontSize: "14px", fontWeight: 700, borderBottom: "1px solid var(--border-color)", paddingBottom: "10px" }}>
@@ -94,8 +94,8 @@ export function JournalConnectionsPanel({
           style={{
             width: "100%",
             padding: "8px 10px",
-            backgroundColor: "var(--bg-input, #09090b)",
-            border: "1px solid var(--border-color, #27272a)",
+            backgroundColor: "var(--bg-input)",
+            border: "1px solid var(--border-color)",
             borderRadius: "6px",
             color: "var(--text-primary)",
             fontSize: "13px",
@@ -123,8 +123,8 @@ export function JournalConnectionsPanel({
           style={{
             width: "100%",
             padding: "8px 10px",
-            backgroundColor: "var(--bg-input, #09090b)",
-            border: "1px solid var(--border-color, #27272a)",
+            backgroundColor: "var(--bg-input)",
+            border: "1px solid var(--border-color)",
             borderRadius: "6px",
             color: "var(--text-primary)",
             fontSize: "13px",
@@ -156,8 +156,8 @@ export function JournalConnectionsPanel({
           style={{
             width: "100%",
             padding: "8px 10px",
-            backgroundColor: "var(--bg-input, #09090b)",
-            border: "1px solid var(--border-color, #27272a)",
+            backgroundColor: "var(--bg-input)",
+            border: "1px solid var(--border-color)",
             borderRadius: "6px",
             color: "var(--text-primary)",
             fontSize: "13px",

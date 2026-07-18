@@ -68,7 +68,7 @@ export function JournalSecurityModal({ isOpen, onClose, onExportBackup }: Journa
       style={{
         position: "fixed",
         inset: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.75)",
+        backgroundColor: "rgba(0, 0, 0, 0.65)",
         backdropFilter: "blur(6px)",
         zIndex: 9999,
         display: "flex",
@@ -82,14 +82,14 @@ export function JournalSecurityModal({ isOpen, onClose, onExportBackup }: Journa
         style={{
           width: "100%",
           maxWidth: "560px",
-          backgroundColor: "var(--bg-card, #141416)",
-          border: "1px solid var(--border-color, #27272a)",
+          backgroundColor: "var(--bg-card)",
+          border: "1px solid var(--border-color)",
           borderRadius: "12px",
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
           color: "var(--text-primary)",
-          boxShadow: "0 20px 40px rgba(0,0,0,0.5)",
+          boxShadow: "0 20px 40px rgba(0,0,0,0.3)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -109,7 +109,7 @@ export function JournalSecurityModal({ isOpen, onClose, onExportBackup }: Journa
                 padding: "6px",
                 borderRadius: "6px",
                 backgroundColor: "rgba(249, 115, 22, 0.15)",
-                color: "var(--accent, #f97316)",
+                color: "var(--accent)",
                 display: "flex",
               }}
             >
@@ -137,9 +137,9 @@ export function JournalSecurityModal({ isOpen, onClose, onExportBackup }: Journa
             style={{
               padding: "10px 14px",
               border: "none",
-              borderBottom: activeTab === "security" ? "2px solid var(--accent, #f97316)" : "2px solid transparent",
+              borderBottom: activeTab === "security" ? "2px solid var(--accent)" : "2px solid transparent",
               backgroundColor: "transparent",
-              color: activeTab === "security" ? "var(--accent, #f97316)" : "var(--text-muted)",
+              color: activeTab === "security" ? "var(--accent)" : "var(--text-muted)",
               fontWeight: 600,
               fontSize: "13px",
               cursor: "pointer",
@@ -152,9 +152,9 @@ export function JournalSecurityModal({ isOpen, onClose, onExportBackup }: Journa
             style={{
               padding: "10px 14px",
               border: "none",
-              borderBottom: activeTab === "password" ? "2px solid var(--accent, #f97316)" : "2px solid transparent",
+              borderBottom: activeTab === "password" ? "2px solid var(--accent)" : "2px solid transparent",
               backgroundColor: "transparent",
-              color: activeTab === "password" ? "var(--accent, #f97316)" : "var(--text-muted)",
+              color: activeTab === "password" ? "var(--accent)" : "var(--text-muted)",
               fontWeight: 600,
               fontSize: "13px",
               cursor: "pointer",
@@ -167,9 +167,9 @@ export function JournalSecurityModal({ isOpen, onClose, onExportBackup }: Journa
             style={{
               padding: "10px 14px",
               border: "none",
-              borderBottom: activeTab === "info" ? "2px solid var(--accent, #f97316)" : "2px solid transparent",
+              borderBottom: activeTab === "info" ? "2px solid var(--accent)" : "2px solid transparent",
               backgroundColor: "transparent",
-              color: activeTab === "info" ? "var(--accent, #f97316)" : "var(--text-muted)",
+              color: activeTab === "info" ? "var(--accent)" : "var(--text-muted)",
               fontWeight: 600,
               fontSize: "13px",
               cursor: "pointer",
@@ -238,7 +238,7 @@ export function JournalSecurityModal({ isOpen, onClose, onExportBackup }: Journa
                     }}
                     style={{
                       padding: "12px",
-                      backgroundColor: "var(--bg-input, #09090b)",
+                      backgroundColor: "var(--bg-input)",
                       border: "1px solid var(--border-color)",
                       borderRadius: "6px",
                       color: "var(--text-primary)",
@@ -305,7 +305,7 @@ export function JournalSecurityModal({ isOpen, onClose, onExportBackup }: Journa
                   onChange={(e) => setOldPassword(e.target.value)}
                   style={{
                     padding: "9px 12px",
-                    backgroundColor: "var(--bg-input, #09090b)",
+                    backgroundColor: "var(--bg-input)",
                     border: "1px solid var(--border-color)",
                     borderRadius: "6px",
                     color: "var(--text-primary)",
@@ -326,7 +326,7 @@ export function JournalSecurityModal({ isOpen, onClose, onExportBackup }: Journa
                   onChange={(e) => setNewPassword(e.target.value)}
                   style={{
                     padding: "9px 12px",
-                    backgroundColor: "var(--bg-input, #09090b)",
+                    backgroundColor: "var(--bg-input)",
                     border: "1px solid var(--border-color)",
                     borderRadius: "6px",
                     color: "var(--text-primary)",
@@ -347,7 +347,7 @@ export function JournalSecurityModal({ isOpen, onClose, onExportBackup }: Journa
                   onChange={(e) => setConfirmNewPassword(e.target.value)}
                   style={{
                     padding: "9px 12px",
-                    backgroundColor: "var(--bg-input, #09090b)",
+                    backgroundColor: "var(--bg-input)",
                     border: "1px solid var(--border-color)",
                     borderRadius: "6px",
                     color: "var(--text-primary)",
@@ -362,8 +362,8 @@ export function JournalSecurityModal({ isOpen, onClose, onExportBackup }: Journa
                 disabled={submitting}
                 style={{
                   padding: "10px",
-                  backgroundColor: "var(--accent, #f97316)",
-                  color: "#fff",
+                  backgroundColor: "var(--accent)",
+                  color: "var(--accent-text)",
                   border: "none",
                   borderRadius: "6px",
                   fontWeight: 600,
@@ -390,7 +390,7 @@ export function JournalSecurityModal({ isOpen, onClose, onExportBackup }: Journa
               <div
                 style={{
                   padding: "14px",
-                  backgroundColor: "var(--bg-input, #09090b)",
+                  backgroundColor: "var(--bg-input)",
                   border: "1px solid var(--border-color)",
                   borderRadius: "6px",
                   display: "grid",

@@ -43,7 +43,7 @@ admin-cms/
 │   │   ├── schema.ts            # Drizzle table schemas for all entities and providers
 │   │   └── index.ts             # Turso / libSQL client & auto-initializer DDL
 │   ├── features/
-│   │   ├── journal/             # Client-side DEK/KEK E2EE Web Crypto API (Argon2id KEK derivation, AES-256-GCM DEK re-wrapping), Lexical Editor, & Revision History
+│   │   ├── journal/             # Client-side DEK/KEK E2EE Web Crypto API, Lexical Editor, Multi-Theme (HN Orange Light/Dark/Mono/Teal), & Revision History
 │   │   ├── activity/            # Universal Activity Engine logging & timeline
 │   │   ├── relationships/       # Generic Relationship Engine (connects any two entities)
 │   │   ├── attachments/         # Reusable Attachment System for media & files

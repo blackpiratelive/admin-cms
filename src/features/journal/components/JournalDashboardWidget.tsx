@@ -19,8 +19,8 @@ export function JournalDashboardWidget({ stats }: { stats: JournalStats }) {
       <div
         style={{
           padding: "14px 16px",
-          backgroundColor: "var(--bg-card, #141416)",
-          border: "1px solid var(--border-color, #27272a)",
+          backgroundColor: "var(--bg-card)",
+          border: "1px solid var(--border-color)",
           borderRadius: "8px",
           display: "flex",
           alignItems: "center",
@@ -32,7 +32,7 @@ export function JournalDashboardWidget({ stats }: { stats: JournalStats }) {
             padding: "10px",
             borderRadius: "50%",
             backgroundColor: "rgba(249, 115, 22, 0.15)",
-            color: "#f97316",
+            color: "var(--accent)",
           }}
         >
           <Flame size={20} />
@@ -54,8 +54,8 @@ export function JournalDashboardWidget({ stats }: { stats: JournalStats }) {
       <div
         style={{
           padding: "14px 16px",
-          backgroundColor: "var(--bg-card, #141416)",
-          border: "1px solid var(--border-color, #27272a)",
+          backgroundColor: "var(--bg-card)",
+          border: "1px solid var(--border-color)",
           borderRadius: "8px",
           display: "flex",
           alignItems: "center",
@@ -89,8 +89,8 @@ export function JournalDashboardWidget({ stats }: { stats: JournalStats }) {
       <div
         style={{
           padding: "14px 16px",
-          backgroundColor: "var(--bg-card, #141416)",
-          border: "1px solid var(--border-color, #27272a)",
+          backgroundColor: "var(--bg-card)",
+          border: "1px solid var(--border-color)",
           borderRadius: "8px",
           display: "flex",
           alignItems: "center",
@@ -124,8 +124,8 @@ export function JournalDashboardWidget({ stats }: { stats: JournalStats }) {
       <div
         style={{
           padding: "14px 16px",
-          backgroundColor: "var(--bg-card, #141416)",
-          border: "1px solid var(--border-color, #27272a)",
+          backgroundColor: "var(--bg-card)",
+          border: "1px solid var(--border-color)",
           borderRadius: "8px",
           display: "flex",
           alignItems: "center",

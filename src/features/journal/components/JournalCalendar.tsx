@@ -59,8 +59,8 @@ export function JournalCalendar({ items, onSelectEntry, onSelectDate }: JournalC
         display: "flex",
         flexDirection: "column",
         gap: "16px",
-        backgroundColor: "var(--bg-card, #141416)",
-        border: "1px solid var(--border-color, #27272a)",
+        backgroundColor: "var(--bg-card)",
+        border: "1px solid var(--border-color)",
         borderRadius: "8px",
         padding: "20px",
         color: "var(--text-primary)",
@@ -80,8 +80,8 @@ export function JournalCalendar({ items, onSelectEntry, onSelectDate }: JournalC
             onClick={prevMonth}
             style={{
               padding: "6px",
-              backgroundColor: "var(--bg-input, #09090b)",
-              border: "1px solid var(--border-color, #27272a)",
+              backgroundColor: "var(--bg-input)",
+              border: "1px solid var(--border-color)",
               borderRadius: "4px",
               color: "var(--text-primary)",
               cursor: "pointer",
@@ -94,8 +94,8 @@ export function JournalCalendar({ items, onSelectEntry, onSelectDate }: JournalC
             onClick={nextMonth}
             style={{
               padding: "6px",
-              backgroundColor: "var(--bg-input, #09090b)",
-              border: "1px solid var(--border-color, #27272a)",
+              backgroundColor: "var(--bg-input)",
+              border: "1px solid var(--border-color)",
               borderRadius: "4px",
               color: "var(--text-primary)",
               cursor: "pointer",
@@ -141,8 +141,8 @@ export function JournalCalendar({ items, onSelectEntry, onSelectDate }: JournalC
               style={{
                 minHeight: "80px",
                 padding: "8px",
-                backgroundColor: hasEntries ? "rgba(249, 115, 22, 0.08)" : "var(--bg-input, #09090b)",
-                border: isToday ? "2px solid var(--accent, #f97316)" : "1px solid var(--border-color, #27272a)",
+                backgroundColor: hasEntries ? "rgba(249, 115, 22, 0.08)" : "var(--bg-input)",
+                border: isToday ? "2px solid var(--accent)" : "1px solid var(--border-color)",
                 borderRadius: "6px",
                 cursor: "pointer",
                 display: "flex",
@@ -151,10 +151,10 @@ export function JournalCalendar({ items, onSelectEntry, onSelectDate }: JournalC
                 transition: "all 0.15s ease",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "var(--accent, #f97316)";
+                e.currentTarget.style.borderColor = "var(--accent)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = isToday ? "var(--accent, #f97316)" : "var(--border-color, #27272a)";
+                e.currentTarget.style.borderColor = isToday ? "var(--accent)" : "var(--border-color)";
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -162,7 +162,7 @@ export function JournalCalendar({ items, onSelectEntry, onSelectDate }: JournalC
                   {day.dayNumber}
                 </span>
                 {hasEntries && (
-                  <span style={{ fontSize: "10px", padding: "1px 5px", borderRadius: "10px", backgroundColor: "var(--accent)", color: "#fff", fontWeight: 700 }}>
+                  <span style={{ fontSize: "10px", padding: "1px 5px", borderRadius: "10px", backgroundColor: "var(--accent)", color: "var(--accent-text)", fontWeight: 700 }}>
                     {day.entries.length}
                   </span>
                 )}
@@ -176,7 +176,7 @@ export function JournalCalendar({ items, onSelectEntry, onSelectDate }: JournalC
                       style={{
                         fontSize: "10px",
                         fontWeight: 600,
-                        color: "var(--accent, #f97316)",
+                        color: "var(--accent)",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",

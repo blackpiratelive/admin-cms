@@ -92,14 +92,14 @@ export function JournalTimeline({
               fontWeight: 700,
               textTransform: "uppercase",
               letterSpacing: "0.5px",
-              color: "var(--accent, #f97316)",
+              color: "var(--accent)",
               display: "flex",
               alignItems: "center",
               gap: "8px",
             }}
           >
             <span>{section.title}</span>
-            <div style={{ flex: 1, height: "1px", backgroundColor: "var(--border-color, #27272a)" }} />
+            <div style={{ flex: 1, height: "1px", backgroundColor: "var(--border-color)" }} />
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "12px" }}>
@@ -115,8 +115,8 @@ export function JournalTimeline({
                   onClick={() => onSelectEntry(item)}
                   style={{
                     padding: "16px 20px",
-                    backgroundColor: "var(--bg-card, #141416)",
-                    border: "1px solid var(--border-color, #27272a)",
+                    backgroundColor: "var(--bg-card)",
+                    border: "1px solid var(--border-color)",
                     borderRadius: "8px",
                     cursor: "pointer",
                     display: "flex",
@@ -125,10 +125,10 @@ export function JournalTimeline({
                     transition: "border-color 0.15s ease, transform 0.15s ease",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--accent, #f97316)";
+                    e.currentTarget.style.borderColor = "var(--accent)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "var(--border-color, #27272a)";
+                    e.currentTarget.style.borderColor = "var(--border-color)";
                   }}
                 >
                   {/* Top metadata line */}
@@ -148,7 +148,7 @@ export function JournalTimeline({
                           padding: "2px 8px",
                           borderRadius: "4px",
                           backgroundColor: "rgba(249, 115, 22, 0.12)",
-                          color: "var(--accent, #f97316)",
+                          color: "var(--accent)",
                           fontWeight: 600,
                           fontSize: "11px",
                           display: "flex",
@@ -164,7 +164,7 @@ export function JournalTimeline({
                           style={{
                             padding: "2px 8px",
                             borderRadius: "4px",
-                            backgroundColor: "var(--bg-input, #09090b)",
+                            backgroundColor: "var(--bg-input)",
                             border: "1px solid var(--border-color)",
                             fontSize: "11px",
                             display: "flex",
@@ -227,7 +227,7 @@ export function JournalTimeline({
                         margin: 0,
                         fontSize: "13px",
                         lineHeight: 1.6,
-                        color: "var(--text-secondary, #d4d4d8)",
+                        color: "var(--text-secondary)",
                         display: "-webkit-box",
                         WebkitLineClamp: 3,
                         WebkitBoxOrient: "vertical",

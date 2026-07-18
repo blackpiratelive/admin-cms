@@ -44,8 +44,8 @@ export function JournalHeader({
         flexDirection: "column",
         gap: "16px",
         padding: "16px 20px",
-        backgroundColor: "var(--bg-card, #141416)",
-        border: "1px solid var(--border-color, #27272a)",
+        backgroundColor: "var(--bg-card)",
+        border: "1px solid var(--border-color)",
         borderRadius: "8px",
         color: "var(--text-primary)",
       }}
@@ -65,7 +65,7 @@ export function JournalHeader({
               padding: "8px",
               borderRadius: "6px",
               backgroundColor: "rgba(249, 115, 22, 0.15)",
-              color: "var(--accent, #f97316)",
+              color: "var(--accent)",
               display: "flex",
             }}
           >
@@ -108,8 +108,8 @@ export function JournalHeader({
               title="Journal Security & Encryption"
               style={{
                 padding: "8px 12px",
-                backgroundColor: "var(--bg-input, #09090b)",
-                border: "1px solid var(--border-color, #27272a)",
+                backgroundColor: "var(--bg-input)",
+                border: "1px solid var(--border-color)",
                 borderRadius: "6px",
                 color: "var(--text-primary)",
                 cursor: "pointer",
@@ -129,8 +129,8 @@ export function JournalHeader({
             onClick={onNewEntry}
             style={{
               padding: "8px 14px",
-              backgroundColor: "var(--accent, #f97316)",
-              color: "#ffffff",
+              backgroundColor: "var(--accent)",
+              color: "var(--accent-text)",
               border: "none",
               borderRadius: "6px",
               fontWeight: 600,
@@ -150,8 +150,8 @@ export function JournalHeader({
             title="Export / Backup"
             style={{
               padding: "8px",
-              backgroundColor: "var(--bg-input, #09090b)",
-              border: "1px solid var(--border-color, #27272a)",
+              backgroundColor: "var(--bg-input)",
+              border: "1px solid var(--border-color)",
               borderRadius: "6px",
               color: "var(--text-primary)",
               cursor: "pointer",
@@ -167,8 +167,8 @@ export function JournalHeader({
               title="Lock Settings"
               style={{
                 padding: "8px",
-                backgroundColor: "var(--bg-input, #09090b)",
-                border: "1px solid var(--border-color, #27272a)",
+                backgroundColor: "var(--bg-input)",
+                border: "1px solid var(--border-color)",
                 borderRadius: "6px",
                 color: "var(--text-primary)",
                 cursor: "pointer",
@@ -186,11 +186,11 @@ export function JournalHeader({
                   top: "100%",
                   marginTop: "6px",
                   width: "220px",
-                  backgroundColor: "var(--bg-card, #18181b)",
-                  border: "1px solid var(--border-color, #27272a)",
+                  backgroundColor: "var(--bg-card)",
+                  border: "1px solid var(--border-color)",
                   borderRadius: "8px",
                   padding: "12px",
-                  boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
+                  boxShadow: "0 10px 25px rgba(0,0,0,0.3)",
                   zIndex: 100,
                   display: "flex",
                   flexDirection: "column",
@@ -205,7 +205,7 @@ export function JournalHeader({
                   onChange={(e) => updateAutoLock(Number(e.target.value))}
                   style={{
                     padding: "6px",
-                    backgroundColor: "var(--bg-input, #09090b)",
+                    backgroundColor: "var(--bg-input)",
                     border: "1px solid var(--border-color)",
                     borderRadius: "4px",
                     color: "var(--text-primary)",
@@ -256,15 +256,15 @@ export function JournalHeader({
           gap: "12px",
         }}
       >
-        <div style={{ display: "flex", backgroundColor: "var(--bg-input, #09090b)", borderRadius: "6px", padding: "3px" }}>
+        <div style={{ display: "flex", backgroundColor: "var(--bg-input)", borderRadius: "6px", padding: "3px" }}>
           <button
             onClick={() => onViewModeChange("timeline")}
             style={{
               padding: "6px 12px",
               border: "none",
               borderRadius: "4px",
-              backgroundColor: viewMode === "timeline" ? "var(--bg-card, #1f1f23)" : "transparent",
-              color: viewMode === "timeline" ? "var(--accent, #f97316)" : "var(--text-muted)",
+              backgroundColor: viewMode === "timeline" ? "var(--bg-card)" : "transparent",
+              color: viewMode === "timeline" ? "var(--accent)" : "var(--text-muted)",
               fontWeight: 600,
               fontSize: "12px",
               cursor: "pointer",
@@ -283,8 +283,8 @@ export function JournalHeader({
               padding: "6px 12px",
               border: "none",
               borderRadius: "4px",
-              backgroundColor: viewMode === "calendar" ? "var(--bg-card, #1f1f23)" : "transparent",
-              color: viewMode === "calendar" ? "var(--accent, #f97316)" : "var(--text-muted)",
+              backgroundColor: viewMode === "calendar" ? "var(--bg-card)" : "transparent",
+              color: viewMode === "calendar" ? "var(--accent)" : "var(--text-muted)",
               fontWeight: 600,
               fontSize: "12px",
               cursor: "pointer",
@@ -303,8 +303,8 @@ export function JournalHeader({
               padding: "6px 12px",
               border: "none",
               borderRadius: "4px",
-              backgroundColor: viewMode === "stats" ? "var(--bg-card, #1f1f23)" : "transparent",
-              color: viewMode === "stats" ? "var(--accent, #f97316)" : "var(--text-muted)",
+              backgroundColor: viewMode === "stats" ? "var(--bg-card)" : "transparent",
+              color: viewMode === "stats" ? "var(--accent)" : "var(--text-muted)",
               fontWeight: 600,
               fontSize: "12px",
               cursor: "pointer",
@@ -328,8 +328,8 @@ export function JournalHeader({
             style={{
               width: "100%",
               padding: "7px 10px 7px 32px",
-              backgroundColor: "var(--bg-input, #09090b)",
-              border: "1px solid var(--border-color, #27272a)",
+              backgroundColor: "var(--bg-input)",
+              border: "1px solid var(--border-color)",
               borderRadius: "6px",
               color: "var(--text-primary)",
               fontSize: "13px",

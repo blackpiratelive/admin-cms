@@ -83,7 +83,7 @@ export function LockScreenModal() {
       style={{
         position: "fixed",
         inset: 0,
-        backgroundColor: "rgba(10, 10, 12, 0.92)",
+        backgroundColor: "rgba(0, 0, 0, 0.65)",
         backdropFilter: "blur(8px)",
         zIndex: 9999,
         display: "flex",
@@ -96,15 +96,15 @@ export function LockScreenModal() {
         style={{
           width: "100%",
           maxWidth: "440px",
-          backgroundColor: "var(--bg-card, #141416)",
-          border: "1px solid var(--border-color, #27272a)",
+          backgroundColor: "var(--bg-card)",
+          border: "1px solid var(--border-color)",
           borderRadius: "12px",
           padding: "32px 28px",
-          boxShadow: "0 20px 40px rgba(0,0,0,0.5)",
+          boxShadow: "0 20px 40px rgba(0,0,0,0.3)",
           display: "flex",
           flexDirection: "column",
           gap: "20px",
-          color: "var(--text-primary, #f4f4f5)",
+          color: "var(--text-primary)",
         }}
       >
         <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
@@ -114,7 +114,7 @@ export function LockScreenModal() {
               height: "56px",
               borderRadius: "50%",
               backgroundColor: "rgba(249, 115, 22, 0.15)",
-              color: "var(--accent, #f97316)",
+              color: "var(--accent)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -125,7 +125,7 @@ export function LockScreenModal() {
           <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700 }}>
             {isConfigured ? "Unlock Journal" : "Setup Encryption Password"}
           </h2>
-          <p style={{ margin: 0, fontSize: "13px", color: "var(--text-muted, #a1a1aa)", lineHeight: 1.5 }}>
+          <p style={{ margin: 0, fontSize: "13px", color: "var(--text-muted)", lineHeight: 1.5 }}>
             {isConfigured
               ? "Your journal entries are end-to-end encrypted with AES-256-GCM. Enter your master password to derive the key in browser memory."
               : "Set up a dedicated password for your personal journal. The key is derived in your browser and never sent to the server."}
@@ -167,8 +167,8 @@ export function LockScreenModal() {
                   style={{
                     width: "100%",
                     padding: "10px 38px 10px 12px",
-                    backgroundColor: "var(--bg-input, #09090b)",
-                    border: "1px solid var(--border-color, #27272a)",
+                    backgroundColor: "var(--bg-input)",
+                    border: "1px solid var(--border-color)",
                     borderRadius: "6px",
                     color: "var(--text-primary)",
                     fontSize: "14px",
@@ -199,8 +199,8 @@ export function LockScreenModal() {
               disabled={submitting}
               style={{
                 padding: "12px",
-                backgroundColor: "var(--accent, #f97316)",
-                color: "#ffffff",
+                backgroundColor: "var(--accent)",
+                color: "var(--accent-text)",
                 border: "none",
                 borderRadius: "6px",
                 fontWeight: 600,
@@ -232,8 +232,8 @@ export function LockScreenModal() {
                 style={{
                   width: "100%",
                   padding: "10px 12px",
-                  backgroundColor: "var(--bg-input, #09090b)",
-                  border: "1px solid var(--border-color, #27272a)",
+                  backgroundColor: "var(--bg-input)",
+                  border: "1px solid var(--border-color)",
                   borderRadius: "6px",
                   color: "var(--text-primary)",
                   fontSize: "14px",
@@ -254,8 +254,8 @@ export function LockScreenModal() {
                 style={{
                   width: "100%",
                   padding: "10px 12px",
-                  backgroundColor: "var(--bg-input, #09090b)",
-                  border: "1px solid var(--border-color, #27272a)",
+                  backgroundColor: "var(--bg-input)",
+                  border: "1px solid var(--border-color)",
                   borderRadius: "6px",
                   color: "var(--text-primary)",
                   fontSize: "14px",
@@ -274,8 +274,8 @@ export function LockScreenModal() {
                 style={{
                   width: "100%",
                   padding: "10px 12px",
-                  backgroundColor: "var(--bg-input, #09090b)",
-                  border: "1px solid var(--border-color, #27272a)",
+                  backgroundColor: "var(--bg-input)",
+                  border: "1px solid var(--border-color)",
                   borderRadius: "6px",
                   color: "var(--text-primary)",
                   fontSize: "14px",
@@ -297,8 +297,8 @@ export function LockScreenModal() {
               disabled={submitting}
               style={{
                 padding: "12px",
-                backgroundColor: "var(--accent, #f97316)",
-                color: "#ffffff",
+                backgroundColor: "var(--accent)",
+                color: "var(--accent-text)",
                 border: "none",
                 borderRadius: "6px",
                 fontWeight: 600,
