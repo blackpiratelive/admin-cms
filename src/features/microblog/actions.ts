@@ -7,6 +7,7 @@ import { generateSlug, microblogInputSchema, type MicroblogFormInput } from "./s
 import { triggerVercelDeployHook } from "@/lib/deploy-hook";
 import { revalidatePath, unstable_cache, revalidateTag } from "next/cache";
 import { updateRelatedPosts, getRelatedPosts } from "./related";
+import { eventBus } from "@/lib/event-bus";
 
 export type MicroblogListItem = {
   id: string;
@@ -277,6 +278,16 @@ export async function saveMicroblog(input: MicroblogFormInput) {
   purgeTag("microblogs-list");
   revalidatePath("/microblog");
   revalidatePath("/");
+
+  eventBus.emit("entity.saved", {
+    type: "microblog",
+    id,
+    title: slug,
+    subtitle: validated.contentMarkdown.slice(0, 80) + "...",
+    keywords: `${slug} ${validated.tags.join(" ")} ${validated.contentMarkdown.slice(0, 200)}`,
+    url: `/microblog/${id}`,
+  });
+
   return { success: true, id, slug, relatedPosts: updatedRelated, crossPostSummary };
 }
 
@@ -287,6 +298,8 @@ export async function deleteMicroblog(id: string) {
     purgeTag("microblogs-list");
     revalidatePath("/microblog");
     revalidatePath("/");
+
+    eventBus.emit("entity.deleted", { type: "microblog", id });
     return { success: true };
   } catch (error) {
     console.error("Error deleting microblog:", error);

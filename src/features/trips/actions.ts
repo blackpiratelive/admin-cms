@@ -22,6 +22,7 @@ import { revalidatePath } from "next/cache";
 import { logActivity } from "@/features/activity/actions";
 import { addRelationship, removeRelationship } from "@/features/relationships/actions";
 import { createCachedQuery, purgeTag } from "@/lib/server-cache";
+import { eventBus } from "@/lib/event-bus";
 
 async function fetchTripsRaw(): Promise<TripRecord[]> {
   await ensureDbInitialized();
@@ -103,6 +104,16 @@ export async function createTrip(data: {
   try {
     revalidatePath("/trips");
   } catch {}
+
+  eventBus.emit("entity.saved", {
+    type: "trip",
+    id,
+    title: data.title,
+    subtitle: data.description || "Trip",
+    keywords: `${data.title} ${data.description || ""} ${(data.tags || []).join(" ")}`,
+    url: `/trips`,
+  });
+
   return newTrip as TripRecord;
 }
 
@@ -158,6 +169,16 @@ export async function updateTrip(
   } catch {}
 
   const updatedRecord = await db.select().from(trips).where(eq(trips.id, id)).limit(1);
+  if (updatedRecord[0]) {
+    eventBus.emit("entity.saved", {
+      type: "trip",
+      id,
+      title: updatedRecord[0].title,
+      subtitle: updatedRecord[0].description || "Trip",
+      keywords: `${updatedRecord[0].title} ${updatedRecord[0].description || ""} ${updatedRecord[0].tags}`,
+      url: `/trips`,
+    });
+  }
   return updatedRecord[0] || null;
 }
 

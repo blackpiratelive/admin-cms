@@ -556,6 +556,27 @@ export async function ensureDbInitialized(): Promise<void> {
         );
       `);
 
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS search_index (
+          id TEXT PRIMARY KEY,
+          entity_type TEXT NOT NULL,
+          entity_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          subtitle TEXT,
+          keywords TEXT NOT NULL DEFAULT '',
+          url TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS system_stats (
+          key TEXT PRIMARY KEY,
+          data_json TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
       // Add columns to existing installations dynamically
       try {
         await client.execute(`ALTER TABLE microblogs ADD COLUMN location_id TEXT;`);
@@ -659,14 +680,14 @@ export async function ensureDbInitialized(): Promise<void> {
         await client.execute(`ALTER TABLE persons ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;`);
       } catch (err) {}
 
-      // Keep the frequently rendered dashboard, library, and activity queries on
-      // indexes rather than full-table scans as personal data grows.
+      // Comprehensive performance indexes covering all single-column & multi-column queries
       await client.executeMultiple(`
         CREATE INDEX IF NOT EXISTS microblogs_created_at_idx ON microblogs(created_at DESC);
         CREATE INDEX IF NOT EXISTS microblogs_status_created_at_idx ON microblogs(status, created_at DESC);
         CREATE INDEX IF NOT EXISTS microblogs_slug_idx ON microblogs(slug);
         CREATE INDEX IF NOT EXISTS gallery_created_at_idx ON gallery(created_at DESC);
         CREATE INDEX IF NOT EXISTS gallery_visibility_idx ON gallery(visibility);
+        CREATE INDEX IF NOT EXISTS gallery_location_trip_idx ON gallery(location_id, trip_id);
         CREATE INDEX IF NOT EXISTS todos_completed_due_date_idx ON todos(completed, due_date);
         CREATE INDEX IF NOT EXISTS trakt_movies_watched_at_idx ON trakt_movies(watched_at DESC);
         CREATE INDEX IF NOT EXISTS trakt_shows_updated_at_idx ON trakt_shows(updated_at DESC);
@@ -675,7 +696,20 @@ export async function ensureDbInitialized(): Promise<void> {
         CREATE INDEX IF NOT EXISTS persons_slug_idx ON persons(slug);
         CREATE INDEX IF NOT EXISTS persons_created_at_idx ON persons(created_at DESC);
         CREATE INDEX IF NOT EXISTS activities_created_at_idx ON activities(created_at DESC);
+        CREATE INDEX IF NOT EXISTS locations_slug_idx ON locations(slug);
+        CREATE INDEX IF NOT EXISTS trips_slug_idx ON trips(slug);
+        CREATE INDEX IF NOT EXISTS relationships_source_idx ON relationships(source_type, source_id);
+        CREATE INDEX IF NOT EXISTS relationships_target_idx ON relationships(target_type, target_id);
+        CREATE INDEX IF NOT EXISTS attachments_entity_idx ON attachments(entity_type, entity_id);
+        CREATE INDEX IF NOT EXISTS collection_items_col_idx ON collection_items(collection_id, item_type, item_id);
+        CREATE INDEX IF NOT EXISTS search_index_query_idx ON search_index(title, subtitle, keywords);
       `);
+
+      // SQLite maintenance optimization & query planner statistics
+      try {
+        await client.execute(`PRAGMA optimize;`);
+        await client.execute(`ANALYZE;`);
+      } catch (mErr) {}
     } catch (err) {
       console.error("Auto DB initialization error:", err);
       // Reset promise to allow retrying on error

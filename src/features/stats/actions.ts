@@ -11,6 +11,7 @@ import {
   trips,
   projects,
   todos,
+  systemStats,
 } from "@/db/schema";
 import { getCloudflareUsageStats, type CloudflareUsageStats } from "@/features/gallery/actions";
 import { count, eq } from "drizzle-orm";
@@ -31,9 +32,13 @@ export interface ComprehensiveSystemStats {
     projectsTotal: number;
     openTodos: number;
   };
+  updatedAt?: string;
 }
 
-export async function getComprehensiveSystemStats(): Promise<ComprehensiveSystemStats> {
+/**
+ * Recomputes and persists all system statistics into system_stats table.
+ */
+export async function rebuildSystemStatsCache(): Promise<ComprehensiveSystemStats> {
   await ensureDbInitialized();
 
   const [
@@ -67,7 +72,8 @@ export async function getComprehensiveSystemStats(): Promise<ComprehensiveSystem
     db.select({ total: count() }).from(todos).where(eq(todos.completed, 0)),
   ]);
 
-  return {
+  const now = new Date().toISOString();
+  const statsPayload: ComprehensiveSystemStats = {
     r2Stats,
     counts: {
       microblogsTotal: microblogTotals[0][0]?.total ?? 0,
@@ -83,5 +89,43 @@ export async function getComprehensiveSystemStats(): Promise<ComprehensiveSystem
       projectsTotal: projectsTotal[0]?.total ?? 0,
       openTodos: openTodos[0]?.total ?? 0,
     },
+    updatedAt: now,
   };
+
+  const existing = await db
+    .select({ key: systemStats.key })
+    .from(systemStats)
+    .where(eq(systemStats.key, "system_stats"));
+
+  const dataJson = JSON.stringify(statsPayload);
+  if (existing.length > 0) {
+    await db.update(systemStats).set({ dataJson, updatedAt: now }).where(eq(systemStats.key, "system_stats"));
+  } else {
+    await db.insert(systemStats).values({ key: "system_stats", dataJson, updatedAt: now });
+  }
+
+  return statsPayload;
+}
+
+/**
+ * Fast 0-1ms read from precomputed system_stats table snapshot.
+ */
+export async function getComprehensiveSystemStats(forceRefresh = false): Promise<ComprehensiveSystemStats> {
+  if (!forceRefresh) {
+    try {
+      await ensureDbInitialized();
+      const rows = await db
+        .select()
+        .from(systemStats)
+        .where(eq(systemStats.key, "system_stats"));
+
+      if (rows && rows.length > 0) {
+        return JSON.parse(rows[0].dataJson) as ComprehensiveSystemStats;
+      }
+    } catch (err) {
+      console.error("Error reading system_stats snapshot:", err);
+    }
+  }
+
+  return await rebuildSystemStatsCache();
 }

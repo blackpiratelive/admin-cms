@@ -22,6 +22,7 @@ import { revalidatePath } from "next/cache";
 import { logActivity } from "@/features/activity/actions";
 import { addRelationship, removeRelationship } from "@/features/relationships/actions";
 import { createCachedQuery, purgeTag } from "@/lib/server-cache";
+import { eventBus } from "@/lib/event-bus";
 
 async function fetchLocationsRaw(): Promise<LocationRecord[]> {
   await ensureDbInitialized();
@@ -122,6 +123,16 @@ export async function createLocation(data: {
   try {
     revalidatePath("/locations");
   } catch {}
+
+  eventBus.emit("entity.saved", {
+    type: "location",
+    id,
+    title: data.name,
+    subtitle: [data.city, data.state, data.country].filter(Boolean).join(", "),
+    keywords: `${data.name} ${data.city || ""} ${data.state || ""} ${data.country || ""}`,
+    url: `/locations`,
+  });
+
   return newLoc as LocationRecord;
 }
 
@@ -178,6 +189,16 @@ export async function updateLocation(
   purgeTag(`location-${id}`);
   purgeTag(`location-${existing[0].slug}`);
   if (updates.slug) purgeTag(`location-${updates.slug}`);
+
+  const updatedLoc = { ...existing[0], ...updates };
+  eventBus.emit("entity.saved", {
+    type: "location",
+    id,
+    title: updatedLoc.name,
+    subtitle: [updatedLoc.city, updatedLoc.state, updatedLoc.country].filter(Boolean).join(", "),
+    keywords: `${updatedLoc.name} ${updatedLoc.city || ""} ${updatedLoc.state || ""} ${updatedLoc.country || ""}`,
+    url: `/locations`,
+  });
 
   try {
     revalidatePath("/locations");

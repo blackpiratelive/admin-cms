@@ -547,7 +547,26 @@ export const dashboardCache = sqliteTable("dashboard_cache", {
   updatedAt: text("updated_at").notNull(),
 });
 
+export const searchIndex = sqliteTable("search_index", {
+  id: text("id").primaryKey(), // `${entityType}_${entityId}`
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  title: text("title").notNull(),
+  subtitle: text("subtitle"),
+  keywords: text("keywords").notNull().default(""),
+  url: text("url").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const systemStats = sqliteTable("system_stats", {
+  key: text("key").primaryKey(), // e.g. "counts", "movie_stats", "artist_stats", "location_stats", "trip_stats"
+  dataJson: text("data_json").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 export type DashboardCacheRecord = typeof dashboardCache.$inferSelect;
+export type SearchIndexRecord = typeof searchIndex.$inferSelect;
+export type SystemStatsRecord = typeof systemStats.$inferSelect;
 
 export interface ShortLink {
   slug: string;

@@ -25,6 +25,7 @@ import { revalidatePath } from "next/cache";
 import { logActivity } from "@/features/activity/actions";
 import { addRelationship, removeRelationship } from "@/features/relationships/actions";
 import { createCachedQuery, purgeTag } from "@/lib/server-cache";
+import { eventBus } from "@/lib/event-bus";
 import {
   personInputSchema,
   PersonInput,
@@ -221,6 +222,17 @@ export async function createPersonAction(rawInput: unknown): Promise<{ success: 
       revalidatePath("/people");
     } catch {}
 
+    eventBus.emit("entity.saved", {
+      type: "person",
+      id,
+      title: parsed.displayName,
+      subtitle: parsed.relationshipType
+        ? `${parsed.relationshipType}${parsed.nickname ? ` (${parsed.nickname})` : ""}`
+        : "Person",
+      keywords: `${parsed.displayName} ${parsed.firstName || ""} ${parsed.lastName || ""} ${parsed.nickname || ""} ${parsed.relationshipType || ""}`,
+      url: `/people/${finalSlug}`,
+    });
+
     return { success: true, person: record as PersonRecord };
   } catch (err: any) {
     console.error("Error creating person:", err);
@@ -288,6 +300,19 @@ export async function updatePersonAction(
     } catch {}
 
     const updatedRecord = await db.select().from(persons).where(eq(persons.id, id)).limit(1);
+    if (updatedRecord[0]) {
+      const p = updatedRecord[0];
+      eventBus.emit("entity.saved", {
+        type: "person",
+        id,
+        title: p.displayName,
+        subtitle: p.relationshipType
+          ? `${p.relationshipType}${p.nickname ? ` (${p.nickname})` : ""}`
+          : "Person",
+        keywords: `${p.displayName} ${p.firstName || ""} ${p.lastName || ""} ${p.nickname || ""} ${p.relationshipType || ""}`,
+        url: `/people/${p.slug}`,
+      });
+    }
     return { success: true, person: updatedRecord[0] };
   } catch (err: any) {
     console.error("Error updating person:", err);
