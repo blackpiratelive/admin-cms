@@ -852,3 +852,5 @@ Search Results
 Every expensive computation should move **left** (toward writes and background processing), so reads become simple and predictable.
 
 That architectural approach is what lets applications feel "blazing fast" even as the underlying dataset grows by orders of magnitude.
+
+

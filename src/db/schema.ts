@@ -647,11 +647,41 @@ export const journalKeys = sqliteTable("journal_keys", {
   updatedAt: text("updated_at").notNull(),
 });
 
+export const journalAssets = sqliteTable("journal_assets", {
+  id: text("id").primaryKey(),
+  assetType: text("asset_type").notNull().default("image"),
+  mimeType: text("mime_type").notNull().default("image/jpeg"),
+  width: integer("width").notNull().default(0),
+  height: integer("height").notNull().default(0),
+  originalSize: integer("original_size").notNull().default(0),
+  compressedSize: integer("compressed_size").notNull().default(0),
+  thumbnailSize: integer("thumbnail_size").notNull().default(0),
+  cloudinaryOriginalPublicId: text("cloudinary_original_public_id").notNull(),
+  cloudinaryThumbnailPublicId: text("cloudinary_thumbnail_public_id").notNull(),
+  originalIv: text("original_iv").notNull(),
+  thumbnailIv: text("thumbnail_iv").notNull(),
+  encryptionVersion: integer("encryption_version").notNull().default(1),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const journalEntryAssets = sqliteTable("journal_entry_assets", {
+  id: text("id").primaryKey(),
+  entryId: text("entry_id").notNull(),
+  assetId: text("asset_id").notNull(),
+  assetRole: text("asset_role").notNull().default("attachment"), // 'inline' | 'attachment'
+  position: integer("position").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+});
+
 export type JournalEntryRecord = typeof journalEntries.$inferSelect;
 export type NewJournalEntry = typeof journalEntries.$inferInsert;
 export type JournalRevisionRecord = typeof journalRevisions.$inferSelect;
 export type JournalSettingsRecord = typeof journalSettings.$inferSelect;
 export type JournalKeyRecord = typeof journalKeys.$inferSelect;
+export type JournalAssetRecord = typeof journalAssets.$inferSelect;
+export type NewJournalAsset = typeof journalAssets.$inferInsert;
+export type JournalEntryAssetRecord = typeof journalEntryAssets.$inferSelect;
 
 
 

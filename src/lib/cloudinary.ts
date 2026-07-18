@@ -54,3 +54,41 @@ export async function uploadDirectToCloudinary(
 
   return result;
 }
+
+export async function uploadRawDirectToCloudinary(
+  blob: Blob,
+  fileName: string,
+  cloudName?: string,
+  uploadPreset?: string
+): Promise<{ secure_url: string; public_id: string; bytes: number }> {
+  const activeCloudName =
+    cloudName || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const activePreset =
+    uploadPreset || process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+
+  if (!activeCloudName || !activePreset) {
+    throw new Error(
+      "Cloudinary configuration is missing. Ensure NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME and NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET are set."
+    );
+  }
+
+  const url = `https://api.cloudinary.com/v1_1/${activeCloudName}/raw/upload`;
+
+  const formData = new FormData();
+  formData.append("file", blob, fileName);
+  formData.append("upload_preset", activePreset);
+
+  const res = await fetch(url, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(
+      errorData?.error?.message || `Cloudinary raw upload failed (HTTP ${res.status})`
+    );
+  }
+
+  return res.json();
+}

@@ -105,6 +105,21 @@ admin-cms/
   - `getJournalKeyRecord()` and `getJournalSettings()` wrapped with Vercel Data Cache (`createCachedQuery` & `purgeTag`) and client SWR caching (`getBrowserCache` / `setBrowserCache`), eliminating the multi-second "Checking encryption status..." initial load delay.
   - Yielding browser event loop in `deriveKEK` ([crypto.ts](file:///home/dog/git/admin-cms/src/features/journal/lib/crypto.ts)) before executing Argon2id Wasm derivation ensures main UI thread repaints instantly, showing a smooth animated spinner during key derivation without freezing or making the browser unresponsive.
   - `decryptAllEntries` ([journal-search.ts](file:///home/dog/git/admin-cms/src/features/journal/lib/journal-search.ts)) uses `Promise.all` for parallel Web Crypto API (`window.crypto.subtle.decrypt`) payload decryption.
+- **E2EE Journal Image System (Zero-Knowledge Encrypted Attachments)**:
+  - **Architecture**: Server, database, and Cloudinary NEVER receive plaintext images. All processing happens client-side in the browser.
+  - **Pipeline** ([crypto-assets.ts](file:///home/dog/git/admin-cms/src/features/journal/lib/crypto-assets.ts)):
+    1. EXIF/GPS metadata stripped via HTML5 Canvas re-draw
+    2. Compressed to WebP/JPEG 90% quality, thumbnail generated (512px max dimension)
+    3. Original & thumbnail independently encrypted with AES-256-GCM using the Journal DEK (`CryptoKey`) and random 12-byte IVs
+    4. Encrypted `.enc` blobs uploaded to Cloudinary raw endpoint (`/raw/upload`)
+    5. Asset metadata (Cloudinary IDs, IVs, dimensions) stored in `journal_assets` table; entry linkage in `journal_entry_assets`
+  - **Database Tables**: `journal_assets` (id, assetType, mimeType, width, height, originalSize, compressedSize, cloudinaryOriginalId, cloudinaryThumbId, originalIv, thumbIv) and `journal_entry_assets` (entryId, assetId, role, position) defined in [schema.ts](file:///home/dog/git/admin-cms/src/db/schema.ts)
+  - **Server Actions** ([actions.ts](file:///home/dog/git/admin-cms/src/features/journal/actions.ts)): `createJournalAssetAction`, `linkJournalEntryAssetAction`, `getJournalAssetByIdAction`, `getJournalAssetsForEntryAction`, `deleteJournalAssetAction`
+  - **Cloudinary Raw Uploads** ([cloudinary.ts](file:///home/dog/git/admin-cms/src/lib/cloudinary.ts)): `uploadRawDirectToCloudinary` for binary `.enc` blob uploads
+  - **Lexical DecoratorNode** ([JournalImageNode.tsx](file:///home/dog/git/admin-cms/src/features/journal/components/editor/JournalImageNode.tsx)): Custom node storing only `assetId`; thumbnail lazy-decrypted via `IntersectionObserver`; alignment controls, caption editing, delete, and lightbox trigger
+  - **Lightbox** ([JournalLightboxModal.tsx](file:///home/dog/git/admin-cms/src/features/journal/components/JournalLightboxModal.tsx)): Fullscreen E2EE photo viewer with zoom/pan, keyboard navigation, and decrypted download
+  - **Attachments Gallery** ([JournalAttachments.tsx](file:///home/dog/git/admin-cms/src/features/journal/components/JournalAttachments.tsx)): Multi-file upload queue with progress bars, grid/list views, thumbnail decryption, lightbox, and deletion
+  - **Editor Integration** ([LexicalJournalEditor.tsx](file:///home/dog/git/admin-cms/src/features/journal/components/editor/LexicalJournalEditor.tsx)): Toolbar image upload button, `/image` slash command, `DragDropPasteImagePlugin` for drag-and-drop and clipboard paste of images — all auto-encrypt and insert inline `JournalImageNode`
 
 ---
 

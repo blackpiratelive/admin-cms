@@ -6,6 +6,7 @@ import { useJournalAuth } from "../context/JournalAuthContext";
 import { LockScreenModal } from "./LockScreenModal";
 import { LexicalJournalEditor } from "./editor/LexicalJournalEditor";
 import { JournalConnectionsPanel } from "./JournalConnectionsPanel";
+import { JournalAttachments } from "./JournalAttachments";
 import { JournalRevisionsModal } from "./JournalRevisionsModal";
 import {
   getJournalEntryByIdOrSlug,
@@ -442,7 +443,13 @@ export function JournalEditorClient() {
               }}
               autosaveStatus={autosaveStatus}
               onManualSave={handleSave}
+              entryId={existingRecord?.id}
             />
+          )}
+
+          {/* E2EE Attachments Gallery */}
+          {existingRecord && (
+            <JournalAttachments entryId={existingRecord.id} />
           )}
         </div>
 

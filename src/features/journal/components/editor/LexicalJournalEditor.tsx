@@ -58,8 +58,14 @@ import {
   AlignRight,
   Sparkles,
   Save,
+  Image as ImageIcon,
+  Loader2,
 } from "lucide-react";
 import { calculateWordCount, calculateReadingTime, extractPlaintextFromLexicalState } from "../../lib/journal-helpers";
+import { JournalImageNode, $createJournalImageNode } from "./JournalImageNode";
+import { useJournalAuth } from "../../context/JournalAuthContext";
+import { processAndUploadEncryptedJournalAsset } from "../../lib/crypto-assets";
+import { notify } from "@/lib/notifications";
 
 // Theme configuration for Lexical
 const editorTheme = {
@@ -98,6 +104,7 @@ const editorNodes = [
   CodeHighlightNode,
   AutoLinkNode,
   LinkNode,
+  JournalImageNode,
 ];
 
 interface ToolbarProps {
@@ -106,10 +113,47 @@ interface ToolbarProps {
   readingTime: number;
   autosaveStatus: "idle" | "saving" | "saved" | "error";
   onSave?: () => void;
+  entryId?: string;
 }
 
-function Toolbar({ wordCount, characterCount, readingTime, autosaveStatus, onSave }: ToolbarProps) {
+function Toolbar({ wordCount, characterCount, readingTime, autosaveStatus, onSave, entryId }: ToolbarProps) {
   const [editor] = useLexicalComposerContext();
+  const { cryptoKey } = useJournalAuth();
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  const handleToolbarImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !cryptoKey) return;
+
+    setUploadingImage(true);
+    try {
+      notify.show({ type: "info", message: `Encrypting & uploading ${file.name}...` });
+      const record = await processAndUploadEncryptedJournalAsset({
+        file,
+        dekKey: cryptoKey,
+        entryId,
+        assetRole: "inline",
+      });
+
+      editor.update(() => {
+        const selection = $getSelection();
+        const node = $createJournalImageNode(record.id, record.width, record.height);
+        if ($isRangeSelection(selection)) {
+          selection.insertNodes([node]);
+        } else {
+          $getRoot().append(node);
+        }
+      });
+      notify.show({ type: "success", message: "Encrypted inline image inserted" });
+    } catch (err: any) {
+      console.error("Toolbar image upload failed:", err);
+      notify.show({ type: "error", message: err?.message || "Failed to upload image" });
+    } finally {
+      setUploadingImage(false);
+      if (imageInputRef.current) imageInputRef.current.value = "";
+    }
+  };
 
   const formatText = (format: "bold" | "italic" | "underline" | "strikethrough" | "code") => {
     editor.dispatchCommand(FORMAT_TEXT_COMMAND, format);
@@ -267,6 +311,24 @@ function Toolbar({ wordCount, characterCount, readingTime, autosaveStatus, onSav
           <Code size={15} />
         </button>
 
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleToolbarImageSelect}
+          style={{ display: "none" }}
+          data-journal-image-input
+        />
+        <button
+          type="button"
+          onClick={() => imageInputRef.current?.click()}
+          disabled={uploadingImage}
+          title="Insert E2EE Image"
+          className="editor-btn"
+        >
+          {uploadingImage ? <Loader2 size={15} className="spin" style={{ color: "var(--accent)" }} /> : <ImageIcon size={15} />}
+        </button>
+
         <div style={{ width: "1px", height: "18px", backgroundColor: "var(--border-color)", margin: "0 4px" }} />
 
         <button
@@ -362,6 +424,7 @@ function SlashCommandsPlugin() {
     { label: "Bullet List", icon: "•", action: () => insertBulletList() },
     { label: "Quote", icon: "“", action: () => insertQuote() },
     { label: "Code Block", icon: "</>", action: () => insertCode() },
+    { label: "Encrypted Image", icon: "🖼", action: () => insertImage() },
   ];
 
   const insertHeading = (level: "h1" | "h2") => {
@@ -407,6 +470,103 @@ function SlashCommandsPlugin() {
     setShowPopup(false);
   };
 
+  const insertImage = () => {
+    setShowPopup(false);
+    const input = document.querySelector<HTMLInputElement>('input[data-journal-image-input]');
+    input?.click();
+  };
+
+  return null;
+}
+
+// Drag-and-Drop + Paste Image Plugin
+function DragDropPasteImagePlugin({ entryId }: { entryId?: string }) {
+  const [editor] = useLexicalComposerContext();
+  const { cryptoKey } = useJournalAuth();
+
+  const handleImageFile = useCallback(async (file: File) => {
+    if (!cryptoKey) {
+      notify.show({ type: "error", message: "Journal not unlocked \u2013 cannot encrypt image" });
+      return;
+    }
+    try {
+      notify.show({ type: "info", message: `Encrypting & uploading ${file.name}...` });
+      const record = await processAndUploadEncryptedJournalAsset({
+        file,
+        dekKey: cryptoKey,
+        entryId,
+        assetRole: "inline",
+      });
+      editor.update(() => {
+        const selection = $getSelection();
+        const node = $createJournalImageNode(record.id, record.width, record.height);
+        if ($isRangeSelection(selection)) {
+          selection.insertNodes([node]);
+        } else {
+          $getRoot().append(node);
+        }
+      });
+      notify.show({ type: "success", message: "Encrypted image inserted" });
+    } catch (err: any) {
+      console.error("Image upload failed:", err);
+      notify.show({ type: "error", message: err?.message || "Failed to upload image" });
+    }
+  }, [editor, cryptoKey, entryId]);
+
+  useEffect(() => {
+    const root = editor.getRootElement();
+    if (!root) return;
+
+    const handleDrop = (e: DragEvent) => {
+      const files = e.dataTransfer?.files;
+      if (!files?.length) return;
+      for (let i = 0; i < files.length; i++) {
+        if (files[i].type.startsWith("image/")) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleImageFile(files[i]);
+          return;
+        }
+      }
+    };
+
+    const handleDragOver = (e: DragEvent) => {
+      const items = e.dataTransfer?.items;
+      if (items) {
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.startsWith("image/")) {
+            e.preventDefault();
+            return;
+          }
+        }
+      }
+    };
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith("image/")) {
+          const file = items[i].getAsFile();
+          if (file) {
+            e.preventDefault();
+            handleImageFile(file);
+            return;
+          }
+        }
+      }
+    };
+
+    root.addEventListener("drop", handleDrop);
+    root.addEventListener("dragover", handleDragOver);
+    root.addEventListener("paste", handlePaste);
+    return () => {
+      root.removeEventListener("drop", handleDrop);
+      root.removeEventListener("dragover", handleDragOver);
+      root.removeEventListener("paste", handlePaste);
+    };
+  }, [editor, handleImageFile]);
+
   return null;
 }
 
@@ -415,6 +575,7 @@ interface LexicalJournalEditorProps {
   onChange: (lexicalStateJson: string, plaintext: string, wordCount: number, readingTime: number) => void;
   autosaveStatus?: "idle" | "saving" | "saved" | "error";
   onManualSave?: () => void;
+  entryId?: string;
 }
 
 export function LexicalJournalEditor({
@@ -422,6 +583,7 @@ export function LexicalJournalEditor({
   onChange,
   autosaveStatus = "idle",
   onManualSave,
+  entryId,
 }: LexicalJournalEditorProps) {
   const [wordCount, setWordCount] = useState(0);
   const [characterCount, setCharacterCount] = useState(0);
@@ -471,6 +633,7 @@ export function LexicalJournalEditor({
           readingTime={readingTime}
           autosaveStatus={autosaveStatus}
           onSave={onManualSave}
+          entryId={entryId}
         />
 
         <div style={{ position: "relative", flex: 1, padding: "16px 20px" }}>
@@ -510,6 +673,7 @@ export function LexicalJournalEditor({
           <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
           <OnChangePlugin onChange={handleStateChange} />
           <SlashCommandsPlugin />
+          <DragDropPasteImagePlugin entryId={entryId} />
         </div>
       </div>
     </LexicalComposer>

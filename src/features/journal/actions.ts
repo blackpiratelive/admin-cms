@@ -6,6 +6,8 @@ import {
   journalRevisions,
   journalSettings,
   journalKeys,
+  journalAssets,
+  journalEntryAssets,
   JournalEntryRecord,
   JournalRevisionRecord,
   JournalSettingsRecord,
@@ -465,6 +467,140 @@ export async function getJournalContextualData(dateStr: string) {
     scrobbles: dayScrobbles,
     microblogs: dayMicroblogs,
   };
+}
+
+// --- E2EE JOURNAL ASSETS ACTIONS ---
+
+export async function createJournalAssetAction(data: {
+  id?: string;
+  assetType?: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  originalSize: number;
+  compressedSize: number;
+  thumbnailSize: number;
+  cloudinaryOriginalPublicId: string;
+  cloudinaryThumbnailPublicId: string;
+  originalIv: string;
+  thumbnailIv: string;
+  encryptionVersion?: number;
+  entryId?: string;
+  assetRole?: "inline" | "attachment";
+}) {
+  await ensureDbInitialized();
+  const id = data.id || `jasset_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const now = new Date().toISOString();
+
+  await db.insert(journalAssets).values({
+    id,
+    assetType: data.assetType || "image",
+    mimeType: data.mimeType,
+    width: data.width,
+    height: data.height,
+    originalSize: data.originalSize,
+    compressedSize: data.compressedSize,
+    thumbnailSize: data.thumbnailSize,
+    cloudinaryOriginalPublicId: data.cloudinaryOriginalPublicId,
+    cloudinaryThumbnailPublicId: data.cloudinaryThumbnailPublicId,
+    originalIv: data.originalIv,
+    thumbnailIv: data.thumbnailIv,
+    encryptionVersion: data.encryptionVersion || 1,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  if (data.entryId) {
+    const linkId = `jea_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    await db.insert(journalEntryAssets).values({
+      id: linkId,
+      entryId: data.entryId,
+      assetId: id,
+      assetRole: data.assetRole || "attachment",
+      position: 0,
+      createdAt: now,
+    });
+  }
+
+  return getJournalAssetByIdAction(id);
+}
+
+export async function linkJournalEntryAssetAction(
+  entryId: string,
+  assetId: string,
+  assetRole: "inline" | "attachment" = "attachment",
+  position: number = 0
+) {
+  await ensureDbInitialized();
+  const now = new Date().toISOString();
+
+  // Check if link already exists
+  const existing = await db
+    .select()
+    .from(journalEntryAssets)
+    .where(and(eq(journalEntryAssets.entryId, entryId), eq(journalEntryAssets.assetId, assetId)))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .update(journalEntryAssets)
+      .set({ assetRole, position })
+      .where(eq(journalEntryAssets.id, existing[0].id));
+  } else {
+    const linkId = `jea_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    await db.insert(journalEntryAssets).values({
+      id: linkId,
+      entryId,
+      assetId,
+      assetRole,
+      position,
+      createdAt: now,
+    });
+  }
+}
+
+export async function getJournalAssetByIdAction(assetId: string) {
+  await ensureDbInitialized();
+  const rows = await db.select().from(journalAssets).where(eq(journalAssets.id, assetId)).limit(1);
+  return rows[0] || null;
+}
+
+export async function getJournalAssetsForEntryAction(entryId: string) {
+  await ensureDbInitialized();
+  const links = await db
+    .select()
+    .from(journalEntryAssets)
+    .where(eq(journalEntryAssets.entryId, entryId))
+    .orderBy(journalEntryAssets.position, journalEntryAssets.createdAt);
+
+  if (links.length === 0) return [];
+
+  const assetIds = links.map((l) => l.assetId);
+  const assets = await db
+    .select()
+    .from(journalAssets)
+    .where(inArray(journalAssets.id, assetIds));
+
+  // Combine asset with role & position metadata
+  const assetMap = new Map(assets.map((a) => [a.id, a]));
+  return links
+    .map((link) => {
+      const asset = assetMap.get(link.assetId);
+      if (!asset) return null;
+      return {
+        ...asset,
+        linkId: link.id,
+        assetRole: link.assetRole as "inline" | "attachment",
+        position: link.position,
+      };
+    })
+    .filter(Boolean);
+}
+
+export async function deleteJournalAssetAction(assetId: string) {
+  await ensureDbInitialized();
+  await db.delete(journalEntryAssets).where(eq(journalEntryAssets.assetId, assetId));
+  await db.delete(journalAssets).where(eq(journalAssets.id, assetId));
 }
 
 export async function getEntityPickersData() {
