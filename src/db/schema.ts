@@ -591,6 +591,70 @@ export interface PasteItem {
   createdAt: string;
 }
 
+// --- E2EE JOURNAL MODULE SCHEMAS ---
+export const journalEntries = sqliteTable("journal_entries", {
+  id: text("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  entryDate: text("entry_date").notNull(),
+  entryType: text("entry_type").notNull().default("daily"),
+  mood: text("mood"),
+  favorite: integer("favorite").notNull().default(0),
+  visibility: text("visibility", { enum: ["public", "private", "unlisted"] }).notNull().default("private"),
+  locationId: text("location_id"),
+  tripId: text("trip_id"),
+  weatherId: text("weather_id"),
+  encryptedContent: text("encrypted_content").notNull(),
+  encryptionVersion: integer("encryption_version").notNull().default(1),
+  iv: text("iv").notNull(),
+  salt: text("salt").notNull(),
+  wordCount: integer("word_count").notNull().default(0),
+  readingTime: integer("reading_time").notNull().default(0),
+  tags: text("tags").notNull().default("[]"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const journalRevisions = sqliteTable("journal_revisions", {
+  id: text("id").primaryKey(),
+  entryId: text("entry_id").notNull(),
+  encryptedContent: text("encrypted_content").notNull(),
+  iv: text("iv").notNull(),
+  salt: text("salt").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export const journalSettings = sqliteTable("journal_settings", {
+  id: text("id").primaryKey(),
+  salt: text("salt").notNull(),
+  verificationPayload: text("verification_payload").notNull(),
+  verificationIv: text("verification_iv").notNull(),
+  autoLockMinutes: integer("auto_lock_minutes").notNull().default(15),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const journalKeys = sqliteTable("journal_keys", {
+  id: text("id").primaryKey(), // 'default'
+  encryptedDek: text("encrypted_dek").notNull(),
+  salt: text("salt").notNull(),
+  iv: text("iv").notNull(),
+  algorithm: text("algorithm").notNull().default("AES-256-GCM"),
+  kdf: text("kdf").notNull().default("Argon2id"),
+  argonMemory: integer("argon_memory").notNull().default(65536),
+  argonIterations: integer("argon_iterations").notNull().default(3),
+  argonParallelism: integer("argon_parallelism").notNull().default(1),
+  keyVersion: integer("key_version").notNull().default(1),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export type JournalEntryRecord = typeof journalEntries.$inferSelect;
+export type NewJournalEntry = typeof journalEntries.$inferInsert;
+export type JournalRevisionRecord = typeof journalRevisions.$inferSelect;
+export type JournalSettingsRecord = typeof journalSettings.$inferSelect;
+export type JournalKeyRecord = typeof journalKeys.$inferSelect;
+
+
+
 
 
 

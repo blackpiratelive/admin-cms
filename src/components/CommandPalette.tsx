@@ -14,6 +14,7 @@ import {
   FolderPlus,
   Settings,
   X,
+  BookOpen,
 } from "lucide-react";
 
 export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
@@ -60,6 +61,16 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
   };
 
   const quickActions = [
+    {
+      label: "New Journal Entry",
+      icon: BookOpen,
+      action: () => navigateTo("/journal/editor"),
+    },
+    {
+      label: "Open Memory Vault (Journal)",
+      icon: BookOpen,
+      action: () => navigateTo("/journal"),
+    },
     {
       label: "New Microblog",
       icon: MessageSquareText,

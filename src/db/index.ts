@@ -577,6 +577,69 @@ export async function ensureDbInitialized(): Promise<void> {
         );
       `);
 
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS journal_entries (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL UNIQUE,
+          entry_date TEXT NOT NULL,
+          entry_type TEXT NOT NULL DEFAULT 'daily',
+          mood TEXT,
+          favorite INTEGER NOT NULL DEFAULT 0,
+          visibility TEXT NOT NULL DEFAULT 'private',
+          location_id TEXT,
+          trip_id TEXT,
+          weather_id TEXT,
+          encrypted_content TEXT NOT NULL,
+          encryption_version INTEGER NOT NULL DEFAULT 1,
+          iv TEXT NOT NULL,
+          salt TEXT NOT NULL,
+          word_count INTEGER NOT NULL DEFAULT 0,
+          reading_time INTEGER NOT NULL DEFAULT 0,
+          tags TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS journal_revisions (
+          id TEXT PRIMARY KEY,
+          entry_id TEXT NOT NULL,
+          encrypted_content TEXT NOT NULL,
+          iv TEXT NOT NULL,
+          salt TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS journal_settings (
+          id TEXT PRIMARY KEY,
+          salt TEXT NOT NULL,
+          verification_payload TEXT NOT NULL,
+          verification_iv TEXT NOT NULL,
+          auto_lock_minutes INTEGER NOT NULL DEFAULT 15,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS journal_keys (
+          id TEXT PRIMARY KEY,
+          encrypted_dek TEXT NOT NULL,
+          salt TEXT NOT NULL,
+          iv TEXT NOT NULL,
+          algorithm TEXT NOT NULL DEFAULT 'AES-256-GCM',
+          kdf TEXT NOT NULL DEFAULT 'Argon2id',
+          argon_memory INTEGER NOT NULL DEFAULT 65536,
+          argon_iterations INTEGER NOT NULL DEFAULT 3,
+          argon_parallelism INTEGER NOT NULL DEFAULT 1,
+          key_version INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
       // Add columns to existing installations dynamically
       try {
         await client.execute(`ALTER TABLE microblogs ADD COLUMN location_id TEXT;`);
@@ -703,6 +766,9 @@ export async function ensureDbInitialized(): Promise<void> {
         CREATE INDEX IF NOT EXISTS attachments_entity_idx ON attachments(entity_type, entity_id);
         CREATE INDEX IF NOT EXISTS collection_items_col_idx ON collection_items(collection_id, item_type, item_id);
         CREATE INDEX IF NOT EXISTS search_index_query_idx ON search_index(title, subtitle, keywords);
+        CREATE INDEX IF NOT EXISTS journal_entries_entry_date_idx ON journal_entries(entry_date DESC);
+        CREATE INDEX IF NOT EXISTS journal_entries_created_at_idx ON journal_entries(created_at DESC);
+        CREATE INDEX IF NOT EXISTS journal_revisions_entry_id_idx ON journal_revisions(entry_id);
       `);
 
       // SQLite maintenance optimization & query planner statistics

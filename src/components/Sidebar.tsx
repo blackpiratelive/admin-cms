@@ -63,6 +63,14 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
         <div className="nav-section">
           <div className="nav-section-title">Content</div>
           <Link
+            href="/journal"
+            className={`nav-link ${isActive("/journal") ? "active" : ""}`}
+            onClick={handleLinkClick}
+          >
+            <BookOpen size={16} />
+            <span>Journal</span>
+          </Link>
+          <Link
             href="/microblog"
             className={`nav-link ${isActive("/microblog") ? "active" : ""}`}
             onClick={handleLinkClick}

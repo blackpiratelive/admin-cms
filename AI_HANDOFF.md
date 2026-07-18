@@ -27,6 +27,7 @@ admin-cms/
 │   │   ├── (auth)/login/        # Password login page
 │   │   ├── (dashboard)/         # Protected dashboard layout & routes
 │   │   │   ├── page.tsx         # Control center overview with modular widgets
+│   │   │   ├── journal/         # End-to-End Encrypted Personal Journal (/journal and /journal/editor)
 │   │   │   ├── microblog/       # Microblog list & CRUD editor routes
 │   │   │   ├── todos/           # Todo list & Project management route
 │   │   │   ├── people/          # Personal Relationship & Memory Hub routes (/people and /people/[slug])
@@ -42,6 +43,7 @@ admin-cms/
 │   │   ├── schema.ts            # Drizzle table schemas for all entities and providers
 │   │   └── index.ts             # Turso / libSQL client & auto-initializer DDL
 │   ├── features/
+│   │   ├── journal/             # Client-side DEK/KEK E2EE Web Crypto API (Argon2id KEK derivation, AES-256-GCM DEK re-wrapping), Lexical Editor, & Revision History
 │   │   ├── activity/            # Universal Activity Engine logging & timeline
 │   │   ├── relationships/       # Generic Relationship Engine (connects any two entities)
 │   │   ├── attachments/         # Reusable Attachment System for media & files
