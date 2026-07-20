@@ -13,6 +13,7 @@ import {
   Settings,
   ShieldCheck,
   Download,
+  Upload,
 } from "lucide-react";
 
 interface JournalHeaderProps {
@@ -22,6 +23,7 @@ interface JournalHeaderProps {
   onSearchChange: (query: string) => void;
   onNewEntry: () => void;
   onExportClick: () => void;
+  onImportClick?: () => void;
   onSecurityClick?: () => void;
 }
 
@@ -32,6 +34,7 @@ export function JournalHeader({
   onSearchChange,
   onNewEntry,
   onExportClick,
+  onImportClick,
   onSecurityClick,
 }: JournalHeaderProps) {
   const { lock, settings, updateAutoLock } = useJournalAuth();
@@ -144,6 +147,29 @@ export function JournalHeader({
             <Plus size={16} />
             <span>New Entry</span>
           </button>
+
+          {onImportClick && (
+            <button
+              onClick={onImportClick}
+              title="Import Journal Entries (.zip)"
+              style={{
+                padding: "8px 12px",
+                backgroundColor: "var(--bg-input)",
+                border: "1px solid var(--border-color)",
+                borderRadius: "6px",
+                color: "var(--text-primary)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "13px",
+                fontWeight: 600,
+              }}
+            >
+              <Upload size={15} style={{ color: "var(--accent)" }} />
+              <span>Import</span>
+            </button>
+          )}
 
           <button
             onClick={onExportClick}

@@ -36,4 +36,6 @@ android/app/build/
 android/local.properties
 .kotlin/
 android/.kotlin/
+*.tar.gz
+*.zip
 

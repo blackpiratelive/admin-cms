@@ -8,6 +8,7 @@ import { JournalDashboardWidget } from "./JournalDashboardWidget";
 import { JournalTimeline } from "./JournalTimeline";
 import { JournalCalendar } from "./JournalCalendar";
 import { JournalExportModal } from "./JournalExportModal";
+import { JournalImportModal } from "./JournalImportModal";
 import { getJournalEntries, updateJournalEntry, deleteJournalEntry } from "../actions";
 import { decryptAllEntries, searchDecryptedEntries, DecryptedEntryItem } from "../lib/journal-search";
 import { calculateJournalStats } from "../lib/journal-stats";
@@ -29,6 +30,7 @@ export function JournalHubClient() {
   const [viewMode, setViewMode] = useState<"timeline" | "calendar" | "stats">("timeline");
   const [searchQuery, setSearchQuery] = useState("");
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [showSecurityModal, setShowSecurityModal] = useState(false);
 
   // Fetch entries from DB
@@ -115,6 +117,7 @@ export function JournalHubClient() {
         onSearchChange={setSearchQuery}
         onNewEntry={() => router.push("/journal/editor")}
         onExportClick={() => setShowExportModal(true)}
+        onImportClick={() => setShowImportModal(true)}
         onSecurityClick={() => setShowSecurityModal(true)}
       />
 
@@ -188,6 +191,12 @@ export function JournalHubClient() {
         items={decryptedItems}
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
+      />
+
+      <JournalImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImportSuccess={loadEntries}
       />
 
       <JournalSecurityModal

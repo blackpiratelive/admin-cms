@@ -125,6 +125,11 @@ admin-cms/
   - **Lightbox** ([JournalLightboxModal.tsx](file:///home/dog/git/admin-cms/src/features/journal/components/JournalLightboxModal.tsx)): Fullscreen E2EE photo viewer with zoom/pan, keyboard navigation, and decrypted download
   - **Attachments Gallery** ([JournalAttachments.tsx](file:///home/dog/git/admin-cms/src/features/journal/components/JournalAttachments.tsx)): Multi-file upload queue with progress bars, grid/list views, thumbnail decryption, lightbox, and deletion
   - **Editor Integration** ([LexicalJournalEditor.tsx](file:///home/dog/git/admin-cms/src/features/journal/components/editor/LexicalJournalEditor.tsx)): Toolbar image upload button, `/image` slash command, `DragDropPasteImagePlugin` for drag-and-drop and clipboard paste of images — all auto-encrypt and insert inline `JournalImageNode`
+- **E2EE Journal Import & Undo Engine**:
+  - **Zip Archive Extraction** ([JournalImportModal.tsx](file:///home/dog/git/admin-cms/src/features/journal/components/JournalImportModal.tsx)): Extracts `.zip` files client-side using `JSZip`, parsing `journal.json` at root and matching image files inside `images/` directory while ignoring extraneous files.
+  - **Entry Selection & Preview**: Selective checkbox toggling, "Select All/Deselect All", and expandable accordion panels previewing dates, types, moods, tags, attached images, and raw text/Lexical state.
+  - **Batch Encryption & Saving**: Client-side AES-256-GCM entry payload encryption and image attachment pipeline (`processAndUploadEncryptedJournalAsset`), processing entries in configurable batches (default 5) with a live progress bar.
+  - **Undo Last Import**: Preserves import session IDs in `localStorage` (`last_journal_import`) and executes atomic DB rollback via `undoJournalImportAction` ([actions.ts](file:///home/dog/git/admin-cms/src/features/journal/actions.ts#L623-L644)).
 
 ---
 

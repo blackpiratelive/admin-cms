@@ -619,3 +619,27 @@ export async function getEntityPickersData() {
     projects: prjs,
   };
 }
+
+export async function undoJournalImportAction(entryIds: string[], assetIds: string[]) {
+  await ensureDbInitialized();
+
+  if (entryIds && entryIds.length > 0) {
+    await db.delete(journalRevisions).where(inArray(journalRevisions.entryId, entryIds));
+    await db.delete(journalEntryAssets).where(inArray(journalEntryAssets.entryId, entryIds));
+    await db.delete(journalEntries).where(inArray(journalEntries.id, entryIds));
+
+    for (const id of entryIds) {
+      eventBus.emit("entity.deleted", { type: "journal", id });
+    }
+  }
+
+  if (assetIds && assetIds.length > 0) {
+    await db.delete(journalEntryAssets).where(inArray(journalEntryAssets.assetId, assetIds));
+    await db.delete(journalAssets).where(inArray(journalAssets.id, assetIds));
+  }
+
+  purgeTag("journal-entries-list");
+  revalidatePath("/journal");
+  return { success: true, count: entryIds.length };
+}
+
