@@ -13,7 +13,9 @@ import {
   rebuildAnalyticsEngineAction,
   togglePinMemoryAction,
   getModuleAnalyticsAction,
+  getGlobalAnalyticsAction,
 } from "@/features/analytics/actions";
+import { notify } from "@/lib/notifications";
 import {
   BarChart3,
   TrendingUp,
@@ -38,6 +40,7 @@ import {
   Calendar,
   Layers,
   Filter,
+  Loader2,
 } from "lucide-react";
 
 interface AnalyticsDashboardClientProps {
@@ -55,6 +58,9 @@ export function AnalyticsDashboardClient({
 }: AnalyticsDashboardClientProps) {
   const [isPending, startTransition] = useTransition();
   const [timeFilter, setTimeFilter] = useState<TimeFilterRange>("lifetime");
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [calculatingFilter, setCalculatingFilter] = useState<string | null>(null);
+
   const [activeTab, setActiveTab] = useState<"overview" | "modules" | "memory_hub" | "timeline" | "snapshots">("overview");
   const [selectedModule, setSelectedModule] = useState<SupportedModule>("journal");
   const [moduleData, setModuleData] = useState<any>(null);
@@ -64,8 +70,56 @@ export function AnalyticsDashboardClient({
 
   const handleRebuildCache = () => {
     startTransition(async () => {
-      const updated = await rebuildAnalyticsEngineAction();
-      setOverview(updated);
+      try {
+        const updated = await rebuildAnalyticsEngineAction();
+        setOverview(updated);
+        notify.show({
+          type: "success",
+          title: "Analytics Cache Rebuilt",
+          message: "All analytics engine caches and snapshots updated.",
+          duration: 4000,
+        });
+      } catch (err) {
+        notify.show({
+          type: "error",
+          title: "Rebuild Error",
+          message: "Failed to rebuild analytics cache.",
+        });
+      }
+    });
+  };
+
+  const handleTimeFilterChange = (filterKey: TimeFilterRange, label: string) => {
+    if (filterKey === timeFilter && !isCalculating) return;
+    setTimeFilter(filterKey);
+    setIsCalculating(true);
+    setCalculatingFilter(label);
+
+    startTransition(async () => {
+      try {
+        const [newOverview, newModuleData] = await Promise.all([
+          getGlobalAnalyticsAction(filterKey),
+          getModuleAnalyticsAction(selectedModule, filterKey),
+        ]);
+        setOverview(newOverview);
+        setModuleData(newModuleData);
+        notify.show({
+          type: "success",
+          title: "Analytics Calculated",
+          message: `Updated analytics calculations for: ${label}`,
+          duration: 3500,
+        });
+      } catch (err) {
+        console.error("Time filter calculation error:", err);
+        notify.show({
+          type: "error",
+          title: "Calculation Error",
+          message: "Failed to recalculate analytics for selected horizon.",
+        });
+      } finally {
+        setIsCalculating(false);
+        setCalculatingFilter(null);
+      }
     });
   };
 
@@ -85,6 +139,12 @@ export function AnalyticsDashboardClient({
           return m;
         })
       );
+      notify.show({
+        type: "success",
+        title: res.isPinned ? "Memory Pinned" : "Memory Unpinned",
+        message: `${entityType} memory updated in Memory Hub`,
+        duration: 3000,
+      });
     }
   };
 
@@ -143,6 +203,38 @@ export function AnalyticsDashboardClient({
         </button>
       </div>
 
+      {/* Calculating / Rebuilding Status Banner */}
+      {(isCalculating || isPending) && (
+        <div
+          style={{
+            background: "rgba(255, 102, 0, 0.12)",
+            border: "1px solid var(--accent-color, #ff6600)",
+            borderRadius: "10px",
+            padding: "0.85rem 1.25rem",
+            marginBottom: "1.5rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            color: "var(--accent-color, #ff6600)",
+            fontWeight: 600,
+            fontSize: "0.9rem",
+            boxShadow: "0 4px 12px rgba(255, 102, 0, 0.15)",
+          }}
+        >
+          <Loader2 size={20} className="spin" style={{ flexShrink: 0 }} />
+          <div>
+            <div>
+              {isPending
+                ? "Rebuilding entire Analytics & Memory Engine cache across 10 modules..."
+                : `Recalculating statistics for time duration: "${calculatingFilter || timeFilter}"...`}
+            </div>
+            <div style={{ fontSize: "0.75rem", opacity: 0.8, marginTop: "0.2rem" }}>
+              Scanning operational databases and generating cached metrics. Please wait a moment.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Time Filter Bar */}
       <div
         style={{
@@ -173,26 +265,39 @@ export function AnalyticsDashboardClient({
             ["last_year", "Last Year"],
             ["lifetime", "Lifetime"],
           ] as Array<[TimeFilterRange, string]>
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setTimeFilter(key)}
-            style={{
-              padding: "0.35rem 0.75rem",
-              borderRadius: "6px",
-              fontSize: "0.8rem",
-              fontWeight: timeFilter === key ? 700 : 500,
-              background: timeFilter === key ? "var(--accent-color, #ff6600)" : "transparent",
-              color: timeFilter === key ? "#fff" : "inherit",
-              border: "1px solid " + (timeFilter === key ? "transparent" : "var(--border-color, rgba(255,255,255,0.1))"),
-              cursor: "pointer",
-              transition: "all 0.2s ease",
-            }}
-          >
-            {label}
-          </button>
-        ))}
+        ).map(([key, label]) => {
+          const isActive = timeFilter === key;
+          const isThisCalculating = isCalculating && isActive;
+          return (
+            <button
+              key={key}
+              disabled={isCalculating}
+              onClick={() => handleTimeFilterChange(key, label)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.35rem",
+                padding: "0.35rem 0.75rem",
+                borderRadius: "6px",
+                fontSize: "0.8rem",
+                fontWeight: isActive ? 700 : 500,
+                background: isActive ? "var(--accent-color, #ff6600)" : "transparent",
+                color: isActive ? "#fff" : "inherit",
+                border: "1px solid " + (isActive ? "transparent" : "var(--border-color, rgba(255,255,255,0.1))"),
+                cursor: isCalculating ? "wait" : "pointer",
+                transition: "all 0.2s ease",
+                opacity: isCalculating && !isActive ? 0.6 : 1,
+                boxShadow: isThisCalculating ? "0 0 10px rgba(255, 102, 0, 0.5)" : "none",
+              }}
+            >
+              {isThisCalculating && <Loader2 size={13} className="spin" />}
+              <span>{label}</span>
+            </button>
+          );
+        })}
       </div>
+
+      <div style={{ opacity: isCalculating ? 0.45 : 1, transition: "opacity 0.25s ease", pointerEvents: isCalculating ? "none" : "auto" }}>
 
       {/* Main Tabs Navigation */}
       <div style={{ borderBottom: "1px solid var(--border-color, rgba(255,255,255,0.1))", marginBottom: "1.5rem" }}>
@@ -550,6 +655,7 @@ export function AnalyticsDashboardClient({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
