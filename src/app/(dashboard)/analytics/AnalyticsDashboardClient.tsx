@@ -14,6 +14,7 @@ import {
   togglePinMemoryAction,
   getModuleAnalyticsAction,
   getGlobalAnalyticsAction,
+  rebuildDurationAnalyticsAction,
 } from "@/features/analytics/actions";
 import { ModuleDeepDiveView } from "./ModuleDeepDiveView";
 import { notify } from "@/lib/notifications";
@@ -122,6 +123,48 @@ export function AnalyticsDashboardClient({
           type: "error",
           title: "Calculation Error",
           message: "Failed to recalculate analytics for selected horizon.",
+        });
+      } finally {
+        setIsCalculating(false);
+        setCalculatingFilter(null);
+      }
+    });
+  };
+
+  const handleForceRebuildDuration = () => {
+    const currentLabel = (
+      [
+        ["today", "Today"],
+        ["yesterday", "Yesterday"],
+        ["this_week", "This Week"],
+        ["last_week", "Last Week"],
+        ["this_month", "This Month"],
+        ["last_month", "Last Month"],
+        ["this_year", "This Year"],
+        ["last_year", "Last Year"],
+        ["lifetime", "Lifetime"],
+      ] as Array<[TimeFilterRange, string]>
+    ).find(([k]) => k === timeFilter)?.[1] || timeFilter;
+
+    setIsCalculating(true);
+    setCalculatingFilter(currentLabel);
+
+    startTransition(async () => {
+      try {
+        const res = await rebuildDurationAnalyticsAction(timeFilter, selectedModule);
+        setOverview(res.globalStats);
+        if (res.moduleData) setModuleData(res.moduleData);
+        notify.show({
+          type: "success",
+          title: "Duration Analytics Rebuilt",
+          message: `Forced fresh recalculation for horizon: ${currentLabel}`,
+          duration: 3500,
+        });
+      } catch (err) {
+        notify.show({
+          type: "error",
+          title: "Rebuild Error",
+          message: `Failed to rebuild analytics for ${currentLabel}`,
         });
       } finally {
         setIsCalculating(false);
@@ -302,6 +345,30 @@ export function AnalyticsDashboardClient({
             </button>
           );
         })}
+
+        <button
+          onClick={handleForceRebuildDuration}
+          disabled={isCalculating}
+          title="Force fresh calculation for active horizon"
+          style={{
+            marginLeft: "auto",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.35rem",
+            padding: "0.35rem 0.75rem",
+            borderRadius: "6px",
+            fontSize: "0.75rem",
+            fontWeight: 600,
+            background: "rgba(255,255,255,0.05)",
+            color: "inherit",
+            border: "1px solid var(--border-color, rgba(255,255,255,0.15))",
+            cursor: isCalculating ? "not-allowed" : "pointer",
+            transition: "all 0.2s ease",
+          }}
+        >
+          <RefreshCw size={13} className={isCalculating ? "spin" : ""} />
+          <span>Recalculate Current Horizon</span>
+        </button>
       </div>
 
       <div style={{ opacity: isCalculating ? 0.45 : 1, transition: "opacity 0.25s ease", pointerEvents: isCalculating ? "none" : "auto" }}>

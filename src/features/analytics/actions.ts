@@ -26,17 +26,40 @@ import { invalidateAnalyticsL1Cache } from "./core";
 
 export async function getGlobalAnalyticsAction(
   timeFilter: TimeFilterRange = "lifetime",
-  customRange?: CustomDateRange
+  customRange?: CustomDateRange,
+  forceRebuild = false
 ): Promise<GlobalOverviewStats> {
   return await measureTelemetry(
     `getGlobalAnalyticsAction:${timeFilter}`,
     ANALYTICS_PERFORMANCE_BUDGET.cachedOverviewMaxMs,
     async () => {
-      if (timeFilter === "lifetime") {
-        return await getCachedGlobalOverview();
+      await ensureDbInitialized();
+
+      const cacheKey = customRange?.startDate
+        ? `global_stats_${timeFilter}_${customRange.startDate}_${customRange.endDate}`
+        : `global_stats_${timeFilter}`;
+
+      // 1. Read from DB cache if not forcing rebuild
+      if (!forceRebuild) {
+        const cachedRows = await db
+          .select()
+          .from(analyticsDashboard)
+          .where(eq(analyticsDashboard.key, cacheKey));
+
+        if (cachedRows.length > 0) {
+          try {
+            return JSON.parse(cachedRows[0].dataJson) as GlobalOverviewStats;
+          } catch (e) {
+            console.error(`[AnalyticsEngine] Error parsing cached global stats for '${cacheKey}':`, e);
+          }
+        }
+
+        if (timeFilter === "lifetime") {
+          return await getCachedGlobalOverview();
+        }
       }
 
-      await ensureDbInitialized();
+      // 2. Compute analytics for time filter
       const { getAllAnalyticsProviders } = await import("./providers");
       const providers = getAllAnalyticsProviders();
       const providerResults: Record<string, any> = {};
@@ -51,7 +74,7 @@ export async function getGlobalAnalyticsAction(
       );
 
       const now = new Date().toISOString();
-      return {
+      const computedStats: GlobalOverviewStats = {
         totalJournalEntries: providerResults["journal"]?.totalEntries || 0,
         totalMicroblogs: providerResults["microblog"]?.totalPosts || 0,
         totalTodos: providerResults["todos"]?.totalTasks || 0,
@@ -71,6 +94,21 @@ export async function getGlobalAnalyticsAction(
         syncStatus: "connected",
         updatedAt: now,
       };
+
+      // Save to DB cache
+      await db
+        .insert(analyticsDashboard)
+        .values({
+          key: cacheKey,
+          dataJson: JSON.stringify(computedStats),
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: analyticsDashboard.key,
+          set: { dataJson: JSON.stringify(computedStats), updatedAt: now },
+        });
+
+      return computedStats;
     }
   );
 }
@@ -78,32 +116,78 @@ export async function getGlobalAnalyticsAction(
 export async function getModuleAnalyticsAction(
   moduleName: SupportedModule,
   timeFilter: TimeFilterRange = "lifetime",
-  customRange?: CustomDateRange
+  customRange?: CustomDateRange,
+  forceRebuild = false
 ): Promise<any> {
   return await measureTelemetry(
-    `getModuleAnalyticsAction:${moduleName}`,
+    `getModuleAnalyticsAction:${moduleName}:${timeFilter}`,
     ANALYTICS_PERFORMANCE_BUDGET.cachedOverviewMaxMs,
     async () => {
       await ensureDbInitialized();
 
+      const cacheKey = customRange?.startDate
+        ? `summary_${moduleName}_${timeFilter}_${customRange.startDate}_${customRange.endDate}`
+        : `summary_${moduleName}_${timeFilter}`;
+
+      // 1. Read from DB cache if not forcing rebuild
+      if (!forceRebuild) {
+        const cachedRows = await db
+          .select()
+          .from(analyticsMetrics)
+          .where(eq(analyticsMetrics.id, cacheKey));
+
+        if (cachedRows.length > 0) {
+          try {
+            return JSON.parse(cachedRows[0].metadataJson);
+          } catch (e) {
+            console.error(`[AnalyticsEngine] Error parsing cached module metrics for '${cacheKey}':`, e);
+          }
+        }
+      }
+
+      // 2. Compute provider analytics
       const provider = getAnalyticsProvider(moduleName);
+      let data = {};
       if (provider) {
-        return await provider.computeAnalytics(timeFilter, customRange);
+        data = await provider.computeAnalytics(timeFilter, customRange);
       }
 
-      // Fallback to cached analytics_metrics summary
-      const rows = await db
-        .select()
-        .from(analyticsMetrics)
-        .where(eq(analyticsMetrics.id, `summary_${moduleName}`));
+      const now = new Date().toISOString();
+      const dataJson = JSON.stringify(data);
 
-      if (rows.length > 0) {
-        return JSON.parse(rows[0].metadataJson);
-      }
+      // Save to DB cache
+      await db
+        .insert(analyticsMetrics)
+        .values({
+          id: cacheKey,
+          module: moduleName,
+          metricName: `summary_${timeFilter}`,
+          metricValue: 1,
+          metadataJson: dataJson,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: analyticsMetrics.id,
+          set: { metadataJson: dataJson, updatedAt: now },
+        });
 
-      return {};
+      return data;
     }
   );
+}
+
+export async function rebuildDurationAnalyticsAction(
+  timeFilter: TimeFilterRange,
+  selectedModule?: SupportedModule,
+  customRange?: CustomDateRange
+): Promise<{ globalStats: GlobalOverviewStats; moduleData?: any }> {
+  invalidateAnalyticsL1Cache();
+  const globalStats = await getGlobalAnalyticsAction(timeFilter, customRange, true);
+  let moduleData = undefined;
+  if (selectedModule) {
+    moduleData = await getModuleAnalyticsAction(selectedModule, timeFilter, customRange, true);
+  }
+  return { globalStats, moduleData };
 }
 
 export async function getMemoryIndexRankingsAction(
