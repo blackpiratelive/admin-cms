@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import {
   GlobalOverviewStats,
   MemoryScoreBreakdown,
@@ -15,6 +15,7 @@ import {
   getModuleAnalyticsAction,
   getGlobalAnalyticsAction,
 } from "@/features/analytics/actions";
+import { ModuleDeepDiveView } from "./ModuleDeepDiveView";
 import { notify } from "@/lib/notifications";
 import {
   BarChart3,
@@ -67,6 +68,12 @@ export function AnalyticsDashboardClient({
   const [loadingModule, setLoadingModule] = useState(false);
   const [memoryScores, setMemoryScores] = useState<MemoryScoreBreakdown[]>(initialMemoryScores);
   const [overview, setOverview] = useState<GlobalOverviewStats>(initialOverview);
+
+  useEffect(() => {
+    if (activeTab === "modules" && moduleData === null && !loadingModule) {
+      handleSelectModule(selectedModule);
+    }
+  }, [activeTab]);
 
   const handleRebuildCache = () => {
     startTransition(async () => {
@@ -475,33 +482,7 @@ export function AnalyticsDashboardClient({
             ))}
           </div>
 
-          {loadingModule ? (
-            <div style={{ padding: "3rem", textAlign: "center", opacity: 0.7 }}>Loading analytics data for {selectedModule}...</div>
-          ) : (
-            <div
-              style={{
-                background: "var(--card-bg, rgba(255,255,255,0.03))",
-                padding: "1.5rem",
-                borderRadius: "12px",
-                border: "1px solid var(--border-color, rgba(255,255,255,0.06))",
-              }}
-            >
-              <h2 style={{ marginTop: 0, textTransform: "capitalize" }}>{selectedModule} Detailed Analytics</h2>
-              <pre
-                style={{
-                  background: "rgba(0,0,0,0.3)",
-                  padding: "1rem",
-                  borderRadius: "8px",
-                  maxHeight: "450px",
-                  overflow: "auto",
-                  fontSize: "0.85rem",
-                  lineHeight: "1.4",
-                }}
-              >
-                {JSON.stringify(moduleData || {}, null, 2)}
-              </pre>
-            </div>
-          )}
+          <ModuleDeepDiveView moduleName={selectedModule} data={moduleData} isLoading={loadingModule} />
         </div>
       )}
 
