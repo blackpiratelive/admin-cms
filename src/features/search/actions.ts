@@ -54,7 +54,22 @@ export async function searchEverything(query: string): Promise<SearchResultItem[
     }
   }
 
-  return rows.map((row) => ({
+  // Memory Index Search Ranking Boost
+  const memoryScores = await db.select().from(sql`analytics_memory_scores`);
+  const scoreMap = new Map<string, number>();
+  memoryScores.forEach((ms: any) => {
+    if (ms.id && ms.final_score) {
+      scoreMap.set(ms.id, ms.final_score);
+    }
+  });
+
+  const sortedRows = [...rows].sort((a, b) => {
+    const scoreA = scoreMap.get(`${a.entityType}_${a.entityId}`) || scoreMap.get(a.id) || 0;
+    const scoreB = scoreMap.get(`${b.entityType}_${b.entityId}`) || scoreMap.get(b.id) || 0;
+    return scoreB - scoreA;
+  });
+
+  return sortedRows.map((row) => ({
     id: row.entityId,
     type: row.entityType,
     title: row.title,

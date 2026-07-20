@@ -564,9 +564,136 @@ export const systemStats = sqliteTable("system_stats", {
   updatedAt: text("updated_at").notNull(),
 });
 
+// --- ANALYTICS ENGINE CACHE TABLES ---
+export const analyticsMetrics = sqliteTable("analytics_metrics", {
+  id: text("id").primaryKey(),
+  module: text("module").notNull(),
+  metricName: text("metric_name").notNull(),
+  metricValue: real("metric_value").notNull().default(0),
+  metadataJson: text("metadata_json").notNull().default("{}"),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const analyticsDaily = sqliteTable("analytics_daily", {
+  id: text("id").primaryKey(), // `${date}_${module}_${metricName}`
+  date: text("date").notNull(),
+  module: text("module").notNull(),
+  metricName: text("metric_name").notNull(),
+  value: real("value").notNull().default(0),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const analyticsMonthly = sqliteTable("analytics_monthly", {
+  id: text("id").primaryKey(), // `${yearMonth}_${module}_${metricName}`
+  yearMonth: text("year_month").notNull(),
+  module: text("module").notNull(),
+  metricName: text("metric_name").notNull(),
+  value: real("value").notNull().default(0),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const analyticsYearly = sqliteTable("analytics_yearly", {
+  id: text("id").primaryKey(), // `${year}_${module}_${metricName}`
+  year: text("year").notNull(),
+  module: text("module").notNull(),
+  metricName: text("metric_name").notNull(),
+  value: real("value").notNull().default(0),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const analyticsRelationships = sqliteTable("analytics_relationships", {
+  id: text("id").primaryKey(),
+  sourceType: text("source_type").notNull(),
+  sourceId: text("source_id").notNull(),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id").notNull(),
+  relationship: text("relationship").notNull(),
+  weight: real("weight").notNull().default(1),
+  metadataJson: text("metadata_json").notNull().default("{}"),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const analyticsTimeline = sqliteTable("analytics_timeline", {
+  id: text("id").primaryKey(),
+  date: text("date").notNull(),
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  relatedPeopleJson: text("related_people_json").notNull().default("[]"),
+  relatedLocationId: text("related_location_id"),
+  relatedTripId: text("related_trip_id"),
+  relatedJournalId: text("related_journal_id"),
+  thumbnailUrl: text("thumbnail_url"),
+  importanceScore: real("importance_score").notNull().default(0),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const analyticsSnapshots = sqliteTable("analytics_snapshots", {
+  id: text("id").primaryKey(),
+  snapshotType: text("snapshot_type").notNull(), // 'daily' | 'monthly' | 'yearly'
+  periodKey: text("period_key").notNull(), // e.g. '2026-07-20', '2026-07', '2026'
+  dataJson: text("data_json").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export const analyticsMemoryScores = sqliteTable("analytics_memory_scores", {
+  id: text("id").primaryKey(), // `${entityType}_${entityId}`
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  title: text("title").notNull(),
+  slug: text("slug").notNull(),
+  richnessScore: real("richness_score").notNull().default(0),
+  diversityScore: real("diversity_score").notNull().default(0),
+  longevityScore: real("longevity_score").notNull().default(0),
+  recurrenceScore: real("recurrence_score").notNull().default(0),
+  recencyScore: real("recency_score").notNull().default(0),
+  favoriteBonus: real("favorite_bonus").notNull().default(0),
+  pinnedBonus: real("pinned_bonus").notNull().default(0),
+  finalScore: real("final_score").notNull().default(0),
+  isPinned: integer("is_pinned").notNull().default(0),
+  metadataJson: text("metadata_json").notNull().default("{}"),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const analyticsDashboard = sqliteTable("analytics_dashboard", {
+  key: text("key").primaryKey(),
+  dataJson: text("data_json").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const analyticsSearch = sqliteTable("analytics_search", {
+  id: text("id").primaryKey(), // `${entityType}_${entityId}`
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  boostScore: real("boost_score").notNull().default(1.0),
+  keywords: text("keywords").notNull().default(""),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const analyticsTrends = sqliteTable("analytics_trends", {
+  id: text("id").primaryKey(),
+  period: text("period").notNull(), // 'daily' | 'weekly' | 'monthly' | 'yearly'
+  module: text("module").notNull(),
+  trendType: text("trend_type").notNull(),
+  dataJson: text("data_json").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 export type DashboardCacheRecord = typeof dashboardCache.$inferSelect;
 export type SearchIndexRecord = typeof searchIndex.$inferSelect;
 export type SystemStatsRecord = typeof systemStats.$inferSelect;
+export type AnalyticsMetricsRecord = typeof analyticsMetrics.$inferSelect;
+export type AnalyticsDailyRecord = typeof analyticsDaily.$inferSelect;
+export type AnalyticsMonthlyRecord = typeof analyticsMonthly.$inferSelect;
+export type AnalyticsYearlyRecord = typeof analyticsYearly.$inferSelect;
+export type AnalyticsRelationshipsRecord = typeof analyticsRelationships.$inferSelect;
+export type AnalyticsTimelineRecord = typeof analyticsTimeline.$inferSelect;
+export type AnalyticsSnapshotsRecord = typeof analyticsSnapshots.$inferSelect;
+export type AnalyticsMemoryScoresRecord = typeof analyticsMemoryScores.$inferSelect;
+export type AnalyticsDashboardRecord = typeof analyticsDashboard.$inferSelect;
+export type AnalyticsSearchRecord = typeof analyticsSearch.$inferSelect;
+export type AnalyticsTrendsRecord = typeof analyticsTrends.$inferSelect;
 
 export interface ShortLink {
   slug: string;

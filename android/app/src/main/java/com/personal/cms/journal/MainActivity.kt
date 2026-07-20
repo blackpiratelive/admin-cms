@@ -195,8 +195,10 @@ class MainActivity : ComponentActivity() {
                                                     entryDate = editorDate,
                                                     locationId = locationId,
                                                     tripId = tripId,
+                                                    journalRepository = journalRepository,
                                                     onLocationChange = { locationId = it },
-                                                    onTripChange = { tripId = it }
+                                                    onTripChange = { tripId = it },
+                                                    modifier = Modifier.weight(1f)
                                                 )
                                             }
                                         } else {
@@ -226,6 +228,7 @@ class MainActivity : ComponentActivity() {
                                                         entryDate = editorDate,
                                                         locationId = locationId,
                                                         tripId = tripId,
+                                                        journalRepository = journalRepository,
                                                         onLocationChange = { locationId = it },
                                                         onTripChange = { tripId = it },
                                                         modifier = Modifier.fillMaxWidth().padding(16.dp)

@@ -39,6 +39,7 @@ class EventBus {
         const { upsertSearchEntry } = await import("@/features/search/search-index");
         const { rebuildSystemStatsCache } = await import("@/features/stats/actions");
         const { rebuildDashboardCache } = await import("@/features/dashboard/cache");
+        const { rebuildAllAnalyticsCache } = await import("@/features/analytics/core");
 
         await upsertSearchEntry({
           entityType: payload.type,
@@ -52,6 +53,7 @@ class EventBus {
         await Promise.all([
           rebuildSystemStatsCache(),
           rebuildDashboardCache(true),
+          rebuildAllAnalyticsCache(),
         ]);
       } catch (err) {
         console.error("[EventBus] Error in entity.saved handler:", err);
@@ -63,12 +65,14 @@ class EventBus {
         const { deleteSearchEntry } = await import("@/features/search/search-index");
         const { rebuildSystemStatsCache } = await import("@/features/stats/actions");
         const { rebuildDashboardCache } = await import("@/features/dashboard/cache");
+        const { rebuildAllAnalyticsCache } = await import("@/features/analytics/core");
 
         await deleteSearchEntry(payload.type, payload.id);
 
         await Promise.all([
           rebuildSystemStatsCache(),
           rebuildDashboardCache(true),
+          rebuildAllAnalyticsCache(),
         ]);
       } catch (err) {
         console.error("[EventBus] Error in entity.deleted handler:", err);

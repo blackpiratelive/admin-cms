@@ -674,6 +674,144 @@ export async function ensureDbInitialized(): Promise<void> {
       await client.execute(`CREATE INDEX IF NOT EXISTS journal_entry_assets_entry_idx ON journal_entry_assets(entry_id);`);
       await client.execute(`CREATE INDEX IF NOT EXISTS journal_entry_assets_asset_idx ON journal_entry_assets(asset_id);`);
 
+      // Analytics Engine Cache Tables DDL
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS analytics_metrics (
+          id TEXT PRIMARY KEY,
+          module TEXT NOT NULL,
+          metric_name TEXT NOT NULL,
+          metric_value REAL NOT NULL DEFAULT 0,
+          metadata_json TEXT NOT NULL DEFAULT '{}',
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS analytics_daily (
+          id TEXT PRIMARY KEY,
+          date TEXT NOT NULL,
+          module TEXT NOT NULL,
+          metric_name TEXT NOT NULL,
+          value REAL NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS analytics_monthly (
+          id TEXT PRIMARY KEY,
+          year_month TEXT NOT NULL,
+          module TEXT NOT NULL,
+          metric_name TEXT NOT NULL,
+          value REAL NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS analytics_yearly (
+          id TEXT PRIMARY KEY,
+          year TEXT NOT NULL,
+          module TEXT NOT NULL,
+          metric_name TEXT NOT NULL,
+          value REAL NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS analytics_relationships (
+          id TEXT PRIMARY KEY,
+          source_type TEXT NOT NULL,
+          source_id TEXT NOT NULL,
+          target_type TEXT NOT NULL,
+          target_id TEXT NOT NULL,
+          relationship TEXT NOT NULL,
+          weight REAL NOT NULL DEFAULT 1,
+          metadata_json TEXT NOT NULL DEFAULT '{}',
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS analytics_timeline (
+          id TEXT PRIMARY KEY,
+          date TEXT NOT NULL,
+          type TEXT NOT NULL,
+          title TEXT NOT NULL,
+          entity_type TEXT NOT NULL,
+          entity_id TEXT NOT NULL,
+          related_people_json TEXT NOT NULL DEFAULT '[]',
+          related_location_id TEXT,
+          related_trip_id TEXT,
+          related_journal_id TEXT,
+          thumbnail_url TEXT,
+          importance_score REAL NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS analytics_snapshots (
+          id TEXT PRIMARY KEY,
+          snapshot_type TEXT NOT NULL,
+          period_key TEXT NOT NULL,
+          data_json TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS analytics_memory_scores (
+          id TEXT PRIMARY KEY,
+          entity_type TEXT NOT NULL,
+          entity_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          slug TEXT NOT NULL,
+          richness_score REAL NOT NULL DEFAULT 0,
+          diversity_score REAL NOT NULL DEFAULT 0,
+          longevity_score REAL NOT NULL DEFAULT 0,
+          recurrence_score REAL NOT NULL DEFAULT 0,
+          recency_score REAL NOT NULL DEFAULT 0,
+          favorite_bonus REAL NOT NULL DEFAULT 0,
+          pinned_bonus REAL NOT NULL DEFAULT 0,
+          final_score REAL NOT NULL DEFAULT 0,
+          is_pinned INTEGER NOT NULL DEFAULT 0,
+          metadata_json TEXT NOT NULL DEFAULT '{}',
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS analytics_dashboard (
+          key TEXT PRIMARY KEY,
+          data_json TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS analytics_search (
+          id TEXT PRIMARY KEY,
+          entity_type TEXT NOT NULL,
+          entity_id TEXT NOT NULL,
+          boost_score REAL NOT NULL DEFAULT 1.0,
+          keywords TEXT NOT NULL DEFAULT '',
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS analytics_trends (
+          id TEXT PRIMARY KEY,
+          period TEXT NOT NULL,
+          module TEXT NOT NULL,
+          trend_type TEXT NOT NULL,
+          data_json TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
       // Add columns to existing installations dynamically
       try {
         await client.execute(`ALTER TABLE microblogs ADD COLUMN location_id TEXT;`);
@@ -803,6 +941,16 @@ export async function ensureDbInitialized(): Promise<void> {
         CREATE INDEX IF NOT EXISTS journal_entries_entry_date_idx ON journal_entries(entry_date DESC);
         CREATE INDEX IF NOT EXISTS journal_entries_created_at_idx ON journal_entries(created_at DESC);
         CREATE INDEX IF NOT EXISTS journal_revisions_entry_id_idx ON journal_revisions(entry_id);
+        CREATE INDEX IF NOT EXISTS analytics_metrics_module_idx ON analytics_metrics(module);
+        CREATE INDEX IF NOT EXISTS analytics_daily_date_idx ON analytics_daily(date DESC);
+        CREATE INDEX IF NOT EXISTS analytics_monthly_ym_idx ON analytics_monthly(year_month DESC);
+        CREATE INDEX IF NOT EXISTS analytics_yearly_year_idx ON analytics_yearly(year DESC);
+        CREATE INDEX IF NOT EXISTS analytics_timeline_date_idx ON analytics_timeline(date DESC);
+        CREATE INDEX IF NOT EXISTS analytics_timeline_score_idx ON analytics_timeline(importance_score DESC);
+        CREATE INDEX IF NOT EXISTS analytics_memory_scores_final_idx ON analytics_memory_scores(final_score DESC);
+        CREATE INDEX IF NOT EXISTS analytics_memory_scores_pinned_idx ON analytics_memory_scores(is_pinned DESC);
+        CREATE INDEX IF NOT EXISTS analytics_relationships_source_idx ON analytics_relationships(source_type, source_id);
+        CREATE INDEX IF NOT EXISTS analytics_relationships_target_idx ON analytics_relationships(target_type, target_id);
       `);
 
       // SQLite maintenance optimization & query planner statistics

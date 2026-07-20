@@ -66,88 +66,112 @@ export interface ProcessedImageResult {
   mimeType: string;
 }
 
-/**
- * Strips EXIF metadata by re-drawing image to Canvas, compresses original (90% quality),
- * and generates a 512px max dimension thumbnail.
- */
-export async function processImageFile(file: File): Promise<ProcessedImageResult> {
+async function canvasToBlobFallback(canvas: HTMLCanvasElement, primaryMime: string, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Failed to read image file"));
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onerror = () => reject(new Error("Failed to decode image"));
-      img.onload = async () => {
-        try {
-          const width = img.naturalWidth || img.width;
-          const height = img.naturalHeight || img.height;
-          const originalSize = file.size;
-          const targetMime = file.type === "image/png" ? "image/png" : "image/webp";
-
-          // 1. Process Compressed Full-Size Image (EXIF Stripped)
-          const canvas = document.createElement("canvas");
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) return reject(new Error("Canvas 2D context unavailable"));
-          ctx.drawImage(img, 0, 0, width, height);
-
-          const compressedBlob = await new Promise<Blob>((res, rej) => {
-            canvas.toBlob(
-              (b) => (b ? res(b) : rej(new Error("Canvas compression failed"))),
-              targetMime,
-              0.9
-            );
-          });
-
-          // 2. Process 512px Max-Side Thumbnail
-          const MAX_THUMB = 512;
-          let thumbW = width;
-          let thumbH = height;
-          if (thumbW > MAX_THUMB || thumbH > MAX_THUMB) {
-            if (thumbW > thumbH) {
-              thumbH = Math.round((thumbH * MAX_THUMB) / thumbW);
-              thumbW = MAX_THUMB;
-            } else {
-              thumbW = Math.round((thumbW * MAX_THUMB) / thumbH);
-              thumbH = MAX_THUMB;
-            }
-          }
-
-          const thumbCanvas = document.createElement("canvas");
-          thumbCanvas.width = thumbW;
-          thumbCanvas.height = thumbH;
-          const thumbCtx = thumbCanvas.getContext("2d");
-          if (!thumbCtx) return reject(new Error("Thumb canvas context unavailable"));
-          thumbCtx.drawImage(img, 0, 0, thumbW, thumbH);
-
-          const thumbnailBlob = await new Promise<Blob>((res, rej) => {
-            thumbCanvas.toBlob(
-              (b) => (b ? res(b) : rej(new Error("Thumbnail canvas failed"))),
-              "image/webp",
-              0.85
-            );
-          });
-
-          resolve({
-            compressedBlob,
-            thumbnailBlob,
-            width,
-            height,
-            originalSize,
-            compressedSize: compressedBlob.size,
-            thumbnailSize: thumbnailBlob.size,
-            mimeType: targetMime,
-          });
-        } catch (err) {
-          reject(err);
-        }
-      };
-      img.src = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
+    canvas.toBlob(
+      (blob) => {
+        if (blob) return resolve(blob);
+        // Fallback to image/jpeg if primary mime (e.g. image/webp) is unsupported for canvas export
+        canvas.toBlob(
+          (fallbackBlob) => {
+            if (fallbackBlob) return resolve(fallbackBlob);
+            reject(new Error("Canvas export failed for image"));
+          },
+          "image/jpeg",
+          quality
+        );
+      },
+      primaryMime,
+      quality
+    );
   });
 }
+
+/**
+ * Strips EXIF metadata by re-drawing image to Canvas, compresses original (90% quality),
+ * and generates a 512px max dimension thumbnail. Fallbacks to raw file bytes if decoding/canvas fails.
+ */
+export async function processImageFile(file: File): Promise<ProcessedImageResult> {
+  try {
+    return await new Promise<ProcessedImageResult>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Failed to read image file"));
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("Failed to decode image"));
+        img.onload = async () => {
+          try {
+            const width = img.naturalWidth || img.width || 800;
+            const height = img.naturalHeight || img.height || 600;
+            const originalSize = file.size;
+            const targetMime = file.type === "image/png" ? "image/png" : "image/webp";
+
+            // 1. Process Compressed Full-Size Image (EXIF Stripped)
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) throw new Error("Canvas 2D context unavailable");
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const compressedBlob = await canvasToBlobFallback(canvas, targetMime, 0.9);
+
+            // 2. Process 512px Max-Side Thumbnail
+            const MAX_THUMB = 512;
+            let thumbW = width;
+            let thumbH = height;
+            if (thumbW > MAX_THUMB || thumbH > MAX_THUMB) {
+              if (thumbW > thumbH) {
+                thumbH = Math.round((thumbH * MAX_THUMB) / thumbW);
+                thumbW = MAX_THUMB;
+              } else {
+                thumbW = Math.round((thumbW * MAX_THUMB) / thumbH);
+                thumbH = MAX_THUMB;
+              }
+            }
+
+            const thumbCanvas = document.createElement("canvas");
+            thumbCanvas.width = thumbW;
+            thumbCanvas.height = thumbH;
+            const thumbCtx = thumbCanvas.getContext("2d");
+            if (!thumbCtx) throw new Error("Thumb canvas context unavailable");
+            thumbCtx.drawImage(img, 0, 0, thumbW, thumbH);
+
+            const thumbnailBlob = await canvasToBlobFallback(thumbCanvas, "image/webp", 0.85);
+
+            resolve({
+              compressedBlob,
+              thumbnailBlob,
+              width,
+              height,
+              originalSize,
+              compressedSize: compressedBlob.size,
+              thumbnailSize: thumbnailBlob.size,
+              mimeType: targetMime,
+            });
+          } catch (err) {
+            reject(err);
+          }
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  } catch (err) {
+    console.warn("Image canvas processing failed, using raw file bytes fallback:", err);
+    return {
+      compressedBlob: file,
+      thumbnailBlob: file,
+      width: 800,
+      height: 600,
+      originalSize: file.size,
+      compressedSize: file.size,
+      thumbnailSize: file.size,
+      mimeType: file.type || "image/jpeg",
+    };
+  }
+}
+
 
 /**
  * End-to-End Image Upload Pipeline:

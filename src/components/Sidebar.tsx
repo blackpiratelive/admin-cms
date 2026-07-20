@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { DeployWidget } from "./DeployWidget";
 import {
   LayoutDashboard,
+  BarChart3,
   MessageSquareText,
   FileText,
   StickyNote,
@@ -57,6 +58,14 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
           >
             <LayoutDashboard size={16} />
             <span>Dashboard</span>
+          </Link>
+          <Link
+            href="/analytics"
+            className={`nav-link ${isActive("/analytics") ? "active" : ""}`}
+            onClick={handleLinkClick}
+          >
+            <BarChart3 size={16} />
+            <span>Analytics & Memory</span>
           </Link>
         </nav>
 

@@ -55,22 +55,12 @@ fun NativeLexicalEditor(
     val context = LocalContext.current
     val keystoreManager = remember { KeystoreManager(context) }
 
-    var textContent by remember {
+    var textContent by remember(initialLexicalJson) {
         mutableStateOf(
             if (initialLexicalJson.isNotBlank()) {
                 LexicalParser.extractPlaintext(LexicalParser.parseLexicalJson(initialLexicalJson))
             } else ""
         )
-    }
-
-    // Fix: Re-populate textContent when initialLexicalJson finishes loading from DB
-    LaunchedEffect(initialLexicalJson) {
-        if (initialLexicalJson.isNotBlank()) {
-            val parsedText = LexicalParser.extractPlaintext(LexicalParser.parseLexicalJson(initialLexicalJson))
-            if (parsedText.isNotBlank() && parsedText != textContent) {
-                textContent = parsedText
-            }
-        }
     }
 
     var selectedDate by remember(entryDate) { mutableStateOf(entryDate) }

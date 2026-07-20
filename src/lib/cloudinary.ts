@@ -68,22 +68,33 @@ export async function uploadRawDirectToCloudinary(
 
   if (!activeCloudName || !activePreset) {
     throw new Error(
-      "Cloudinary configuration is missing. Ensure NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME and NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET are set."
+      `Cloudinary configuration missing! NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME (${activeCloudName ? "OK" : "MISSING"}) or NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET (${activePreset ? "OK" : "MISSING"}).`
     );
   }
 
-  const url = `https://api.cloudinary.com/v1_1/${activeCloudName}/raw/upload`;
+  const rawUrl = `https://api.cloudinary.com/v1_1/${activeCloudName}/raw/upload`;
 
   const formData = new FormData();
   formData.append("file", blob, fileName);
   formData.append("upload_preset", activePreset);
 
-  const res = await fetch(url, {
+  let res = await fetch(rawUrl, {
     method: "POST",
     body: formData,
   });
 
   if (!res.ok) {
+    // Attempt fallback to /auto/upload if /raw/upload endpoint returns error
+    const autoUrl = `https://api.cloudinary.com/v1_1/${activeCloudName}/auto/upload`;
+    const fallbackRes = await fetch(autoUrl, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (fallbackRes.ok) {
+      return fallbackRes.json();
+    }
+
     const errorData = await res.json().catch(() => ({}));
     throw new Error(
       errorData?.error?.message || `Cloudinary raw upload failed (HTTP ${res.status})`
@@ -92,3 +103,4 @@ export async function uploadRawDirectToCloudinary(
 
   return res.json();
 }
+

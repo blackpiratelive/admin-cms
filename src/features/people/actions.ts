@@ -40,7 +40,7 @@ export interface PeopleFilterOptions {
   birthdayMonth?: number; // 1 - 12
   visibility?: "private" | "unlisted" | "public" | "all";
   hasNotes?: boolean;
-  sortBy?: "name" | "created_desc" | "updated_desc" | "recently_added";
+  sortBy?: "name" | "created_desc" | "updated_desc" | "recently_added" | "memory_score" | "significant_relationships";
 }
 
 /**
@@ -61,6 +61,15 @@ async function fetchPeopleRaw(options: PeopleFilterOptions = {}): Promise<Person
   }
 
   let results = await query;
+
+  if (sortBy === "memory_score" || sortBy === "significant_relationships") {
+    try {
+      const { analyticsMemoryScores } = await import("@/db/schema");
+      const scores = await db.select().from(analyticsMemoryScores).where(eq(analyticsMemoryScores.entityType, "person"));
+      const scoreMap = new Map(scores.map((s) => [s.entityId, s.finalScore]));
+      results.sort((a, b) => (scoreMap.get(b.id) || 0) - (scoreMap.get(a.id) || 0));
+    } catch (e) {}
+  }
 
   if (options.visibility && options.visibility !== "all") {
     results = results.filter((p) => p.visibility === options.visibility);
