@@ -572,7 +572,32 @@ export async function getCachedGlobalOverview(): Promise<GlobalOverviewStats> {
         return parsed;
       }
 
-      return await rebuildAllAnalyticsCache();
+      setTimeout(() => {
+        rebuildAllAnalyticsCache().catch((e) => console.error("Async analytics cache rebuild error:", e));
+      }, 10);
+
+      const defaultStats: GlobalOverviewStats = {
+        totalJournalEntries: 0,
+        totalMicroblogs: 0,
+        totalTodos: 0,
+        totalPhotos: 0,
+        totalMovies: 0,
+        totalTvShows: 0,
+        totalMusicItems: 0,
+        totalPeople: 0,
+        totalLocations: 0,
+        totalTrips: 0,
+        journalStreak: 0,
+        longestJournalStreak: 0,
+        mostActiveModule: "journal",
+        databaseSizeBytes: 573440,
+        storageUsedBytes: 0,
+        recentActivityCount: 0,
+        syncStatus: "connected",
+        updatedAt: new Date().toISOString(),
+      };
+      l1GlobalOverviewCache = { data: defaultStats, timestamp: Date.now() };
+      return defaultStats;
     }
   );
 }

@@ -128,8 +128,48 @@ export async function getDashboardData(forceRefresh = false): Promise<DashboardO
     }
   }
 
-  // Pass skipRevalidate = true so revalidatePath is not called during component rendering
-  return await rebuildDashboardCache(true);
+  // Trigger background cache rebuild asynchronously without delaying response thread
+  setTimeout(() => {
+    rebuildDashboardCache(true).catch((err) => console.error("Async dashboard cache rebuild error:", err));
+  }, 10);
+
+  return {
+    microblogData: { posts: [], total: 0 },
+    recentMovies: [],
+    recentShows: [],
+    recentScrobbles: [],
+    activities: [],
+    systemStats: {
+      r2Stats: {
+        configured: false,
+        bucketName: "gallery",
+        totalPhotos: 0,
+        totalObjects: 0,
+        usedBytes: 0,
+        usedFormatted: "0 MB",
+        storageLimitFormatted: "10 GB",
+        percentStorageUsed: 0,
+        classALimitFormatted: "1,000,000",
+        classBLimitFormatted: "10,000,000",
+        egressLimitFormatted: "Unlimited",
+      },
+      counts: {
+        microblogsTotal: 0,
+        microblogsPublished: 0,
+        microblogsDrafts: 0,
+        photosTotal: 0,
+        photosPublic: 0,
+        moviesTotal: 0,
+        showsTotal: 0,
+        scrobblesTotal: 0,
+        locationsTotal: 0,
+        tripsTotal: 0,
+        projectsTotal: 0,
+        openTodos: 0,
+      },
+    },
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 /**

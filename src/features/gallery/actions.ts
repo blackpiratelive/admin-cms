@@ -287,8 +287,9 @@ export async function getCloudflareUsageStats(): Promise<CloudflareUsageStats> {
     try {
       const { ListObjectsV2Command } = await import("@aws-sdk/client-s3");
       const command = new ListObjectsV2Command({ Bucket: bucketName });
-      const res = await s3.send(command);
-      if (res.Contents && res.Contents.length > 0) {
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 100));
+      const res = await Promise.race([s3.send(command), timeoutPromise]);
+      if (res && "Contents" in res && res.Contents && res.Contents.length > 0) {
         r2ObjectCount = res.Contents.length;
         const actualR2Bytes = res.Contents.reduce((acc, obj) => acc + (obj.Size || 0), 0);
         if (actualR2Bytes > 0) {
