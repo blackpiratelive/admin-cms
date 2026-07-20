@@ -942,13 +942,17 @@ export async function ensureDbInitialized(): Promise<void> {
         CREATE INDEX IF NOT EXISTS journal_entries_created_at_idx ON journal_entries(created_at DESC);
         CREATE INDEX IF NOT EXISTS journal_revisions_entry_id_idx ON journal_revisions(entry_id);
         CREATE INDEX IF NOT EXISTS analytics_metrics_module_idx ON analytics_metrics(module);
+        CREATE INDEX IF NOT EXISTS analytics_metrics_module_metric_idx ON analytics_metrics(module, metric_name);
         CREATE INDEX IF NOT EXISTS analytics_daily_date_idx ON analytics_daily(date DESC);
         CREATE INDEX IF NOT EXISTS analytics_monthly_ym_idx ON analytics_monthly(year_month DESC);
         CREATE INDEX IF NOT EXISTS analytics_yearly_year_idx ON analytics_yearly(year DESC);
         CREATE INDEX IF NOT EXISTS analytics_timeline_date_idx ON analytics_timeline(date DESC);
         CREATE INDEX IF NOT EXISTS analytics_timeline_score_idx ON analytics_timeline(importance_score DESC);
+        CREATE INDEX IF NOT EXISTS analytics_timeline_date_score_idx ON analytics_timeline(date DESC, importance_score DESC);
         CREATE INDEX IF NOT EXISTS analytics_memory_scores_final_idx ON analytics_memory_scores(final_score DESC);
         CREATE INDEX IF NOT EXISTS analytics_memory_scores_pinned_idx ON analytics_memory_scores(is_pinned DESC);
+        CREATE INDEX IF NOT EXISTS analytics_memory_scores_type_score_idx ON analytics_memory_scores(entity_type, final_score DESC);
+        CREATE INDEX IF NOT EXISTS analytics_snapshots_type_created_idx ON analytics_snapshots(snapshot_type, created_at DESC);
         CREATE INDEX IF NOT EXISTS analytics_relationships_source_idx ON analytics_relationships(source_type, source_id);
         CREATE INDEX IF NOT EXISTS analytics_relationships_target_idx ON analytics_relationships(target_type, target_id);
       `);
@@ -956,6 +960,10 @@ export async function ensureDbInitialized(): Promise<void> {
       // SQLite maintenance optimization & query planner statistics
       try {
         await client.execute(`PRAGMA optimize;`);
+        await client.execute(`ANALYZE analytics_metrics;`);
+        await client.execute(`ANALYZE analytics_memory_scores;`);
+        await client.execute(`ANALYZE analytics_timeline;`);
+        await client.execute(`ANALYZE analytics_snapshots;`);
         await client.execute(`ANALYZE;`);
       } catch (mErr) {}
     } catch (err) {
