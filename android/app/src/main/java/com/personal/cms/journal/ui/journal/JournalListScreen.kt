@@ -77,7 +77,7 @@ fun JournalListScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(displayList) { entry ->
-                        EntryCardItem(entry = entry, onClick = { onOpenEntry(entry.id) })
+                        EntryCardItem(entry = entry, onClick = { onOpenEntry(entry.id) }, journalRepository = journalRepository)
                     }
                 }
             }

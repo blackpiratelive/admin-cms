@@ -45,6 +45,7 @@ class JournalRepository(
     suspend fun saveJournalEntry(
         entryDate: String,
         contentLexicalJson: String,
+        entryType: String = "daily",
         mood: String? = null,
         favorite: Int = 0,
         visibility: String = "private",
@@ -70,7 +71,7 @@ class JournalRepository(
             id = id,
             slug = slug,
             entryDate = entryDate,
-            entryType = "daily",
+            entryType = entryType,
             mood = mood,
             favorite = favorite,
             visibility = visibility,

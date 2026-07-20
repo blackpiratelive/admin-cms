@@ -12,8 +12,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.personal.cms.journal.data.local.entity.JournalEntryEntity
 import com.personal.cms.journal.data.repository.JournalRepository
+import com.personal.cms.journal.domain.usecase.LexicalParser
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -181,7 +183,7 @@ fun JournalDashboardScreen(
                 }
             } else {
                 items(entriesState.take(5)) { entry ->
-                    EntryCardItem(entry = entry, onClick = { onOpenEntry(entry.id) })
+                    EntryCardItem(entry = entry, onClick = { onOpenEntry(entry.id) }, journalRepository = journalRepository)
                 }
             }
 
@@ -195,7 +197,7 @@ fun JournalDashboardScreen(
                     )
                 }
                 items(favorites.take(3)) { entry ->
-                    EntryCardItem(entry = entry, onClick = { onOpenEntry(entry.id) })
+                    EntryCardItem(entry = entry, onClick = { onOpenEntry(entry.id) }, journalRepository = journalRepository)
                 }
             }
         }
@@ -203,7 +205,25 @@ fun JournalDashboardScreen(
 }
 
 @Composable
-fun EntryCardItem(entry: JournalEntryEntity, onClick: () -> Unit) {
+fun EntryCardItem(
+    entry: JournalEntryEntity,
+    onClick: () -> Unit,
+    journalRepository: JournalRepository? = null
+) {
+    var title by remember(entry.id) { mutableStateOf("Journal Entry (${entry.entryDate})") }
+
+    LaunchedEffect(entry.id) {
+        if (journalRepository != null) {
+            val decrypted = journalRepository.decryptEntryContent(entry)
+            val doc = LexicalParser.parseLexicalJson(decrypted)
+            val plain = LexicalParser.extractPlaintext(doc)
+            val firstLine = plain.lines().firstOrNull { it.isNotBlank() }?.trim()
+            if (!firstLine.isNullOrBlank()) {
+                title = if (firstLine.length > 50) firstLine.take(50) + "..." else firstLine
+            }
+        }
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -218,16 +238,34 @@ fun EntryCardItem(entry: JournalEntryEntity, onClick: () -> Unit) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = entry.entryDate,
+                    text = title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = entry.entryDate,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    SuggestionChip(
+                        onClick = {},
+                        label = { Text(entry.entryType, fontSize = 10.sp) },
+                        modifier = Modifier.height(22.dp)
+                    )
                     if (entry.mood != null) {
-                        Text(text = "Mood: ${entry.mood} • ", style = MaterialTheme.typography.bodySmall)
+                        Text(text = "Mood: ${entry.mood}", style = MaterialTheme.typography.bodySmall)
                     }
-                    Text(text = "${entry.wordCount} words", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = "${entry.wordCount} words • ${entry.readingTime} min",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 

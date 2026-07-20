@@ -57,7 +57,7 @@ fun JournalTimelineScreen(
                 )
             }
             items(list) { entry ->
-                EntryCardItem(entry = entry, onClick = { onOpenEntry(entry.id) })
+                EntryCardItem(entry = entry, onClick = { onOpenEntry(entry.id) }, journalRepository = journalRepository)
             }
         }
     }
