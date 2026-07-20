@@ -6,12 +6,16 @@ const SECRET_KEY = new TextEncoder().encode(
   process.env.SESSION_SECRET || "admin-cms-super-secret-key-32charsmin!!"
 );
 
-export async function createSession() {
-  const token = await new SignJWT({ role: "admin" })
+export async function generateSessionToken(): Promise<string> {
+  return new SignJWT({ role: "admin" })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
     .sign(SECRET_KEY);
+}
+
+export async function createSession() {
+  const token = await generateSessionToken();
 
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, token, {

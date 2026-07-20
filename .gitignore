@@ -25,3 +25,15 @@ yarn-error.log*
 
 # TypeScript
 next-env.d.ts
+
+# Android
+.gradle/
+build/
+app/build/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+.kotlin/
+android/.kotlin/
+

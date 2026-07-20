@@ -22,6 +22,7 @@ This repository is **`admin-cms`**, a private, single-user **Personal Knowledge 
 
 ```text
 admin-cms/
+├── android/                     # Native Android Journal Application (Kotlin, Jetpack Compose, Room, WorkManager, DEK/KEK E2EE, Adaptive UI)
 ├── src/
 │   ├── app/
 │   │   ├── (auth)/login/        # Password login page
@@ -36,6 +37,9 @@ admin-cms/
 │   │   │   ├── settings/        # Centralized Settings Hub (General, Storage, Providers, etc.)
 │   │   │   ├── libraries/       # Personal Media Libraries (Movies, TV, Music, Collections)
 │   │   │   └── sync/            # Sync Center integration hub
+│   │   ├── api/
+│   │   │   ├── auth/login/      # Mobile & API authentication endpoint
+│   │   │   └── journal/         # Journal Sync & E2EE API (/status, /keys, /settings, /entries, /sync, /assets)
 │   │   ├── globals.css          # Design tokens, themes (HN Orange, Dark, Mono, Teal)
 │   │   └── layout.tsx           # Root layout & ThemeProvider
 │   ├── components/              # Shared UI (Header, Sidebar, CommandPalette, DeployWidget)
@@ -63,6 +67,7 @@ admin-cms/
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
 ├── tests/                       # Vitest unit test suite
+├── android-journal.md           # Native Android Journal Application specification
 ├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
 ├── arch.txt                     # Architecture Evolution Plan
 └── drizzle.config.ts            # Drizzle kit configuration
@@ -206,6 +211,64 @@ admin-cms/
 - **Execute Tests**: `npm run test`
 - **Type Check**: `npx tsc --noEmit`
 - **Drizzle DB Schema Push**: `npm run db:push`
+- **Android App Assemble**: `cd android && ./gradlew assembleDebug` (requires `JAVA_HOME=/home/dog/jdk-17` and `ANDROID_HOME=/home/dog/Android/Sdk`)
+
+---
+
+## 7. Native Android Journal Application (`android/`) & Mobile REST API
+
+### 7.1 Overview & Architecture Philosophy
+The Android application ([android-journal.md](file:///home/dog/git/admin-cms/android-journal.md)) is a native, offline-first, end-to-end encrypted (E2EE) writing application dedicated to the CMS Journal module. It operates completely independent of internet access, treating the CMS server strictly as an asynchronous synchronization endpoint.
+
+- **Stack**: Kotlin, Jetpack Compose, Material 3, Room Database, WorkManager, Ktor Client, BouncyCastle (Argon2id), AndroidX Security Crypto (AES-256-GCM), Coil, Material 3 Adaptive Layouts.
+- **Architectural Layers**:
+  - `data/crypto/`: `CryptoEngine.kt` (Argon2id KDF + AES-GCM), `KeystoreManager.kt` (EncryptedSharedPreferences & DEK storage), `AssetEncryptor.kt` (EXIF stripping, thumbnail generation, binary asset encryption).
+  - `data/local/`: Room DB (`JournalDatabase.kt`), entities (`JournalEntryEntity`, `JournalAssetEntity`, `SyncQueueEntity`), DAOs (`JournalEntryDao`, `JournalAssetDao`, `SyncQueueDao`).
+  - `data/remote/`: `JournalApiService.kt` (Ktor HTTP client), DTO models (`JournalDtos.kt`).
+  - `data/repository/`: `JournalRepository.kt`, `AuthRepository.kt`.
+  - `data/sync/`: `JournalSyncWorker.kt` (WorkManager background queue worker).
+  - `domain/`: `LexicalDocument.kt` (AST node models), `LexicalParser.kt` (Bidirectional Lexical JSON parser & serializer).
+  - `ui/`: Compose themes, adaptive navigation, onboarding, authentication, dashboard, entry list, timeline, calendar, native Lexical editor, encrypted image viewer, settings.
+
+---
+
+### 7.2 Security & DEK / KEK Encryption Protocol
+The Android application replicates the exact cryptographic model of the web CMS:
+1. **Key Encryption Key (KEK)**: Derived on demand using Argon2id (`Argon2BytesGenerator` from BouncyCastle) from the user's Journal Password and server salt (`memorySize=65536`, `iterations=3`, `parallelism=1`, 256-bit output).
+2. **Data Encryption Key (DEK)**: A symmetric AES-256-GCM key used to encrypt and decrypt all journal text content and assets.
+3. **Key Unwrapping & Verification**: DEK is fetched in wrapped form from `GET /api/journal/keys`, unwrapped with KEK, and validated against `verificationPayload` from `GET /api/journal/settings`.
+4. **Zero-Knowledge Disk Storage**: Room DB only contains encrypted ciphertexts (`encryptedContent`), IVs, and salts. Plaintext content is decrypted exclusively in RAM during active unlock sessions.
+
+---
+
+### 7.3 Canonical Lexical JSON Document System
+The Android application treats **Lexical JSON** as its canonical document format:
+- **Bidirectional AST Parser** (`LexicalParser.kt`): Converts Lexical JSON strings to Kotlin `LexicalDocument` AST and vice versa.
+- **Supported Nodes**: `ParagraphNode`, `HeadingNode` (`h1`, `h2`, `h3`), `TextNode` (format bitfield for bold, italic, strikethrough, underline, code), `ListNode` (`bullet`, `number`, `check`), `ListItemNode`, `CodeNode`, `QuoteNode`, `TableNode`, `TableRowNode`, `TableCellNode`, `LinkNode`, `JournalImageNode`, `MentionNode` (`person`, `location`, `trip`, `project`, `collection`), and `UnknownNode` (safely preserving future node structures).
+- **Native Editor** (`NativeLexicalEditor.kt`): Jetpack Compose editor with live formatting toolbar, slash commands (`/`), markdown shortcuts (`# `, `## `, `* `, `> `), and real-time word count / reading time calculation.
+
+---
+
+### 7.4 E2EE Image & Attachment Pipeline
+- **Processing** (`AssetEncryptor.kt`): Image URIs are decoded, redrawn to strip EXIF/GPS metadata, compressed to JPEG/WebP (90% quality), and scaled to a 512px thumbnail.
+- **Encryption**: Original and thumbnail bytes are independently encrypted with AES-256-GCM using the active DEK and random 12-byte IVs.
+- **Storage & Viewing**: Encrypted `.enc` files saved locally to `context.filesDir/encrypted_assets`. Fullscreen pinch-zoom/pan viewer ([EncryptedImageViewer.kt](file:///home/dog/git/admin-cms/android/app/src/main/java/com/personal/cms/journal/ui/components/EncryptedImageViewer.kt)) decrypts assets on-the-fly.
+
+---
+
+### 7.5 Background Sync & Mobile REST API Endpoints
+Background synchronization is orchestrated via `WorkManager` (`JournalSyncWorker.kt`), pushing local `SyncQueueEntity` mutations and pulling server changes incrementally.
+
+- `POST /api/auth/login`: Authenticates password and returns JWT session token.
+- `GET /api/journal/status`: Public health check & instance URL reachability validator.
+- `GET` & `POST /api/journal/keys`: Returns / updates encrypted DEK & Argon2 parameters.
+- `GET` & `POST /api/journal/settings`: Returns / updates verification payload and auto-lock settings.
+- `GET` & `POST /api/journal/entries`: Lists entries (supports `since` ISO timestamp query) and creates entries.
+- `GET`, `PUT`, `DELETE /api/journal/entries/[id]`: Performs CRUD operations on specific entries.
+- `POST /api/journal/sync`: Batch sync endpoint processing queued client operations and returning server updates.
+- `GET` & `POST /api/journal/assets`: Reads and creates E2EE journal asset records.
+
+---
 
 
 
