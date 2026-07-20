@@ -494,9 +494,91 @@ function MusicDeepDive({ data }: { data: MusicAnalyticsData }) {
   return (
     <div style={{ display: "grid", gap: "1.5rem" }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
-        <StatBox title="Total Tracks" value={data.totalTracks?.toLocaleString()} icon={Music} color="#14b8a6" />
-        <StatBox title="Artists / Albums" value={`${data.totalArtists || 0} / ${data.totalAlbums || 0}`} icon={Headphones} color="#8b5cf6" />
+        <StatBox title="Total Tracks Played" value={data.totalTracks?.toLocaleString()} icon={Music} color="#14b8a6" />
+        <StatBox title="Unique Artists" value={data.totalArtists?.toLocaleString()} icon={Users} color="#8b5cf6" />
+        <StatBox title="Unique Albums" value={data.totalAlbums?.toLocaleString()} icon={Headphones} color="#ec4899" />
         <StatBox title="Listening Time" value={`${data.listeningHours || 0} hours`} icon={Clock} color="#f59e0b" />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.25rem" }}>
+        {/* Top Artists */}
+        {data.topArtists && data.topArtists.length > 0 && (
+          <div
+            style={{
+              background: "var(--card-bg, rgba(255,255,255,0.03))",
+              padding: "1.25rem",
+              borderRadius: "12px",
+              border: "1px solid var(--border-color, rgba(255,255,255,0.06))",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
+              <Users size={18} style={{ color: "#8b5cf6" }} />
+              <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700 }}>Top Artists</h3>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+              {data.topArtists.map((a, i) => (
+                <div key={a.name} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", opacity: 0.9 }}>
+                  <span>{i + 1}. {a.name}</span>
+                  <strong style={{ color: "var(--accent-color, #ff6600)" }}>{a.playCount} plays</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Top Tracks */}
+        {data.topTracks && data.topTracks.length > 0 && (
+          <div
+            style={{
+              background: "var(--card-bg, rgba(255,255,255,0.03))",
+              padding: "1.25rem",
+              borderRadius: "12px",
+              border: "1px solid var(--border-color, rgba(255,255,255,0.06))",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
+              <Music size={18} style={{ color: "#14b8a6" }} />
+              <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700 }}>Top Tracks</h3>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+              {data.topTracks.map((t, i) => (
+                <div key={t.name} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", opacity: 0.9 }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "200px" }}>
+                    {i + 1}. {t.name}
+                  </span>
+                  <strong style={{ color: "var(--accent-color, #ff6600)" }}>{t.playCount} plays</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Top Albums */}
+        {data.topAlbums && data.topAlbums.length > 0 && (
+          <div
+            style={{
+              background: "var(--card-bg, rgba(255,255,255,0.03))",
+              padding: "1.25rem",
+              borderRadius: "12px",
+              border: "1px solid var(--border-color, rgba(255,255,255,0.06))",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
+              <Headphones size={18} style={{ color: "#ec4899" }} />
+              <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700 }}>Top Albums</h3>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+              {data.topAlbums.map((alb, i) => (
+                <div key={alb.name} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", opacity: 0.9 }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "200px" }}>
+                    {i + 1}. {alb.name}
+                  </span>
+                  <strong style={{ color: "var(--accent-color, #ff6600)" }}>{alb.playCount} plays</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

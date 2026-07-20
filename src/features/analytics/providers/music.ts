@@ -1,6 +1,7 @@
 import { db, ensureDbInitialized } from "@/db";
 import { lastfmScrobbles, lastfmArtists, lastfmAlbums, lastfmTracks } from "@/db/schema";
 import { AnalyticsProvider, MusicAnalyticsData, TimeFilterRange, CustomDateRange } from "../types";
+import { getTimeFilterStartEnd } from "../config";
 
 export const musicAnalyticsProvider: AnalyticsProvider = {
   name: "music",
@@ -18,25 +19,8 @@ export const musicAnalyticsProvider: AnalyticsProvider = {
     ]);
 
     let filteredScrobbles = allScrobbles;
-    if (timeFilter && timeFilter !== "lifetime") {
-      const now = new Date();
-      let start: Date | null = null;
-      let end: Date | null = null;
-
-      if (timeFilter === "today") {
-        start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      } else if (timeFilter === "this_week") {
-        const day = now.getDay();
-        start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day);
-      } else if (timeFilter === "this_month") {
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
-      } else if (timeFilter === "this_year") {
-        start = new Date(now.getFullYear(), 0, 1);
-      } else if (timeFilter === "custom" && customRange) {
-        if (customRange.startDate) start = new Date(customRange.startDate);
-        if (customRange.endDate) end = new Date(customRange.endDate);
-      }
-
+    const { start, end } = getTimeFilterStartEnd(timeFilter, customRange);
+    if (start || end) {
       filteredScrobbles = allScrobbles.filter((s) => {
         const d = new Date(s.playedAt);
         if (start && d < start) return false;
@@ -110,10 +94,12 @@ export const musicAnalyticsProvider: AnalyticsProvider = {
       }
     });
 
+    const isFiltered = !!timeFilter && timeFilter !== "lifetime";
+
     return {
-      totalArtists: allArtists.length || Object.keys(artistPlays).length,
-      totalAlbums: allAlbums.length || Object.keys(albumPlays).length,
-      totalTracks: allTracks.length || Object.keys(trackPlays).length,
+      totalArtists: isFiltered ? Object.keys(artistPlays).length : (allArtists.length || Object.keys(artistPlays).length),
+      totalAlbums: isFiltered ? Object.keys(albumPlays).length : (allAlbums.length || Object.keys(albumPlays).length),
+      totalTracks: isFiltered ? Object.keys(trackPlays).length : (allTracks.length || Object.keys(trackPlays).length),
       listeningHours: Number((totalDurationSec / 3600).toFixed(1)),
       topArtists,
       topAlbums,
