@@ -45,6 +45,8 @@ import {
   Loader2,
 } from "lucide-react";
 
+import { getBrowserCache, setBrowserCache, clearBrowserCache } from "@/lib/browser-cache";
+
 interface AnalyticsDashboardClientProps {
   initialOverview: GlobalOverviewStats;
   initialMemoryScores: MemoryScoreBreakdown[];
@@ -68,7 +70,17 @@ export function AnalyticsDashboardClient({
   const [moduleData, setModuleData] = useState<any>(null);
   const [loadingModule, setLoadingModule] = useState(false);
   const [memoryScores, setMemoryScores] = useState<MemoryScoreBreakdown[]>(initialMemoryScores);
-  const [overview, setOverview] = useState<GlobalOverviewStats>(initialOverview);
+  const [overview, setOverview] = useState<GlobalOverviewStats>(() => {
+    return getBrowserCache<GlobalOverviewStats>("overview_lifetime") || initialOverview;
+  });
+
+  // Persist initial props to browser cache
+  useEffect(() => {
+    if (initialOverview) setBrowserCache("overview_lifetime", initialOverview);
+    if (initialMemoryScores) setBrowserCache("memory_scores", initialMemoryScores);
+    if (initialTimeline) setBrowserCache("timeline", initialTimeline);
+    if (initialSnapshots) setBrowserCache("snapshots", initialSnapshots);
+  }, [initialOverview, initialMemoryScores, initialTimeline, initialSnapshots]);
 
   useEffect(() => {
     if (activeTab === "modules" && moduleData === null && !loadingModule) {
@@ -79,8 +91,10 @@ export function AnalyticsDashboardClient({
   const handleRebuildCache = () => {
     startTransition(async () => {
       try {
+        clearBrowserCache();
         const updated = await rebuildAnalyticsEngineAction();
         setOverview(updated);
+        setBrowserCache("overview_lifetime", updated);
         notify.show({
           type: "success",
           title: "Analytics Cache Rebuilt",
@@ -100,6 +114,20 @@ export function AnalyticsDashboardClient({
   const handleTimeFilterChange = (filterKey: TimeFilterRange, label: string) => {
     if (filterKey === timeFilter && !isCalculating) return;
     setTimeFilter(filterKey);
+
+    const cachedOverview = getBrowserCache<GlobalOverviewStats>(`overview_${filterKey}`);
+    const cachedModuleData = getBrowserCache<any>(`module_${selectedModule}_${filterKey}`);
+
+    if (cachedOverview) {
+      setOverview(cachedOverview);
+      if (cachedModuleData) setModuleData(cachedModuleData);
+    }
+
+    if (cachedOverview && cachedModuleData) {
+      // Served 100% from browser cache in 0ms
+      return;
+    }
+
     setIsCalculating(true);
     setCalculatingFilter(label);
 
@@ -111,11 +139,13 @@ export function AnalyticsDashboardClient({
         ]);
         setOverview(newOverview);
         setModuleData(newModuleData);
+        setBrowserCache(`overview_${filterKey}`, newOverview);
+        setBrowserCache(`module_${selectedModule}_${filterKey}`, newModuleData);
         notify.show({
           type: "success",
-          title: "Analytics Calculated",
-          message: `Updated analytics calculations for: ${label}`,
-          duration: 3500,
+          title: "Analytics Loaded",
+          message: `Loaded analytics for: ${label}`,
+          duration: 2500,
         });
       } catch (err) {
         console.error("Time filter calculation error:", err);
@@ -153,7 +183,11 @@ export function AnalyticsDashboardClient({
       try {
         const res = await rebuildDurationAnalyticsAction(timeFilter, selectedModule);
         setOverview(res.globalStats);
-        if (res.moduleData) setModuleData(res.moduleData);
+        setBrowserCache(`overview_${timeFilter}`, res.globalStats);
+        if (res.moduleData) {
+          setModuleData(res.moduleData);
+          setBrowserCache(`module_${selectedModule}_${timeFilter}`, res.moduleData);
+        }
         notify.show({
           type: "success",
           title: "Duration Analytics Rebuilt",
@@ -200,10 +234,17 @@ export function AnalyticsDashboardClient({
 
   const handleSelectModule = async (mod: SupportedModule) => {
     setSelectedModule(mod);
+    const cached = getBrowserCache<any>(`module_${mod}_${timeFilter}`);
+    if (cached) {
+      setModuleData(cached);
+      return;
+    }
+
     setLoadingModule(true);
     try {
       const data = await getModuleAnalyticsAction(mod, timeFilter);
       setModuleData(data);
+      setBrowserCache(`module_${mod}_${timeFilter}`, data);
     } catch (err) {
       console.error("Error loading module analytics:", err);
     } finally {
