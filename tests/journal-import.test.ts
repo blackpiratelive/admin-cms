@@ -79,5 +79,33 @@ describe("Journal Import Zip & Data Processing", () => {
     expect(rawData[1].location).toBe("Bankura");
     expect(rawData[1].content).toContain('"root"');
   });
+
+  it("extracts images nested inside parent wrapper folders in zip archives", async () => {
+    const zip = new JSZip();
+    const folder = zip.folder("My-Backup-Folder");
+    folder?.file("journal.json", JSON.stringify([{ title: "Nested Test", images: ["1_0.webp"] }]));
+    const imgFolder = folder?.folder("images");
+    imgFolder?.file("1_0.webp", new Uint8Array([1, 2, 3, 4]));
+
+    const zipBlob = await zip.generateAsync({ type: "blob" });
+    const loadedZip = await JSZip.loadAsync(zipBlob);
+
+    // Verify journal.json is located inside subpath
+    let foundJson: JSZip.JSZipObject | null = null;
+    loadedZip.forEach((relativePath, zipObj) => {
+      if (!zipObj.dir && relativePath.endsWith("journal.json")) foundJson = zipObj;
+    });
+
+    expect(foundJson).not.toBeNull();
+
+    // Verify image inside subpath is found by basename
+    let foundImage: JSZip.JSZipObject | null = null;
+    loadedZip.forEach((relativePath, zipObj) => {
+      if (!zipObj.dir && relativePath.endsWith("1_0.webp")) foundImage = zipObj;
+    });
+
+    expect(foundImage).not.toBeNull();
+  });
 });
+
 

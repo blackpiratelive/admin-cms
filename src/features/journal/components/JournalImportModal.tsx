@@ -180,16 +180,20 @@ export function JournalImportModal({ isOpen, onClose, onImportSuccess }: Journal
     try {
       const zip = await JSZip.loadAsync(file);
 
-      // 1. Locate journal.json at root
+      // 1. Locate journal.json (prefer root or shortest path)
       let journalJsonEntry: JSZip.JSZipObject | null = null;
       zip.forEach((relativePath, zipObj) => {
-        if (!zipObj.dir && (relativePath === "journal.json" || relativePath.toLowerCase() === "journal.json")) {
-          journalJsonEntry = zipObj;
+        if (zipObj.dir) return;
+        const fileName = relativePath.split("/").pop()?.toLowerCase();
+        if (fileName === "journal.json") {
+          if (!journalJsonEntry || relativePath.length < journalJsonEntry.name.length) {
+            journalJsonEntry = zipObj;
+          }
         }
       });
 
       if (!journalJsonEntry) {
-        notify.show({ type: "error", message: "Invalid zip archive: journal.json not found at root." });
+        notify.show({ type: "error", message: "Invalid zip archive: journal.json not found." });
         setParsing(false);
         return;
       }
@@ -212,7 +216,7 @@ export function JournalImportModal({ isOpen, onClose, onImportSuccess }: Journal
         rawEntriesArray = rawData.entries || rawData.journal || rawData.items || rawData.data || [rawData];
       }
 
-      // 2. Extract images/ directory files from zip (ignore non-images or files outside images/)
+      // 2. Extract ALL image files from zip (regardless of root or subdirectories)
       const imagesMap = new Map<string, File>();
       const zipFiles = zip.files;
 
@@ -220,20 +224,27 @@ export function JournalImportModal({ isOpen, onClose, onImportSuccess }: Journal
         const zipObj = zipFiles[relativePath];
         if (zipObj.dir) continue;
 
-        // Check if file is inside images/ directory
-        const lowerPath = relativePath.toLowerCase();
-        if (lowerPath.startsWith("images/")) {
-          const fileNameOnly = relativePath.replace(/^images\//i, "");
-          if (!fileNameOnly || fileNameOnly.startsWith(".")) continue; // Ignore hidden files like .DS_Store
+        const fileNameOnly = relativePath.split("/").pop() || "";
+        if (!fileNameOnly || fileNameOnly.startsWith(".")) continue; // Ignore hidden files like .DS_Store
 
-          const ext = fileNameOnly.split(".").pop()?.toLowerCase();
-          if (["jpg", "jpeg", "png", "webp", "gif", "svg", "bmp", "heic"].includes(ext || "")) {
-            const blob = await zipObj.async("blob");
-            const mimeType = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
-            const imageFile = new File([blob], fileNameOnly, { type: mimeType });
-            imagesMap.set(fileNameOnly.toLowerCase(), imageFile);
-            imagesMap.set(relativePath.toLowerCase(), imageFile);
-          }
+        const ext = fileNameOnly.split(".").pop()?.toLowerCase() || "";
+        if (["jpg", "jpeg", "png", "webp", "gif", "svg", "bmp", "heic"].includes(ext)) {
+          const blob = await zipObj.async("blob");
+          const mimeType =
+            ext === "png"
+              ? "image/png"
+              : ext === "webp"
+              ? "image/webp"
+              : ext === "gif"
+              ? "image/gif"
+              : "image/jpeg";
+
+          const imageFile = new File([blob], fileNameOnly, { type: mimeType });
+
+          // Map under multiple lookup keys to handle any relative path style
+          imagesMap.set(fileNameOnly.toLowerCase(), imageFile); // e.g. "1_0.webp"
+          imagesMap.set(relativePath.toLowerCase(), imageFile); // e.g. "my-folder/images/1_0.webp"
+          imagesMap.set(`images/${fileNameOnly.toLowerCase()}`, imageFile);
         }
       }
 
@@ -311,9 +322,17 @@ export function JournalImportModal({ isOpen, onClose, onImportSuccess }: Journal
         for (const item of rawImages) {
           const name = typeof item === "string" ? item : (item as any)?.filename || (item as any)?.name || (item as any)?.url || "";
           if (!name) continue;
+
+          const fileNameOnly = name.split("/").pop()?.toLowerCase() || "";
           const cleanName = name.replace(/^images\//i, "").toLowerCase();
-          const found = imagesMap.get(cleanName) || imagesMap.get(`images/${cleanName}`);
-          if (found) {
+
+          const found =
+            imagesMap.get(fileNameOnly) ||
+            imagesMap.get(cleanName) ||
+            imagesMap.get(name.toLowerCase()) ||
+            imagesMap.get(`images/${fileNameOnly}`);
+
+          if (found && !matchedFiles.includes(found)) {
             matchedFiles.push(found);
             imageNames.push(found.name);
           }
@@ -455,15 +474,23 @@ export function JournalImportModal({ isOpen, onClose, onImportSuccess }: Journal
                 statusText: `Encrypting image ${imgIdx + 1}/${item.imageFiles.length} for "${item.title}"...`,
               });
 
-              const assetRecord = await processAndUploadEncryptedJournalAsset({
-                file: imgFile,
-                dekKey: cryptoKey,
-                entryId: createdEntry.id,
-                assetRole: "attachment",
-              });
+              try {
+                const assetRecord = await processAndUploadEncryptedJournalAsset({
+                  file: imgFile,
+                  dekKey: cryptoKey,
+                  entryId: createdEntry.id,
+                  assetRole: "attachment",
+                });
 
-              if (assetRecord) {
-                createdAssetIds.push(assetRecord.id);
+                if (assetRecord) {
+                  createdAssetIds.push(assetRecord.id);
+                }
+              } catch (imgErr: any) {
+                console.error(`Failed to process/upload image attachment "${imgFile.name}":`, imgErr);
+                notify.show({
+                  type: "error",
+                  message: `Attachment "${imgFile.name}" failed: ${imgErr?.message || "Upload error"}. Entry text was saved.`,
+                });
               }
             }
           }
