@@ -385,17 +385,31 @@ export async function rebuildAllAnalyticsCache(
         updatedAt: now,
       };
 
-      await db
-        .insert(analyticsDashboard)
-        .values({
-          key: "global_stats",
-          dataJson: JSON.stringify(globalStats),
-          updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: analyticsDashboard.key,
-          set: { dataJson: JSON.stringify(globalStats), updatedAt: now },
-        });
+      const globalStatsJson = JSON.stringify(globalStats);
+      await Promise.all([
+        db
+          .insert(analyticsDashboard)
+          .values({
+            key: "global_stats",
+            dataJson: globalStatsJson,
+            updatedAt: now,
+          })
+          .onConflictDoUpdate({
+            target: analyticsDashboard.key,
+            set: { dataJson: globalStatsJson, updatedAt: now },
+          }),
+        db
+          .insert(analyticsDashboard)
+          .values({
+            key: "global_stats_lifetime",
+            dataJson: globalStatsJson,
+            updatedAt: now,
+          })
+          .onConflictDoUpdate({
+            target: analyticsDashboard.key,
+            set: { dataJson: globalStatsJson, updatedAt: now },
+          }),
+      ]);
 
       // 4.5 Populate analyticsDaily, analyticsMonthly, and analyticsYearly
       const dailyCounts: Record<string, { date: string; module: string; metricName: string; value: number }> = {};
