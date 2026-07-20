@@ -5,7 +5,7 @@ import JSZip from "jszip";
 import { useJournalAuth } from "../context/JournalAuthContext";
 import { createJournalEntry, undoJournalImportAction } from "../actions";
 import { processAndUploadEncryptedJournalAsset } from "../lib/crypto-assets";
-import { encryptJournalPayload, calculateWordCount, calculateReadingTime } from "../lib/journal-helpers";
+import { encryptJournalPayload, calculateWordCount, calculateReadingTime, extractPlaintextFromLexicalState } from "../lib/journal-helpers";
 import { notify } from "@/lib/notifications";
 import {
   Upload,
@@ -94,6 +94,39 @@ function buildLexicalStateFromText(text: string): string {
       version: 1,
     },
   });
+}
+
+function isLexicalJsonString(str: string): boolean {
+  if (!str || typeof str !== "string") return false;
+  const trimmed = str.trim();
+  return trimmed.startsWith("{") && trimmed.includes('"root"') && trimmed.includes('"children"');
+}
+
+function parseMood(rawMood: any): string | null {
+  if (rawMood === null || rawMood === undefined) return null;
+  if (typeof rawMood === "number") {
+    if (rawMood >= 8) return "amazing";
+    if (rawMood === 7) return "happy";
+    if (rawMood >= 5) return "good";
+    if (rawMood === 4) return "neutral";
+    if (rawMood === 3) return "sad";
+    if (rawMood === 2) return "bad";
+    if (rawMood <= 1) return "terrible";
+  }
+  if (typeof rawMood === "string") {
+    const lower = rawMood.toLowerCase().trim();
+    const valid = ["amazing", "happy", "good", "neutral", "sad", "bad", "terrible"];
+    if (valid.includes(lower)) return lower;
+    if (lower.includes("amazing") || lower.includes("great") || lower.includes("awesome")) return "amazing";
+    if (lower.includes("happy") || lower.includes("joy")) return "happy";
+    if (lower.includes("good") || lower.includes("fine")) return "good";
+    if (lower.includes("neutral") || lower.includes("okay")) return "neutral";
+    if (lower.includes("sad")) return "sad";
+    if (lower.includes("bad")) return "bad";
+    if (lower.includes("terrible") || lower.includes("awful")) return "terrible";
+    return lower;
+  }
+  return null;
 }
 
 export function JournalImportModal({ isOpen, onClose, onImportSuccess }: JournalImportModalProps) {
@@ -206,8 +239,7 @@ export function JournalImportModal({ isOpen, onClose, onImportSuccess }: Journal
 
       // 3. Process each entry
       const parsedList: ParsedImportEntry[] = rawEntriesArray.map((raw: any, idx: number) => {
-        const title = raw.title || raw.name || `Entry ${idx + 1}`;
-        const contentStr =
+        const rawContent =
           typeof raw.content === "string"
             ? raw.content
             : typeof raw.text === "string"
@@ -219,12 +251,28 @@ export function JournalImportModal({ isOpen, onClose, onImportSuccess }: Journal
             : "";
 
         let lexicalStateJson = "";
-        if (raw.lexicalState && typeof raw.lexicalState === "string") {
+        let displayContent = rawContent;
+
+        if (isLexicalJsonString(rawContent)) {
+          lexicalStateJson = rawContent;
+          displayContent = raw.preview || extractPlaintextFromLexicalState(rawContent) || rawContent;
+        } else if (raw.lexicalState && typeof raw.lexicalState === "string") {
           lexicalStateJson = raw.lexicalState;
         } else if (raw.lexicalState && typeof raw.lexicalState === "object") {
           lexicalStateJson = JSON.stringify(raw.lexicalState);
         } else {
-          lexicalStateJson = buildLexicalStateFromText(contentStr);
+          lexicalStateJson = buildLexicalStateFromText(rawContent);
+        }
+
+        let title = raw.title || raw.name || "";
+        if (!title) {
+          const sourceText = raw.preview || displayContent || "";
+          const firstLine = sourceText.split("\n")[0]?.replace(/^[#*\s-]+/, "").trim();
+          if (firstLine) {
+            title = firstLine.length > 60 ? firstLine.substring(0, 60) + "..." : firstLine;
+          } else {
+            title = `Entry ${idx + 1}`;
+          }
         }
 
         const dateStr =
@@ -245,6 +293,11 @@ export function JournalImportModal({ isOpen, onClose, onImportSuccess }: Journal
         let tags: string[] = [];
         if (Array.isArray(raw.tags)) tags = raw.tags.map(String);
         else if (typeof raw.tags === "string") tags = raw.tags.split(",").map((t: string) => t.trim()).filter(Boolean);
+
+        // Location tag/reference
+        if (raw.location && typeof raw.location === "string" && !tags.includes(raw.location)) {
+          tags.push(`📍 ${raw.location}`);
+        }
 
         // Images reference
         let rawImages: string[] = [];
@@ -273,10 +326,10 @@ export function JournalImportModal({ isOpen, onClose, onImportSuccess }: Journal
           expanded: false,
           entryDate,
           title,
-          content: contentStr,
+          content: displayContent,
           lexicalStateJson,
           entryType: raw.entryType || raw.type || "daily",
-          mood: raw.mood || null,
+          mood: parseMood(raw.mood),
           favorite: raw.favorite ? 1 : 0,
           visibility: ["public", "private", "unlisted"].includes(raw.visibility) ? raw.visibility : "private",
           tags,
