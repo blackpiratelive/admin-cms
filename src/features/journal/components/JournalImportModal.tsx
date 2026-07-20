@@ -5,7 +5,7 @@ import JSZip from "jszip";
 import { useJournalAuth } from "../context/JournalAuthContext";
 import { createJournalEntry, undoJournalImportAction } from "../actions";
 import { processAndUploadEncryptedJournalAsset } from "../lib/crypto-assets";
-import { encryptJournalPayload, calculateWordCount, calculateReadingTime, extractPlaintextFromLexicalState } from "../lib/journal-helpers";
+import { encryptJournalPayload, calculateWordCount, calculateReadingTime, extractPlaintextFromLexicalState, sanitizeLexicalStateJson } from "../lib/journal-helpers";
 import { notify } from "@/lib/notifications";
 import {
   Upload,
@@ -265,14 +265,14 @@ export function JournalImportModal({ isOpen, onClose, onImportSuccess }: Journal
         let displayContent = rawContent;
 
         if (isLexicalJsonString(rawContent)) {
-          lexicalStateJson = rawContent;
+          lexicalStateJson = sanitizeLexicalStateJson(rawContent);
           displayContent = raw.preview || extractPlaintextFromLexicalState(rawContent) || rawContent;
         } else if (raw.lexicalState && typeof raw.lexicalState === "string") {
-          lexicalStateJson = raw.lexicalState;
+          lexicalStateJson = sanitizeLexicalStateJson(raw.lexicalState);
         } else if (raw.lexicalState && typeof raw.lexicalState === "object") {
-          lexicalStateJson = JSON.stringify(raw.lexicalState);
+          lexicalStateJson = sanitizeLexicalStateJson(JSON.stringify(raw.lexicalState));
         } else {
-          lexicalStateJson = buildLexicalStateFromText(rawContent);
+          lexicalStateJson = sanitizeLexicalStateJson(buildLexicalStateFromText(rawContent));
         }
 
         let title = raw.title || raw.name || "";

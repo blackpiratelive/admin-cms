@@ -89,3 +89,110 @@ export function extractPlaintextFromLexicalState(lexicalJsonStr: string): string
     return "";
   }
 }
+
+const KNOWN_REGISTERED_NODE_TYPES = new Set([
+  "root",
+  "paragraph",
+  "heading",
+  "quote",
+  "list",
+  "listitem",
+  "table",
+  "tablecell",
+  "tablerow",
+  "code",
+  "code-highlight",
+  "autolink",
+  "link",
+  "journal-image",
+  "image",
+  "text",
+  "linebreak",
+  "tab",
+]);
+
+export function sanitizeLexicalStateJson(lexicalJsonStr: string): string {
+  if (!lexicalJsonStr) return lexicalJsonStr;
+  try {
+    const state = JSON.parse(lexicalJsonStr);
+    if (!state || typeof state !== "object" || !state.root) return lexicalJsonStr;
+
+    function sanitizeNode(node: any): any {
+      if (!node || typeof node !== "object") return node;
+
+      const nodeType = String(node.type || "").toLowerCase().trim();
+
+      // Convert custom dividers/rules into paragraph with divider text
+      if (
+        nodeType === "session-divider" ||
+        nodeType === "session_divider" ||
+        nodeType === "horizontal-rule" ||
+        nodeType === "horizontalrule" ||
+        nodeType === "hr"
+      ) {
+        return {
+          type: "paragraph",
+          version: 1,
+          children: [
+            {
+              type: "text",
+              text: "***",
+              format: 0,
+              detail: 0,
+              mode: "normal",
+              style: "",
+              version: 1,
+            },
+          ],
+          direction: "ltr",
+          format: "",
+          indent: 0,
+        };
+      }
+
+      // If node type is not registered on Lexical Editor
+      if (!KNOWN_REGISTERED_NODE_TYPES.has(nodeType)) {
+        if (Array.isArray(node.children)) {
+          // Convert unknown element node to paragraph so children render
+          node.type = "paragraph";
+        } else if (typeof node.text === "string") {
+          // Convert unknown inline node to text
+          node.type = "text";
+        } else {
+          // Empty or unknown node -> fallback to paragraph with text
+          return {
+            type: "paragraph",
+            version: 1,
+            children: [
+              {
+                type: "text",
+                text: node.text || "",
+                format: 0,
+                detail: 0,
+                mode: "normal",
+                style: "",
+                version: 1,
+              },
+            ],
+            direction: "ltr",
+            format: "",
+            indent: 0,
+          };
+        }
+      }
+
+      // Recursively sanitize children
+      if (Array.isArray(node.children)) {
+        node.children = node.children.map((child: any) => sanitizeNode(child));
+      }
+
+      return node;
+    }
+
+    state.root = sanitizeNode(state.root);
+    return JSON.stringify(state);
+  } catch (e) {
+    return lexicalJsonStr;
+  }
+}
+

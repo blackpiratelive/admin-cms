@@ -61,7 +61,7 @@ import {
   Image as ImageIcon,
   Loader2,
 } from "lucide-react";
-import { calculateWordCount, calculateReadingTime, extractPlaintextFromLexicalState } from "../../lib/journal-helpers";
+import { calculateWordCount, calculateReadingTime, extractPlaintextFromLexicalState, sanitizeLexicalStateJson } from "../../lib/journal-helpers";
 import { JournalImageNode, $createJournalImageNode } from "./JournalImageNode";
 import { useJournalAuth } from "../../context/JournalAuthContext";
 import { processAndUploadEncryptedJournalAsset } from "../../lib/crypto-assets";
@@ -589,11 +589,13 @@ export function LexicalJournalEditor({
   const [characterCount, setCharacterCount] = useState(0);
   const [readingTime, setReadingTime] = useState(0);
 
+  const sanitizedState = initialStateJson ? sanitizeLexicalStateJson(initialStateJson) : undefined;
+
   const initialConfig = {
     namespace: "JournalEditor",
     theme: editorTheme,
     nodes: editorNodes,
-    editorState: initialStateJson ? initialStateJson : undefined,
+    editorState: sanitizedState,
     onError: (error: Error) => {
       console.error("Lexical Editor Error:", error);
     },

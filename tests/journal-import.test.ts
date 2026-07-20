@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import JSZip from "jszip";
+import { sanitizeLexicalStateJson } from "@/features/journal/lib/journal-helpers";
 
 describe("Journal Import Zip & Data Processing", () => {
   it("creates and parses a valid journal zip archive with journal.json and images", async () => {
@@ -106,6 +107,30 @@ describe("Journal Import Zip & Data Processing", () => {
 
     expect(foundImage).not.toBeNull();
   });
+
+  it("sanitizes unregistered Lexical node types like session-divider without throwing errors", () => {
+    const unhandledState = JSON.stringify({
+      root: {
+        children: [
+          { type: "heading", tag: "h1", children: [{ type: "text", text: "Title" }] },
+          { type: "session-divider", version: 1 },
+          { type: "custom-unsupported-node", children: [{ type: "text", text: "Body" }] }
+        ],
+        direction: "ltr",
+        format: "",
+        indent: 0,
+        type: "root",
+        version: 1
+      }
+    });
+
+    const sanitized = sanitizeLexicalStateJson(unhandledState);
+    expect(sanitized).not.toContain('"session-divider"');
+    expect(sanitized).not.toContain('"custom-unsupported-node"');
+    expect(sanitized).toContain('"***"');
+    expect(sanitized).toContain('"paragraph"');
+  });
 });
+
 
 
