@@ -126,10 +126,18 @@ admin-cms/
   - **Attachments Gallery** ([JournalAttachments.tsx](file:///home/dog/git/admin-cms/src/features/journal/components/JournalAttachments.tsx)): Multi-file upload queue with progress bars, grid/list views, thumbnail decryption, lightbox, and deletion
   - **Editor Integration** ([LexicalJournalEditor.tsx](file:///home/dog/git/admin-cms/src/features/journal/components/editor/LexicalJournalEditor.tsx)): Toolbar image upload button, `/image` slash command, `DragDropPasteImagePlugin` for drag-and-drop and clipboard paste of images — all auto-encrypt and insert inline `JournalImageNode`
 - **E2EE Journal Import & Undo Engine**:
-  - **Zip Archive Extraction** ([JournalImportModal.tsx](file:///home/dog/git/admin-cms/src/features/journal/components/JournalImportModal.tsx)): Extracts `.zip` files client-side using `JSZip`, parsing `journal.json` at root and matching image files inside `images/` directory while ignoring extraneous files.
-  - **Entry Selection & Preview**: Selective checkbox toggling, "Select All/Deselect All", and expandable accordion panels previewing dates, types, moods, tags, attached images, and raw text/Lexical state.
-  - **Batch Encryption & Saving**: Client-side AES-256-GCM entry payload encryption and image attachment pipeline (`processAndUploadEncryptedJournalAsset`), processing entries in configurable batches (default 5) with a live progress bar.
-  - **Undo Last Import**: Preserves import session IDs in `localStorage` (`last_journal_import`) and executes atomic DB rollback via `undoJournalImportAction` ([actions.ts](file:///home/dog/git/admin-cms/src/features/journal/actions.ts#L623-L644)).
+  - **Zip Archive Extraction** ([JournalImportModal.tsx](file:///home/dog/git/admin-cms/src/features/journal/components/JournalImportModal.tsx)): Reads `.zip` archives client-side using `JSZip`. Locates root `journal.json` (supporting root arrays or wrapper objects `{ entries: [...] }`/`{ journal: [...] }`). Extracts binary images from the `images/` directory into browser `File` objects while safely ignoring hidden files (`.DS_Store`) and extraneous root files.
+  - **Poly-Format Content & Metadata Normalization**:
+    - **Lexical AST Detection**: Automatically detects stringified Lexical JSON trees (`{"root":...}`) in `content` or `lexicalState`, preserving existing AST nodes. Builds standard Lexical JSON states (`buildLexicalStateFromText`) for raw Markdown or plain text entries.
+    - **Smart Title Extraction**: Infers titles from the first line or heading when explicit `title` fields are missing.
+    - **Numeric Mood Mapping**: Normalizes numeric 1–10 mood scales into CMS mood tokens (`amazing`, `happy`, `good`, `neutral`, `sad`, `bad`, `terrible`).
+    - **Location Linkage**: Automatically appends string locations into `📍 location` tags.
+  - **Interactive Selection & Expandable Inspector UI**: Full checkbox entry selection with "Select All" / "Deselect All" controls and expandable accordion panels to preview and edit dates, entry types, moods, visibility, tags, attached image previews, and raw/Lexical body content.
+  - **Zero-Knowledge Batch Encryption Pipeline**:
+    - Encrypts text content client-side using the active Journal DEK (`CryptoKey`) via `encryptJournalPayload` (AES-256-GCM).
+    - Image attachments undergo local browser processing (EXIF stripping, compression, 512px thumbnail generation), double AES-256-GCM encryption, Cloudinary raw upload, and DB asset linkage (`processAndUploadEncryptedJournalAsset`).
+    - Executes database writes in configurable non-blocking batches (default 5 entries) with real-time percentage progress indicators.
+  - **Atomic Undo Engine**: Stores created entry IDs and asset IDs in `localStorage` under `last_journal_import`. Clicking "Undo Last Import" executes `undoJournalImportAction` ([actions.ts](file:///home/dog/git/admin-cms/src/features/journal/actions.ts#L623-L644)) to atomically remove entries, revisions, and asset records from DB while purging cache tags (`journal-entries-list`).
 
 ---
 
