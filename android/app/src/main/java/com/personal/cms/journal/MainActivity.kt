@@ -84,6 +84,10 @@ class MainActivity : ComponentActivity() {
                         }
 
                         "main" -> {
+                            LaunchedEffect(Unit) {
+                                journalRepository.syncWithServer()
+                            }
+
                             if (isEditing) {
                                 var editorLexicalJson by remember { mutableStateOf("") }
                                 var initialJson by remember { mutableStateOf("") }
@@ -113,14 +117,20 @@ class MainActivity : ComponentActivity() {
                                                     onClick = {
                                                         scope.launch {
                                                             isSaving = true
-                                                            val dateStr = editorInitialDate ?: SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-                                                            journalRepository.saveJournalEntry(
-                                                                entryDate = dateStr,
-                                                                contentLexicalJson = editorLexicalJson,
-                                                                existingId = activeEditorEntryId
-                                                            )
-                                                            isSaving = false
-                                                            isEditing = false
+                                                            try {
+                                                                val dateStr = editorInitialDate ?: SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                                                                journalRepository.saveJournalEntry(
+                                                                    entryDate = dateStr,
+                                                                    contentLexicalJson = editorLexicalJson,
+                                                                    existingId = activeEditorEntryId
+                                                                )
+                                                                journalRepository.syncWithServer()
+                                                                isEditing = false
+                                                            } catch (e: Exception) {
+                                                                e.printStackTrace()
+                                                            } finally {
+                                                                isSaving = false
+                                                            }
                                                         }
                                                     },
                                                     enabled = !isSaving

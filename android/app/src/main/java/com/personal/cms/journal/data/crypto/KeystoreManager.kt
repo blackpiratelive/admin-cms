@@ -21,7 +21,18 @@ class KeystoreManager(context: Context) {
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
     )
 
-    var activeDEK: SecretKey? = null
+    var activeDEK: SecretKey?
+        get() {
+            if (sharedActiveDEK != null) return sharedActiveDEK
+            val cached = getCachedDEK()
+            if (cached != null) {
+                sharedActiveDEK = cached
+            }
+            return sharedActiveDEK
+        }
+        set(value) {
+            sharedActiveDEK = value
+        }
 
     fun getBaseUrl(): String? {
         return sharedPreferences.getString("cms_base_url", null)
@@ -47,7 +58,7 @@ class KeystoreManager(context: Context) {
     fun saveEncryptedDEK(dek: SecretKey) {
         val encoded = Base64.encodeToString(dek.encoded, Base64.NO_WRAP)
         sharedPreferences.edit().putString("encrypted_dek_cached", encoded).apply()
-        activeDEK = dek
+        sharedActiveDEK = dek
     }
 
     fun getCachedDEK(): SecretKey? {
@@ -60,6 +71,11 @@ class KeystoreManager(context: Context) {
         }
     }
 
+    companion object {
+        @Volatile
+        private var sharedActiveDEK: SecretKey? = null
+    }
+
     fun isBiometricEnabled(): Boolean {
         return sharedPreferences.getBoolean("biometric_enabled", false)
     }
@@ -69,7 +85,7 @@ class KeystoreManager(context: Context) {
     }
 
     fun clearSession() {
-        activeDEK = null
+        sharedActiveDEK = null
         sharedPreferences.edit()
             .remove("auth_token")
             .remove("encrypted_dek_cached")
@@ -77,7 +93,7 @@ class KeystoreManager(context: Context) {
     }
 
     fun clearAll() {
-        activeDEK = null
+        sharedActiveDEK = null
         sharedPreferences.edit().clear().apply()
     }
 }

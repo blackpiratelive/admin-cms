@@ -77,7 +77,7 @@ data class EntryDto(
     val salt: String,
     val wordCount: Int = 0,
     val readingTime: Int = 0,
-    val tags: List<String> = emptyList(),
+    val tags: String? = "[]",
     val createdAt: String? = null,
     val updatedAt: String? = null
 )

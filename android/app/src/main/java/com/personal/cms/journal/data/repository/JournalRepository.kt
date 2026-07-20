@@ -196,8 +196,18 @@ class JournalRepository(
                 }
             }
 
+            val fetchedEntries = if (response.serverEntries.isNotEmpty()) {
+                response.serverEntries
+            } else {
+                try {
+                    apiService.fetchEntries(baseUrl, token).entries
+                } catch (e: Exception) {
+                    emptyList()
+                }
+            }
+
             // Save incoming server entries
-            val remoteEntities = response.serverEntries.map { dto ->
+            val remoteEntities = fetchedEntries.map { dto ->
                 JournalEntryEntity(
                     id = dto.id ?: "jnl_${System.currentTimeMillis()}",
                     slug = dto.slug ?: "journal-${dto.entryDate}",
@@ -215,6 +225,7 @@ class JournalRepository(
                     salt = dto.salt,
                     wordCount = dto.wordCount,
                     readingTime = dto.readingTime,
+                    tagsJson = dto.tags ?: "[]",
                     createdAt = dto.createdAt ?: "",
                     updatedAt = dto.updatedAt ?: "",
                     isSynced = true,
