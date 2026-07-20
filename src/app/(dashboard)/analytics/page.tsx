@@ -6,6 +6,8 @@ import {
 } from "@/features/analytics/actions";
 import { AnalyticsDashboardClient } from "./AnalyticsDashboardClient";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Analytics & Memory Discovery Engine - Personal CMS",
   description: "Comprehensive Analytics Engine, Statistics Module and Memory Discovery Index",
