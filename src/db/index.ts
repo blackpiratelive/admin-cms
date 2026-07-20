@@ -957,15 +957,17 @@ export async function ensureDbInitialized(): Promise<void> {
         CREATE INDEX IF NOT EXISTS analytics_relationships_target_idx ON analytics_relationships(target_type, target_id);
       `);
 
-      // SQLite maintenance optimization & query planner statistics
-      try {
-        await client.execute(`PRAGMA optimize;`);
-        await client.execute(`ANALYZE analytics_metrics;`);
-        await client.execute(`ANALYZE analytics_memory_scores;`);
-        await client.execute(`ANALYZE analytics_timeline;`);
-        await client.execute(`ANALYZE analytics_snapshots;`);
-        await client.execute(`ANALYZE;`);
-      } catch (mErr) {}
+      // Run SQLite query planner maintenance asynchronously in background so it does not block request latency
+      setTimeout(async () => {
+        try {
+          await client.execute(`PRAGMA optimize;`);
+          await client.execute(`ANALYZE analytics_metrics;`);
+          await client.execute(`ANALYZE analytics_memory_scores;`);
+          await client.execute(`ANALYZE analytics_timeline;`);
+          await client.execute(`ANALYZE analytics_snapshots;`);
+          await client.execute(`ANALYZE;`);
+        } catch (mErr) {}
+      }, 200);
     } catch (err) {
       console.error("Auto DB initialization error:", err);
       // Reset promise to allow retrying on error
