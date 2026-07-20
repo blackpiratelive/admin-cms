@@ -397,8 +397,104 @@ export async function rebuildAllAnalyticsCache(
           set: { dataJson: JSON.stringify(globalStats), updatedAt: now },
         });
 
-      // 5. Generate Snapshot for Today
+      // 4.5 Populate analyticsDaily, analyticsMonthly, and analyticsYearly
+      const dailyCounts: Record<string, { date: string; module: string; metricName: string; value: number }> = {};
+      const monthlyCounts: Record<string, { yearMonth: string; module: string; metricName: string; value: number }> = {};
+      const yearlyCounts: Record<string, { year: string; module: string; metricName: string; value: number }> = {};
+
+      const addMetricCount = (dateStr: string, mod: string, metric: string, delta = 1) => {
+        if (!dateStr || dateStr.length < 10) return;
+        const date = dateStr.substring(0, 10);
+        const ym = date.substring(0, 7);
+        const yr = date.substring(0, 4);
+
+        const dKey = `${date}_${mod}_${metric}`;
+        const mKey = `${ym}_${mod}_${metric}`;
+        const yKey = `${yr}_${mod}_${metric}`;
+
+        if (!dailyCounts[dKey]) dailyCounts[dKey] = { date, module: mod, metricName: metric, value: 0 };
+        dailyCounts[dKey].value += delta;
+
+        if (!monthlyCounts[mKey]) monthlyCounts[mKey] = { yearMonth: ym, module: mod, metricName: metric, value: 0 };
+        monthlyCounts[mKey].value += delta;
+
+        if (!yearlyCounts[yKey]) yearlyCounts[yKey] = { year: yr, module: mod, metricName: metric, value: 0 };
+        yearlyCounts[yKey].value += delta;
+      };
+
+      journalList.forEach((j) => {
+        const d = j.entryDate || j.createdAt;
+        addMetricCount(d, "journal", "entries_count", 1);
+        if (j.wordCount) addMetricCount(d, "journal", "words_count", j.wordCount);
+      });
+
+      galleryList.forEach((g) => {
+        const d = g.takenAt || g.createdAt;
+        addMetricCount(d, "gallery", "photos_count", 1);
+      });
+
+      const microblogList = await db.select().from(microblogs);
+      microblogList.forEach((mb) => {
+        addMetricCount(mb.createdAt, "microblog", "posts_count", 1);
+      });
+
+      for (const [key, item] of Object.entries(dailyCounts)) {
+        await db
+          .insert(analyticsDaily)
+          .values({
+            id: key,
+            date: item.date,
+            module: item.module,
+            metricName: item.metricName,
+            value: item.value,
+            updatedAt: now,
+          })
+          .onConflictDoUpdate({
+            target: analyticsDaily.id,
+            set: { value: item.value, updatedAt: now },
+          });
+      }
+
+      for (const [key, item] of Object.entries(monthlyCounts)) {
+        await db
+          .insert(analyticsMonthly)
+          .values({
+            id: key,
+            yearMonth: item.yearMonth,
+            module: item.module,
+            metricName: item.metricName,
+            value: item.value,
+            updatedAt: now,
+          })
+          .onConflictDoUpdate({
+            target: analyticsMonthly.id,
+            set: { value: item.value, updatedAt: now },
+          });
+      }
+
+      for (const [key, item] of Object.entries(yearlyCounts)) {
+        await db
+          .insert(analyticsYearly)
+          .values({
+            id: key,
+            year: item.year,
+            module: item.module,
+            metricName: item.metricName,
+            value: item.value,
+            updatedAt: now,
+          })
+          .onConflictDoUpdate({
+            target: analyticsYearly.id,
+            set: { value: item.value, updatedAt: now },
+          });
+      }
+
+      // 5. Generate Snapshots for Today, Current Month, and Current Year
+      const yearMonthStr = todayDateStr.substring(0, 7);
+      const yearStr = todayDateStr.substring(0, 4);
       await generateAnalyticsSnapshot("daily", todayDateStr, globalStats);
+      await generateAnalyticsSnapshot("monthly", yearMonthStr, globalStats);
+      await generateAnalyticsSnapshot("yearly", yearStr, globalStats);
 
       // Update L1 Memory Cache
       l1GlobalOverviewCache = { data: globalStats, timestamp: Date.now() };
