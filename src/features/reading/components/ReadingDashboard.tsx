@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ReadingAnalyticsData } from "@/features/analytics/types";
-import { getAnalyticsProvider } from "@/features/analytics/providers";
+import { getModuleAnalyticsAction } from "@/features/analytics/actions";
 import { getReadingArticlesAction, getReadingMetadataAction, ReadingArticleDTO } from "../actions";
 import { ProviderCard } from "@/features/sync/components/ProviderCard";
 import { getProvidersOverviewAction, ProviderOverviewDTO } from "@/features/sync/actions";
@@ -38,9 +38,8 @@ export function ReadingDashboard() {
 
   const loadData = async () => {
     try {
-      const provider = getAnalyticsProvider("reading");
-      if (provider) {
-        const stats = await provider.computeAnalytics();
+      const stats = await getModuleAnalyticsAction("reading");
+      if (stats) {
         setAnalytics(stats);
       }
 
