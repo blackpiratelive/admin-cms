@@ -12,6 +12,14 @@ export interface FreshRSSConfig {
   apiPassword: string;
 }
 
+function chunkArray<T>(items: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
 export class FreshRSSSyncProvider extends BaseSyncProvider {
   id = "freshrss";
   name = "FreshRSS";
@@ -229,6 +237,46 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
     }
   }
 
+  private async fetchStreamPages(
+    baseUrl: string,
+    authHeader: string,
+    streamPath: string,
+    maxPages = 5,
+    onProgress?: (msg: string) => void
+  ): Promise<any[]> {
+    const allItems: any[] = [];
+    let continuationToken: string | null = null;
+    const commonHeaders = {
+      "User-Agent": "AdminCMS-FreshRSSSync/1.0 (Google Reader API Client)",
+      Authorization: authHeader,
+    };
+
+    for (let p = 0; p < maxPages; p++) {
+      this.checkCancelled();
+      let url = `${baseUrl}/reader/api/0/stream/contents/${streamPath}?output=json&n=1000`;
+      if (continuationToken) {
+        url += `&c=${encodeURIComponent(continuationToken)}`;
+      }
+
+      onProgress?.(`Fetching ${streamPath} (page ${p + 1}/${maxPages})...`);
+      const res = await fetch(url, { headers: commonHeaders });
+      if (!res.ok) break;
+
+      const data = await res.json();
+      if (Array.isArray(data.items) && data.items.length > 0) {
+        allItems.push(...data.items);
+      }
+
+      if (data.continuation) {
+        continuationToken = data.continuation;
+      } else {
+        break;
+      }
+    }
+
+    return allItems;
+  }
+
   protected async executeSync(config: Record<string, any>, options?: SyncOptions): Promise<SyncResult> {
     this.checkCancelled();
     await ensureDbInitialized();
@@ -245,11 +293,23 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
     options?.onProgress?.("Fetching feeds and categories...");
     try {
       const subRes = await fetch(`${baseUrl}/reader/api/0/subscription/list?output=json`, {
-        headers: { Authorization: authHeader },
+        headers: {
+          "User-Agent": "AdminCMS-FreshRSSSync/1.0 (Google Reader API Client)",
+          Authorization: authHeader,
+        },
       });
       if (subRes.ok) {
         const subData = await subRes.json();
         const subscriptions = subData.subscriptions || [];
+
+        const existingCats = await db.select().from(rssCategories);
+        const existingCatIds = new Set(existingCats.map((c) => c.categoryId));
+
+        const existingFeedsList = await db.select().from(rssFeeds);
+        const existingFeedIds = new Set(existingFeedsList.map((f) => f.feedId));
+
+        const newCatsToInsert: any[] = [];
+        const newFeedsToInsert: any[] = [];
 
         for (const sub of subscriptions) {
           const feedId = String(sub.id || sub.url || "");
@@ -258,10 +318,9 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
           const categoryName = sub.categories && sub.categories[0] ? sub.categories[0].label : "General";
           const categoryId = sub.categories && sub.categories[0] ? String(sub.categories[0].id) : "cat_general";
 
-          // Upsert category
-          const existingCat = await db.select().from(rssCategories).where(eq(rssCategories.categoryId, categoryId)).limit(1);
-          if (existingCat.length === 0) {
-            await db.insert(rssCategories).values({
+          if (!existingCatIds.has(categoryId)) {
+            existingCatIds.add(categoryId);
+            newCatsToInsert.push({
               id: `rss_cat_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
               categoryId,
               name: categoryName,
@@ -270,21 +329,9 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
             });
           }
 
-          // Upsert feed
-          const existingFeed = await db.select().from(rssFeeds).where(eq(rssFeeds.feedId, feedId)).limit(1);
-          if (existingFeed.length > 0) {
-            await db
-              .update(rssFeeds)
-              .set({
-                name: sub.title || feedId,
-                category: categoryName,
-                website: sub.htmlUrl || null,
-                iconUrl: sub.iconUrl || null,
-                updatedAt: now,
-              })
-              .where(eq(rssFeeds.feedId, feedId));
-          } else {
-            await db.insert(rssFeeds).values({
+          if (!existingFeedIds.has(feedId)) {
+            existingFeedIds.add(feedId);
+            newFeedsToInsert.push({
               id: `rss_feed_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
               feedId,
               name: sub.title || feedId,
@@ -297,48 +344,44 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
             });
           }
         }
+
+        if (newCatsToInsert.length > 0) {
+          for (const batch of chunkArray(newCatsToInsert, 100)) {
+            await db.insert(rssCategories).values(batch).onConflictDoNothing();
+          }
+        }
+        if (newFeedsToInsert.length > 0) {
+          for (const batch of chunkArray(newFeedsToInsert, 100)) {
+            await db.insert(rssFeeds).values(batch).onConflictDoNothing();
+          }
+        }
       }
     } catch (catErr) {
       console.warn("FreshRSS feed sync warning:", catErr);
     }
 
-    // 2. Fetch Read Articles
-    this.checkCancelled();
-    options?.onProgress?.("Fetching read articles activity...");
-    const readItems: any[] = [];
-    try {
-      const readRes = await fetch(`${baseUrl}/reader/api/0/stream/contents/user/-/state/com.google/read?output=json&n=1000`, {
-        headers: { Authorization: authHeader },
-      });
-      if (readRes.ok) {
-        const readData = await readRes.json();
-        if (Array.isArray(readData.items)) {
-          readItems.push(...readData.items);
-        }
-      }
-    } catch (readErr) {
-      console.warn("FreshRSS read stream warning:", readErr);
-    }
+    // 2. Fetch Read & Starred Stream Pages
+    const maxPages = options?.mode === "batch" ? (options?.batchSize || 20) : 5;
 
-    // 3. Fetch Starred Articles
-    this.checkCancelled();
-    options?.onProgress?.("Fetching starred articles...");
-    const starredItems: any[] = [];
-    try {
-      const starredRes = await fetch(`${baseUrl}/reader/api/0/stream/contents/user/-/state/com.google/starred?output=json&n=1000`, {
-        headers: { Authorization: authHeader },
-      });
-      if (starredRes.ok) {
-        const starredData = await starredRes.json();
-        if (Array.isArray(starredData.items)) {
-          starredItems.push(...starredData.items);
-        }
-      }
-    } catch (starredErr) {
-      console.warn("FreshRSS starred stream warning:", starredErr);
-    }
+    options?.onProgress?.(`Fetching read articles stream (up to ${maxPages} pages)...`);
+    const readItems = await this.fetchStreamPages(
+      baseUrl,
+      authHeader,
+      "user/-/state/com.google/read",
+      maxPages,
+      options?.onProgress
+    );
 
-    // Process all items
+    options?.onProgress?.(`Fetching starred articles stream (up to ${maxPages} pages)...`);
+    const starredItems = await this.fetchStreamPages(
+      baseUrl,
+      authHeader,
+      "user/-/state/com.google/starred",
+      maxPages,
+      options?.onProgress
+    );
+
+    // Combine items into unified map
     const allItemsMap = new Map<string, { item: any; isRead: boolean; isStarred: boolean }>();
 
     for (const item of readItems) {
@@ -356,10 +399,29 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
       }
     }
 
-    options?.onProgress?.(`Processing ${allItemsMap.size} reading events...`);
+    options?.onProgress?.(`Processing ${allItemsMap.size} articles in high-performance batch mode...`);
+
+    // Fetch existing articles into memory for fast O(1) bulk processing
+    const existingArticlesList = await db
+      .select({
+        id: rssArticles.id,
+        freshrssId: rssArticles.freshrssId,
+        isRead: rssArticles.isRead,
+        isStarred: rssArticles.isStarred,
+        readDate: rssArticles.readDate,
+        starredAt: rssArticles.starredAt,
+      })
+      .from(rssArticles);
+
+    const existingMap = new Map(existingArticlesList.map((a) => [a.freshrssId, a]));
+
+    const newArticlesToInsert: any[] = [];
+    const newReadEventsToInsert: any[] = [];
+    const newStarredEventsToInsert: any[] = [];
+    const newSearchEntriesToUpsert: any[] = [];
+    const articlesToUpdate: Array<{ id: string; data: Record<string, any> }> = [];
 
     for (const [freshrssId, record] of allItemsMap.entries()) {
-      this.checkCancelled();
       const item = record.item;
       const title = item.title || "Untitled Article";
       const originalUrl =
@@ -372,7 +434,6 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
       const readDate = record.isRead ? pubDate : null;
       const starredAt = record.isStarred ? pubDate : null;
 
-      // Calculate approximate word count and reading time without storing full content body
       let wordCount = 0;
       let readingTimeSec = 0;
       if (item.summary && item.summary.content) {
@@ -387,32 +448,29 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
       const category = (item.categories && item.categories[0]) || "General";
       const tagsJson = JSON.stringify(item.categories || []);
 
-      const existingArt = await db.select().from(rssArticles).where(eq(rssArticles.freshrssId, freshrssId)).limit(1);
+      const existing = existingMap.get(freshrssId);
 
-      if (existingArt.length > 0) {
-        await db
-          .update(rssArticles)
-          .set({
-            title,
-            originalUrl,
-            feedId,
-            feedName,
-            category,
-            author,
-            wordCount,
-            readingTime: readingTimeSec,
-            isRead: record.isRead ? 1 : existingArt[0].isRead,
-            isStarred: record.isStarred ? 1 : existingArt[0].isStarred,
-            readDate: readDate || existingArt[0].readDate,
-            starredAt: starredAt || existingArt[0].starredAt,
-            updatedAt: now,
-          })
-          .where(eq(rssArticles.freshrssId, freshrssId));
+      if (existing) {
+        const needsUpdate =
+          (record.isRead && !existing.isRead) ||
+          (record.isStarred && !existing.isStarred);
 
-        itemsUpdated++;
+        if (needsUpdate) {
+          articlesToUpdate.push({
+            id: freshrssId,
+            data: {
+              isRead: record.isRead ? 1 : existing.isRead,
+              isStarred: record.isStarred ? 1 : existing.isStarred,
+              readDate: readDate || existing.readDate,
+              starredAt: starredAt || existing.starredAt,
+              updatedAt: now,
+            },
+          });
+        }
       } else {
         const articleId = `rss_art_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        await db.insert(rssArticles).values({
+
+        newArticlesToInsert.push({
           id: articleId,
           freshrssId,
           feedId,
@@ -433,9 +491,8 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
           updatedAt: now,
         });
 
-        // Insert read event log
         if (record.isRead) {
-          await db.insert(rssReadEvents).values({
+          newReadEventsToInsert.push({
             id: `rss_re_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
             articleId,
             readAt: readDate || pubDate,
@@ -443,9 +500,8 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
           });
         }
 
-        // Insert starred event log
         if (record.isStarred) {
-          await db.insert(rssStarredArticles).values({
+          newStarredEventsToInsert.push({
             id: `rss_st_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
             articleId,
             starredAt: starredAt || pubDate,
@@ -453,8 +509,7 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
           });
         }
 
-        // Upsert Search Entry for multi-table universal search
-        await upsertSearchEntry({
+        newSearchEntriesToUpsert.push({
           entityType: "rss_article",
           entityId: articleId,
           title,
@@ -462,12 +517,50 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
           keywords: `${title} ${feedName} ${category} ${author || ""}`.toLowerCase(),
           url: originalUrl,
         });
-
-        itemsCreated++;
       }
     }
 
-    // Save sync state
+    // High-performance bulk database insertions
+    if (newArticlesToInsert.length > 0) {
+      options?.onProgress?.(`Inserting ${newArticlesToInsert.length} new articles into database...`);
+      for (const batch of chunkArray(newArticlesToInsert, 100)) {
+        await db.insert(rssArticles).values(batch).onConflictDoNothing();
+      }
+      itemsCreated = newArticlesToInsert.length;
+    }
+
+    if (newReadEventsToInsert.length > 0) {
+      for (const batch of chunkArray(newReadEventsToInsert, 100)) {
+        await db.insert(rssReadEvents).values(batch).onConflictDoNothing();
+      }
+    }
+
+    if (newStarredEventsToInsert.length > 0) {
+      for (const batch of chunkArray(newStarredEventsToInsert, 100)) {
+        await db.insert(rssStarredArticles).values(batch).onConflictDoNothing();
+      }
+    }
+
+    if (articlesToUpdate.length > 0) {
+      options?.onProgress?.(`Updating ${articlesToUpdate.length} modified articles...`);
+      for (const item of articlesToUpdate) {
+        await db
+          .update(rssArticles)
+          .set(item.data)
+          .where(eq(rssArticles.freshrssId, item.id));
+      }
+      itemsUpdated = articlesToUpdate.length;
+    }
+
+    // Bulk Search Indexing
+    if (newSearchEntriesToUpsert.length > 0) {
+      options?.onProgress?.(`Indexing ${newSearchEntriesToUpsert.length} articles for universal search...`);
+      for (const entry of newSearchEntriesToUpsert) {
+        await upsertSearchEntry(entry);
+      }
+    }
+
+    // Save sync checkpoint
     const existingSyncState = await db.select().from(rssSyncState).limit(1);
     if (existingSyncState.length > 0) {
       await db.update(rssSyncState).set({ lastSync: now, updatedAt: now }).where(eq(rssSyncState.id, existingSyncState[0].id));
@@ -480,12 +573,14 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
     }
 
     // Asynchronously rebuild analytics cache to incorporate reading activity
-    options?.onProgress?.("Updating reading analytics and discovery graph...");
+    options?.onProgress?.("Rebuilding reading analytics cache...");
     try {
       await rebuildAllAnalyticsCache();
     } catch (aErr) {
       console.warn("Analytics update after FreshRSS sync warning:", aErr);
     }
+
+    options?.onProgress?.(`FreshRSS sync completed. ${itemsCreated} articles created, ${itemsUpdated} updated.`);
 
     return {
       success: true,
