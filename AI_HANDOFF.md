@@ -143,7 +143,8 @@ The database consists of **52 SQLite tables** managed via Drizzle ORM:
 - **Canonical Source Philosophy**: FreshRSS remains canonical for RSS feed XML and unread article states. The CMS imports reading activity, starred articles, and metadata only, strictly avoiding storing article HTML body text.
 - **Google Reader API Authentication**: Connects using FreshRSS GReader API compatibility layer (`/api/greader.php`) supporting `ClientLogin` (with `Passwd` parameter and `User-Agent` headers) and Basic Auth fallbacks.
 - **Reading Analytics DB Caching**: Precomputes all reading metrics (total read, streaks, sessions, top categories, favorite sources, habits) into `analyticsMetrics` under key `summary_reading` for **0ms instant DB cache reads** without calculating on page loads.
-- **High-Performance Chunked Sync**: Uses 100-item chunked batch database operations (`chunkArray`) and continuation-token stream pagination (`c=...`) for high-speed sync matching Last.fm.
+- **High-Performance Chunked Sync & Batch History Mode**: Uses 100-item chunked batch database operations (`chunkArray`) and continuation-token stream pagination (`c=...`) for high-speed sync matching Last.fm. Includes UI Sync Mode selector (`Incremental` vs `Batch History (Deep Fetch)`) in `ProviderCard.tsx`.
+- **Local DB Log Viewer**: Features interactive live terminal logs and local DB audit log inspector (`Local Logs` button and `/sync/logs?provider=freshrss` route) directly in the UI.
 - **Reading Influence Engine**: `getReadingAroundTimeAction` surfaces articles read or published around specific dates, embedding "Reading Around This Time" context into Journal Entries, Trips, and Projects.
 - **Reading Sessions & Heatmaps**: Automatically groups reading events within 30-minute windows into reading sessions with estimated reading time and word counts.
 
