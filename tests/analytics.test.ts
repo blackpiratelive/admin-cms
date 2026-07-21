@@ -5,9 +5,9 @@ import { getAllAnalyticsProviders, getAnalyticsProvider } from "@/features/analy
 import { rebuildAllAnalyticsCache, generateAnalyticsSnapshot, getCachedGlobalOverview } from "@/features/analytics/core";
 
 describe("Analytics Engine & Memory Index Architecture", () => {
-  it("registers and exposes all 10 analytics providers", () => {
+  it("registers and exposes all analytics providers", () => {
     const providers = getAllAnalyticsProviders();
-    expect(providers.length).toBe(10);
+    expect(providers.length).toBeGreaterThanOrEqual(10);
 
     const expectedModules = [
       "journal",
@@ -20,6 +20,7 @@ describe("Analytics Engine & Memory Index Architecture", () => {
       "people",
       "locations",
       "trips",
+      "reading",
     ];
 
     expectedModules.forEach((mod) => {

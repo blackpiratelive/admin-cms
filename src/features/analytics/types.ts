@@ -25,7 +25,8 @@ export type SupportedModule =
   | "music"
   | "people"
   | "locations"
-  | "trips";
+  | "trips"
+  | "reading";
 
 export interface MemoryIndexWeights {
   richnessWeight: number;
@@ -102,6 +103,7 @@ export interface GlobalOverviewStats {
   totalPeople: number;
   totalLocations: number;
   totalTrips: number;
+  totalArticlesRead: number;
   journalStreak: number;
   longestJournalStreak: number;
   mostActiveModule: string;
@@ -110,6 +112,36 @@ export interface GlobalOverviewStats {
   recentActivityCount: number;
   syncStatus: string;
   updatedAt: string;
+}
+
+export interface ReadingAnalyticsData {
+  totalRead: number;
+  readToday: number;
+  readThisWeek: number;
+  readThisMonth: number;
+  readThisYear: number;
+  lifetimeReads: number;
+  streakDays: number;
+  longestStreakDays: number;
+  averageArticlesPerDay: number;
+  averageReadingTimeSeconds: number;
+  totalEstimatedReadingTimeSeconds: number;
+  mostActiveReadingDay: string;
+  mostActiveReadingHour: number;
+  mostActiveWeekday: string;
+  mostReadFeed: { feedId: string; name: string; count: number } | null;
+  mostReadCategory: { category: string; count: number } | null;
+  mostStarredFeed: { feedId: string; name: string; count: number } | null;
+  mostStarredCategory: { category: string; count: number } | null;
+  totalStarred: number;
+  favoriteSources: Array<{ feedId: string; name: string; count: number }>;
+  unreadCount: number;
+  readingCalendar: Array<{ date: string; count: number; estimatedMinutes: number }>;
+  readingHeatmap: Array<{ day: string; hour: number; count: number }>;
+  readingSessions: Array<{ startDate: string; endDate: string; durationMinutes: number; articlesCount: number; wordCount: number }>;
+  topCategories: Array<{ category: string; count: number }>;
+  recentReads: Array<{ id: string; title: string; feedName: string; category: string; readDate: string; originalUrl: string; isStarred: boolean }>;
+  recentStarred: Array<{ id: string; title: string; feedName: string; category: string; starredAt: string; originalUrl: string }>;
 }
 
 export interface JournalAnalyticsData {

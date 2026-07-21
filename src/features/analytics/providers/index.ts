@@ -9,6 +9,7 @@ import { musicAnalyticsProvider } from "./music";
 import { peopleAnalyticsProvider } from "./people";
 import { locationAnalyticsProvider } from "./locations";
 import { tripAnalyticsProvider } from "./trips";
+import { readingAnalyticsProvider } from "./reading";
 
 const providerRegistry: Map<SupportedModule, AnalyticsProvider> = new Map([
   ["journal", journalAnalyticsProvider],
@@ -21,6 +22,7 @@ const providerRegistry: Map<SupportedModule, AnalyticsProvider> = new Map([
   ["people", peopleAnalyticsProvider],
   ["locations", locationAnalyticsProvider],
   ["trips", tripAnalyticsProvider],
+  ["reading", readingAnalyticsProvider],
 ]);
 
 export function registerAnalyticsProvider(provider: AnalyticsProvider) {

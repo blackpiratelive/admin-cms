@@ -812,6 +812,83 @@ export async function ensureDbInitialized(): Promise<void> {
         );
       `);
 
+      // FreshRSS & Reading Activity Tables DDL
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS rss_articles (
+          id TEXT PRIMARY KEY,
+          freshrss_id TEXT NOT NULL UNIQUE,
+          feed_id TEXT,
+          feed_name TEXT,
+          category TEXT,
+          title TEXT NOT NULL,
+          original_url TEXT NOT NULL,
+          publication_date TEXT,
+          read_date TEXT,
+          author TEXT,
+          reading_time INTEGER NOT NULL DEFAULT 0,
+          language TEXT,
+          tags TEXT NOT NULL DEFAULT '[]',
+          word_count INTEGER NOT NULL DEFAULT 0,
+          thumbnail_url TEXT,
+          is_read INTEGER NOT NULL DEFAULT 0,
+          is_starred INTEGER NOT NULL DEFAULT 0,
+          starred_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS rss_feeds (
+          id TEXT PRIMARY KEY,
+          feed_id TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL,
+          category TEXT,
+          website TEXT,
+          icon_url TEXT,
+          unread_count INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS rss_categories (
+          id TEXT PRIMARY KEY,
+          category_id TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS rss_read_events (
+          id TEXT PRIMARY KEY,
+          article_id TEXT NOT NULL,
+          read_at TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS rss_starred_articles (
+          id TEXT PRIMARY KEY,
+          article_id TEXT NOT NULL,
+          starred_at TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+      `);
+
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS rss_sync_state (
+          id TEXT PRIMARY KEY,
+          last_sync TEXT,
+          checkpoint TEXT,
+          updated_at TEXT NOT NULL
+        );
+      `);
+
       // Add columns to existing installations dynamically
       try {
         await client.execute(`ALTER TABLE microblogs ADD COLUMN location_id TEXT;`);
@@ -955,6 +1032,12 @@ export async function ensureDbInitialized(): Promise<void> {
         CREATE INDEX IF NOT EXISTS analytics_snapshots_type_created_idx ON analytics_snapshots(snapshot_type, created_at DESC);
         CREATE INDEX IF NOT EXISTS analytics_relationships_source_idx ON analytics_relationships(source_type, source_id);
         CREATE INDEX IF NOT EXISTS analytics_relationships_target_idx ON analytics_relationships(target_type, target_id);
+        CREATE INDEX IF NOT EXISTS rss_articles_pub_date_idx ON rss_articles(publication_date DESC);
+        CREATE INDEX IF NOT EXISTS rss_articles_read_date_idx ON rss_articles(read_date DESC);
+        CREATE INDEX IF NOT EXISTS rss_articles_starred_at_idx ON rss_articles(starred_at DESC);
+        CREATE INDEX IF NOT EXISTS rss_articles_is_read_idx ON rss_articles(is_read);
+        CREATE INDEX IF NOT EXISTS rss_articles_is_starred_idx ON rss_articles(is_starred);
+        CREATE INDEX IF NOT EXISTS rss_read_events_read_at_idx ON rss_read_events(read_at DESC);
       `);
 
       // Run SQLite query planner maintenance asynchronously in background so it does not block request latency

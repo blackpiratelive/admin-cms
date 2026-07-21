@@ -21,6 +21,7 @@ import {
   activities,
   attachments,
   journalEntryAssets,
+  rssArticles,
 } from "@/db/schema";
 import { eq, desc, inArray, count, gte, lte } from "drizzle-orm";
 import { getAllAnalyticsProviders, getAnalyticsProvider } from "./providers";
@@ -325,6 +326,21 @@ export async function rebuildAllAnalyticsCache(
         });
       });
 
+      const rssArticlesList = await db.select().from(rssArticles);
+      rssArticlesList.filter(a => a.isRead === 1 || a.isStarred === 1).forEach((art) => {
+        timelineItems.push({
+          id: `timeline_rss_${art.id}`,
+          date: art.readDate || art.publicationDate || art.createdAt,
+          type: "reading",
+          title: `Read Article: ${art.title}`,
+          entityType: "rss_article",
+          entityId: art.id,
+          relatedPeople: [],
+          importanceScore: art.isStarred ? 85 : 45,
+          updatedAt: art.updatedAt,
+        });
+      });
+
       // Atomic upserts for timeline items
       for (const ti of timelineItems.slice(0, 200)) {
         await db
@@ -375,6 +391,7 @@ export async function rebuildAllAnalyticsCache(
         totalPeople: peopleList.length,
         totalLocations: locsList.length,
         totalTrips: tripsList.length,
+        totalArticlesRead: providerResults["reading"]?.totalRead || 0,
         journalStreak: providerResults["journal"]?.streakDays || 0,
         longestJournalStreak: providerResults["journal"]?.longestStreakDays || 0,
         mostActiveModule: "journal",
@@ -587,6 +604,7 @@ export async function getCachedGlobalOverview(): Promise<GlobalOverviewStats> {
         totalPeople: 0,
         totalLocations: 0,
         totalTrips: 0,
+        totalArticlesRead: 0,
         journalStreak: 0,
         longestJournalStreak: 0,
         mostActiveModule: "journal",

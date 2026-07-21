@@ -2,6 +2,8 @@ import { db, ensureDbInitialized } from "@/db";
 import { locations, journalEntries, gallery, trips } from "@/db/schema";
 import { AnalyticsProvider, LocationAnalyticsData, TimeFilterRange, CustomDateRange } from "../types";
 
+import { getTimeFilterStartEnd } from "../config";
+
 export const locationAnalyticsProvider: AnalyticsProvider = {
   name: "locations",
   computeAnalytics: async (
@@ -10,12 +12,30 @@ export const locationAnalyticsProvider: AnalyticsProvider = {
   ): Promise<LocationAnalyticsData> => {
     await ensureDbInitialized();
 
-    const [allLocs, allEntries, allPhotos, allTripsList] = await Promise.all([
+    let [allLocs, allEntries, allPhotos, allTripsList] = await Promise.all([
       db.select().from(locations),
       db.select().from(journalEntries),
       db.select().from(gallery),
       db.select().from(trips),
     ]);
+
+    const { start, end } = getTimeFilterStartEnd(timeFilter, customRange);
+    if (start || end) {
+      allEntries = allEntries.filter((e) => {
+        const d = new Date(e.entryDate || e.createdAt);
+        if (isNaN(d.getTime())) return true;
+        if (start && d < start) return false;
+        if (end && d > end) return false;
+        return true;
+      });
+      allPhotos = allPhotos.filter((p) => {
+        const d = new Date(p.takenAt || p.createdAt);
+        if (isNaN(d.getTime())) return true;
+        if (start && d < start) return false;
+        if (end && d > end) return false;
+        return true;
+      });
+    }
 
     const countriesSet = new Set<string>();
     const statesSet = new Set<string>();

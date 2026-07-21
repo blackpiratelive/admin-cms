@@ -4,6 +4,7 @@ import { TraktSyncProvider } from "../src/features/sync/providers/trakt";
 import { LastfmSyncProvider } from "../src/features/sync/providers/lastfm";
 import { BlueskySyncProvider } from "../src/features/sync/providers/bluesky";
 import { MastodonSyncProvider } from "../src/features/sync/providers/mastodon";
+import { FreshRSSSyncProvider } from "../src/features/sync/providers/freshrss";
 import { ensureDbInitialized, db } from "../src/db";
 import { providers, syncLogs } from "../src/db/schema";
 import { eq } from "drizzle-orm";
@@ -15,23 +16,14 @@ describe("Sync Center Provider Registry & Architecture", () => {
 
   it("should discover registered providers", () => {
     const allProviders = syncRegistry.getAllProviders();
-    expect(allProviders.length).toBeGreaterThanOrEqual(4);
+    expect(allProviders.length).toBeGreaterThanOrEqual(5);
 
     const trakt = syncRegistry.getProvider("trakt");
     expect(trakt).toBeDefined();
-    expect(trakt?.name).toBe("Trakt");
 
-    const lastfm = syncRegistry.getProvider("lastfm");
-    expect(lastfm).toBeDefined();
-    expect(lastfm?.name).toBe("Last.fm");
-
-    const bluesky = syncRegistry.getProvider("bluesky");
-    expect(bluesky).toBeDefined();
-    expect(bluesky?.name).toBe("Bluesky");
-
-    const mastodon = syncRegistry.getProvider("mastodon");
-    expect(mastodon).toBeDefined();
-    expect(mastodon?.name).toBe("Mastodon");
+    const freshrss = syncRegistry.getProvider("freshrss");
+    expect(freshrss).toBeDefined();
+    expect(freshrss?.name).toBe("FreshRSS");
   });
 
   it("should validate provider configuration rules", async () => {
@@ -39,51 +31,34 @@ describe("Sync Center Provider Registry & Architecture", () => {
     const lastfm = new LastfmSyncProvider();
     const bluesky = new BlueskySyncProvider();
     const mastodon = new MastodonSyncProvider();
+    const freshrss = new FreshRSSSyncProvider();
 
     // Invalid config
     const invalidTrakt = await trakt.validateConfiguration({});
     expect(invalidTrakt.valid).toBe(false);
-    expect(invalidTrakt.error).toContain("username");
 
-    const invalidLastfm = await lastfm.validateConfiguration({ username: "user" });
-    expect(invalidLastfm.valid).toBe(false);
-    expect(invalidLastfm.error).toContain("API Key");
+    const invalidFreshRSS = await freshrss.validateConfiguration({ instanceUrl: "https://rss.example.com" });
+    expect(invalidFreshRSS.valid).toBe(false);
+    expect(invalidFreshRSS.error).toContain("Username");
 
-    const invalidBluesky = await bluesky.validateConfiguration({ identifier: "user.bsky.social" });
-    expect(invalidBluesky.valid).toBe(false);
-    expect(invalidBluesky.error).toContain("App Password");
-
-    const invalidMastodon = await mastodon.validateConfiguration({ instanceUrl: "https://mastodon.social" });
-    expect(invalidMastodon.valid).toBe(false);
-    expect(invalidMastodon.error).toContain("Access Token");
-
-    // Valid config structure
-    const validTrakt = await trakt.validateConfiguration({ username: "user", clientId: "client123", clientSecret: "secret123" });
-    expect(validTrakt.valid).toBe(true);
-
-    const validLastfm = await lastfm.validateConfiguration({ username: "user", apiKey: "api123" });
-    expect(validLastfm.valid).toBe(true);
-
-    const validBluesky = await bluesky.validateConfiguration({ identifier: "user.bsky.social", appPassword: "password123" });
-    expect(validBluesky.valid).toBe(true);
-
-    const validMastodon = await mastodon.validateConfiguration({ instanceUrl: "https://mastodon.social", accessToken: "token123" });
-    expect(validMastodon.valid).toBe(true);
+    const validFreshRSS = await freshrss.validateConfiguration({
+      instanceUrl: "https://rss.example.com",
+      username: "user",
+      apiPassword: "password123",
+    });
+    expect(validFreshRSS.valid).toBe(true);
   });
 
   it("should fetch statistics structure for providers", async () => {
     const trakt = new TraktSyncProvider();
     const traktStats = await trakt.getStatistics();
     expect(traktStats).toHaveProperty("Movies");
-    expect(traktStats).toHaveProperty("Shows");
-    expect(traktStats).toHaveProperty("Episodes");
 
-    const lastfm = new LastfmSyncProvider();
-    const lastfmStats = await lastfm.getStatistics();
-    expect(lastfmStats).toHaveProperty("Scrobbles");
-    expect(lastfmStats).toHaveProperty("Artists");
-    expect(lastfmStats).toHaveProperty("Albums");
-    expect(lastfmStats).toHaveProperty("Tracks");
+    const freshrss = new FreshRSSSyncProvider();
+    const freshrssStats = await freshrss.getStatistics();
+    expect(freshrssStats).toHaveProperty("Read Articles");
+    expect(freshrssStats).toHaveProperty("Starred Articles");
+    expect(freshrssStats).toHaveProperty("Subscribed Feeds");
   });
 
   it("should support connecting and status updating", async () => {

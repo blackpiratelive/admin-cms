@@ -2,6 +2,8 @@ import { db, ensureDbInitialized } from "@/db";
 import { trips, journalEntries, gallery, locations } from "@/db/schema";
 import { AnalyticsProvider, TripAnalyticsData, TimeFilterRange, CustomDateRange } from "../types";
 
+import { getTimeFilterStartEnd } from "../config";
+
 export const tripAnalyticsProvider: AnalyticsProvider = {
   name: "trips",
   computeAnalytics: async (
@@ -10,12 +12,37 @@ export const tripAnalyticsProvider: AnalyticsProvider = {
   ): Promise<TripAnalyticsData> => {
     await ensureDbInitialized();
 
-    const [allTripsList, allEntries, allPhotos, allLocs] = await Promise.all([
+    let [allTripsList, allEntries, allPhotos, allLocs] = await Promise.all([
       db.select().from(trips),
       db.select().from(journalEntries),
       db.select().from(gallery),
       db.select().from(locations),
     ]);
+
+    const { start, end } = getTimeFilterStartEnd(timeFilter, customRange);
+    if (start || end) {
+      allTripsList = allTripsList.filter((t) => {
+        const d = new Date(t.startDate || t.createdAt);
+        if (isNaN(d.getTime())) return true;
+        if (start && d < start) return false;
+        if (end && d > end) return false;
+        return true;
+      });
+      allEntries = allEntries.filter((e) => {
+        const d = new Date(e.entryDate || e.createdAt);
+        if (isNaN(d.getTime())) return true;
+        if (start && d < start) return false;
+        if (end && d > end) return false;
+        return true;
+      });
+      allPhotos = allPhotos.filter((p) => {
+        const d = new Date(p.takenAt || p.createdAt);
+        if (isNaN(d.getTime())) return true;
+        if (start && d < start) return false;
+        if (end && d > end) return false;
+        return true;
+      });
+    }
 
     const totalTrips = allTripsList.length;
     let totalTravelDays = 0;

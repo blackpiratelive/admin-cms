@@ -2,6 +2,8 @@ import { db, ensureDbInitialized } from "@/db";
 import { microblogs } from "@/db/schema";
 import { AnalyticsProvider, MicroblogAnalyticsData, TimeFilterRange, CustomDateRange } from "../types";
 
+import { getTimeFilterStartEnd } from "../config";
+
 export const microblogAnalyticsProvider: AnalyticsProvider = {
   name: "microblog",
   computeAnalytics: async (
@@ -13,27 +15,11 @@ export const microblogAnalyticsProvider: AnalyticsProvider = {
     const allPosts = await db.select().from(microblogs);
 
     let filtered = allPosts;
-    if (timeFilter && timeFilter !== "lifetime") {
-      const now = new Date();
-      let start: Date | null = null;
-      let end: Date | null = null;
-
-      if (timeFilter === "today") {
-        start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      } else if (timeFilter === "this_week") {
-        const day = now.getDay();
-        start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day);
-      } else if (timeFilter === "this_month") {
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
-      } else if (timeFilter === "this_year") {
-        start = new Date(now.getFullYear(), 0, 1);
-      } else if (timeFilter === "custom" && customRange) {
-        if (customRange.startDate) start = new Date(customRange.startDate);
-        if (customRange.endDate) end = new Date(customRange.endDate);
-      }
-
+    const { start, end } = getTimeFilterStartEnd(timeFilter, customRange);
+    if (start || end) {
       filtered = allPosts.filter((p) => {
         const d = new Date(p.createdAt);
+        if (isNaN(d.getTime())) return true;
         if (start && d < start) return false;
         if (end && d > end) return false;
         return true;

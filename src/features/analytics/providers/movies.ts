@@ -2,6 +2,8 @@ import { db, ensureDbInitialized } from "@/db";
 import { traktMovies, movieMetadata } from "@/db/schema";
 import { AnalyticsProvider, MovieAnalyticsData, TimeFilterRange, CustomDateRange } from "../types";
 
+import { getTimeFilterStartEnd } from "../config";
+
 export const movieAnalyticsProvider: AnalyticsProvider = {
   name: "movies",
   computeAnalytics: async (
@@ -18,27 +20,11 @@ export const movieAnalyticsProvider: AnalyticsProvider = {
     const metaMap = new Map(allMeta.map((m) => [m.traktId, m]));
 
     let filtered = allMovies;
-    if (timeFilter && timeFilter !== "lifetime") {
-      const now = new Date();
-      let start: Date | null = null;
-      let end: Date | null = null;
-
-      if (timeFilter === "today") {
-        start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      } else if (timeFilter === "this_week") {
-        const day = now.getDay();
-        start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day);
-      } else if (timeFilter === "this_month") {
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
-      } else if (timeFilter === "this_year") {
-        start = new Date(now.getFullYear(), 0, 1);
-      } else if (timeFilter === "custom" && customRange) {
-        if (customRange.startDate) start = new Date(customRange.startDate);
-        if (customRange.endDate) end = new Date(customRange.endDate);
-      }
-
+    const { start, end } = getTimeFilterStartEnd(timeFilter, customRange);
+    if (start || end) {
       filtered = allMovies.filter((m) => {
         const d = new Date(m.watchedAt || m.createdAt);
+        if (isNaN(d.getTime())) return true;
         if (start && d < start) return false;
         if (end && d > end) return false;
         return true;

@@ -3,6 +3,7 @@ import { TraktSyncProvider } from "./providers/trakt";
 import { LastfmSyncProvider } from "./providers/lastfm";
 import { BlueskySyncProvider } from "./providers/bluesky";
 import { MastodonSyncProvider } from "./providers/mastodon";
+import { FreshRSSSyncProvider } from "./providers/freshrss";
 
 class SyncProviderRegistry {
   private providersMap: Map<string, ISyncProvider> = new Map();
@@ -13,6 +14,7 @@ class SyncProviderRegistry {
     this.registerProvider(new LastfmSyncProvider());
     this.registerProvider(new BlueskySyncProvider());
     this.registerProvider(new MastodonSyncProvider());
+    this.registerProvider(new FreshRSSSyncProvider());
   }
 
   registerProvider(provider: ISyncProvider) {

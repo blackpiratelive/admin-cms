@@ -85,6 +85,7 @@ export async function getGlobalAnalyticsAction(
         totalPeople: providerResults["people"]?.totalPeople || 0,
         totalLocations: providerResults["locations"]?.placesCount || 0,
         totalTrips: providerResults["trips"]?.totalTrips || 0,
+        totalArticlesRead: providerResults["reading"]?.totalRead || 0,
         journalStreak: providerResults["journal"]?.streakDays || 0,
         longestJournalStreak: providerResults["journal"]?.longestStreakDays || 0,
         mostActiveModule: "journal",

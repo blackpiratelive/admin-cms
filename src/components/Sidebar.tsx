@@ -28,6 +28,7 @@ import {
   MapPin,
   Compass,
   Users,
+  Rss,
 } from "lucide-react";
 
 export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
@@ -207,6 +208,14 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
 
         <div className="nav-section">
           <div className="nav-section-title">Libraries</div>
+          <Link
+            href="/reading"
+            className={`nav-link ${isActive("/reading") ? "active" : ""}`}
+            onClick={handleLinkClick}
+          >
+            <Rss size={16} />
+            <span>Reading</span>
+          </Link>
           <Link
             href="/libraries/movies"
             className={`nav-link ${isActive("/libraries/movies") ? "active" : ""}`}

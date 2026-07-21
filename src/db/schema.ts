@@ -810,6 +810,78 @@ export type JournalAssetRecord = typeof journalAssets.$inferSelect;
 export type NewJournalAsset = typeof journalAssets.$inferInsert;
 export type JournalEntryAssetRecord = typeof journalEntryAssets.$inferSelect;
 
+// --- FRESHRSS & READING ACTIVITY ENTITIES ---
+
+export const rssArticles = sqliteTable("rss_articles", {
+  id: text("id").primaryKey(),
+  freshrssId: text("freshrss_id").notNull().unique(),
+  feedId: text("feed_id"),
+  feedName: text("feed_name"),
+  category: text("category"),
+  title: text("title").notNull(),
+  originalUrl: text("original_url").notNull(),
+  publicationDate: text("publication_date"),
+  readDate: text("read_date"),
+  author: text("author"),
+  readingTime: integer("reading_time").notNull().default(0), // in seconds
+  language: text("language"),
+  tags: text("tags").notNull().default("[]"),
+  wordCount: integer("word_count").notNull().default(0),
+  thumbnailUrl: text("thumbnail_url"),
+  isRead: integer("is_read").notNull().default(0),
+  isStarred: integer("is_starred").notNull().default(0),
+  starredAt: text("starred_at"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const rssFeeds = sqliteTable("rss_feeds", {
+  id: text("id").primaryKey(),
+  feedId: text("feed_id").notNull().unique(),
+  name: text("name").notNull(),
+  category: text("category"),
+  website: text("website"),
+  iconUrl: text("icon_url"),
+  unreadCount: integer("unread_count").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const rssCategories = sqliteTable("rss_categories", {
+  id: text("id").primaryKey(),
+  categoryId: text("category_id").notNull().unique(),
+  name: text("name").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const rssReadEvents = sqliteTable("rss_read_events", {
+  id: text("id").primaryKey(),
+  articleId: text("article_id").notNull(),
+  readAt: text("read_at").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export const rssStarredArticles = sqliteTable("rss_starred_articles", {
+  id: text("id").primaryKey(),
+  articleId: text("article_id").notNull(),
+  starredAt: text("starred_at").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export const rssSyncState = sqliteTable("rss_sync_state", {
+  id: text("id").primaryKey(),
+  lastSync: text("last_sync"),
+  checkpoint: text("checkpoint"),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export type RssArticleRecord = typeof rssArticles.$inferSelect;
+export type NewRssArticle = typeof rssArticles.$inferInsert;
+export type RssFeedRecord = typeof rssFeeds.$inferSelect;
+export type RssCategoryRecord = typeof rssCategories.$inferSelect;
+
+
 
 
 
