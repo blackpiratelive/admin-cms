@@ -219,6 +219,7 @@ The native Android app ([android-journal.md](file:///home/dog/git/admin-cms/andr
 - `GET`, `POST`, `PUT`, `DELETE /api/journal/entries`: Entry CRUD endpoints.
 - `POST /api/journal/sync`: Batch incremental synchronization.
 - `GET` & `POST /api/journal/assets`: Reads and creates E2EE journal assets.
+- `POST /api/sync/stream`: Real-time Server-Sent Events (SSE) streaming endpoint for live terminal log output across all data providers.
 
 ---
 
