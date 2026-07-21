@@ -296,7 +296,7 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
   }
 
   protected async executeSync(config: Record<string, any>, options?: SyncOptions): Promise<SyncResult> {
-    this.checkCancelled();
+    this.cancellationRequested = false;
     await ensureDbInitialized();
 
     const now = new Date().toISOString();
@@ -378,8 +378,17 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
       console.warn("FreshRSS feed sync warning:", catErr);
     }
 
-    // 2. Fetch Read & Starred Stream Pages
+    // 2. Fetch Reading List, Read & Starred Stream Pages
     const maxPages = options?.mode === "batch" ? (options?.batchSize || 20) : 5;
+
+    options?.onProgress?.(`Fetching main reading list stream (up to ${maxPages} pages)...`);
+    const readingListItems = await this.fetchStreamPages(
+      baseUrl,
+      authHeader,
+      "user/-/state/com.google/reading-list",
+      maxPages,
+      options?.onProgress
+    );
 
     options?.onProgress?.(`Fetching read articles stream (up to ${maxPages} pages)...`);
     const readItems = await this.fetchStreamPages(
@@ -402,9 +411,22 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
     // Combine items into unified map
     const allItemsMap = new Map<string, { item: any; isRead: boolean; isStarred: boolean }>();
 
+    for (const item of readingListItems) {
+      if (!item.id) continue;
+      const categories = Array.isArray(item.categories) ? item.categories : [];
+      const isRead = categories.some((c: string) => typeof c === "string" && (c.includes("/state/com.google/read") || c === "read"));
+      const isStarred = categories.some((c: string) => typeof c === "string" && (c.includes("/state/com.google/starred") || c === "starred"));
+      allItemsMap.set(item.id, { item, isRead, isStarred });
+    }
+
     for (const item of readItems) {
       if (!item.id) continue;
-      allItemsMap.set(item.id, { item, isRead: true, isStarred: false });
+      const existing = allItemsMap.get(item.id);
+      if (existing) {
+        existing.isRead = true;
+      } else {
+        allItemsMap.set(item.id, { item, isRead: true, isStarred: false });
+      }
     }
 
     for (const item of starredItems) {

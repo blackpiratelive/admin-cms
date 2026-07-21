@@ -28,6 +28,7 @@ export function ProviderCard({
   // Live Terminal Logs State
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [showLogsTerminal, setShowLogsTerminal] = useState(false);
+  const [terminalTitle, setTerminalTitle] = useState<string>("Live Sync Action Stream");
   const terminalEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -50,6 +51,7 @@ export function ProviderCard({
 
   const handleFetchLocalLogs = async () => {
     setShowLogsTerminal(true);
+    setTerminalTitle("Saved Audit History Logs (Past Runs)");
     setLogs([{ time: new Date().toLocaleTimeString(), message: `Fetching local DB audit logs for ${provider.name}...` }]);
     try {
       const dbLogs = await getSyncLogsAction(provider.slug, 1, 30);
@@ -72,6 +74,7 @@ export function ProviderCard({
     setSyncing(true);
     setSyncNotice(null);
     setShowLogsTerminal(true);
+    setTerminalTitle("Live Sync Action Stream");
     setLogs([{ time: new Date().toLocaleTimeString(), message: `Connecting to ${provider.name} stream...` }]);
 
     const endpoint = payload.action === "calculate_dates" ? "/api/sync/lastfm/stream" : "/api/sync/stream";
@@ -342,7 +345,7 @@ export function ProviderCard({
             >
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <Terminal size={12} />
-                <span>Sync Terminal & Execution Logs</span>
+                <span>{terminalTitle}</span>
               </div>
               <button
                 className="btn btn-sm"
