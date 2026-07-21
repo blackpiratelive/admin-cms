@@ -68,17 +68,19 @@ export function ProviderCard({
     }
   };
 
-  const executeStreamAction = async (payload: { action?: string; target?: string; mode?: string; batchSize?: number }) => {
+  const executeStreamAction = async (payload: { slug?: string; action?: string; target?: string; mode?: string; batchSize?: number }) => {
     setSyncing(true);
     setSyncNotice(null);
     setShowLogsTerminal(true);
-    setLogs([{ time: new Date().toLocaleTimeString(), message: "Connecting to server stream..." }]);
+    setLogs([{ time: new Date().toLocaleTimeString(), message: `Connecting to ${provider.name} stream...` }]);
+
+    const endpoint = payload.action === "calculate_dates" ? "/api/sync/lastfm/stream" : "/api/sync/stream";
 
     try {
-      const response = await fetch("/api/sync/lastfm/stream", {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ slug: provider.slug, ...payload }),
       });
 
       if (!response.ok) {
@@ -111,7 +113,12 @@ export function ProviderCard({
                 setLogs((prev) => [...prev, { time: data.time, message: data.message }]);
               } else if (data.type === "done") {
                 if (data.success) {
-                  setSyncNotice({ type: "success", message: "Process completed successfully!" });
+                  const created = data.result?.itemsCreated ?? 0;
+                  const updated = data.result?.itemsUpdated ?? 0;
+                  const createdStr = created > 0 ? `${created} added` : "";
+                  const updatedStr = updated > 0 ? `${updated} updated` : "";
+                  const msg = [createdStr, updatedStr].filter(Boolean).join(", ") || "Up to date";
+                  setSyncNotice({ type: "success", message: `Sync successful! ${msg}` });
                 } else {
                   setSyncNotice({ type: "error", message: data.error || "Execution failed." });
                 }
@@ -133,53 +140,12 @@ export function ProviderCard({
   };
 
   const handleSync = async () => {
-    setShowLogsTerminal(true);
-    setLogs([
-      {
-        time: new Date().toLocaleTimeString(),
-        message: `Starting ${provider.name} sync (mode: ${syncMode})...`,
-      },
-    ]);
-
-    if (provider.slug === "lastfm") {
-      await executeStreamAction({
-        target: syncTarget,
-        mode: syncMode,
-        batchSize: 50,
-      });
-    } else {
-      setSyncing(true);
-      setSyncNotice(null);
-      const res = await syncProviderAction(provider.slug, { mode: syncMode });
-      setSyncing(false);
-
-      if (res.success) {
-        const created = res.itemsCreated ?? 0;
-        const updated = res.itemsUpdated ?? 0;
-        const createdStr = created > 0 ? `${created} added` : "";
-        const updatedStr = updated > 0 ? `${updated} updated` : "";
-        const msg = [createdStr, updatedStr].filter(Boolean).join(", ") || "Up to date";
-        setSyncNotice({ type: "success", message: `Sync successful! ${msg}` });
-        setLogs((prev) => [
-          ...prev,
-          {
-            time: new Date().toLocaleTimeString(),
-            message: `[SUCCESS] Sync completed: ${msg}`,
-          },
-        ]);
-        onRefresh();
-      } else {
-        setSyncNotice({ type: "error", message: res.errorMessage || "Sync failed" });
-        setLogs((prev) => [
-          ...prev,
-          {
-            time: new Date().toLocaleTimeString(),
-            message: `[ERROR] Sync failed: ${res.errorMessage || "Unknown error"}`,
-          },
-        ]);
-        onRefresh();
-      }
-    }
+    await executeStreamAction({
+      slug: provider.slug,
+      target: syncTarget,
+      mode: syncMode,
+      batchSize: 50,
+    });
   };
 
   const handleCalculateDatesManually = async () => {

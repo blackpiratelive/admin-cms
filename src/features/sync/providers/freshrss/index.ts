@@ -246,6 +246,8 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
   ): Promise<any[]> {
     const allItems: any[] = [];
     let continuationToken: string | null = null;
+    const seenTokens = new Set<string>();
+
     const commonHeaders = {
       "User-Agent": "AdminCMS-FreshRSSSync/1.0 (Google Reader API Client)",
       Authorization: authHeader,
@@ -255,21 +257,37 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
       this.checkCancelled();
       let url = `${baseUrl}/reader/api/0/stream/contents/${streamPath}?output=json&n=1000`;
       if (continuationToken) {
+        if (seenTokens.has(continuationToken)) {
+          break;
+        }
+        seenTokens.add(continuationToken);
         url += `&c=${encodeURIComponent(continuationToken)}`;
       }
 
       onProgress?.(`Fetching ${streamPath} (page ${p + 1}/${maxPages})...`);
-      const res = await fetch(url, { headers: commonHeaders });
-      if (!res.ok) break;
+      try {
+        const res = await fetch(url, {
+          headers: commonHeaders,
+          signal: AbortSignal.timeout(15000),
+        });
+        if (!res.ok) break;
 
-      const data = await res.json();
-      if (Array.isArray(data.items) && data.items.length > 0) {
-        allItems.push(...data.items);
-      }
+        const data = await res.json();
+        if (Array.isArray(data.items) && data.items.length > 0) {
+          allItems.push(...data.items);
+          onProgress?.(`Retrieved ${data.items.length} items from ${streamPath} (total: ${allItems.length}).`);
+        } else {
+          break;
+        }
 
-      if (data.continuation) {
-        continuationToken = data.continuation;
-      } else {
+        if (data.continuation && typeof data.continuation === "string" && data.continuation.trim()) {
+          continuationToken = data.continuation.trim();
+        } else {
+          break;
+        }
+      } catch (err: any) {
+        console.warn(`Error fetching ${streamPath} page ${p + 1}:`, err);
+        onProgress?.(`Warning: page ${p + 1} fetch timed out or failed: ${err.message || String(err)}`);
         break;
       }
     }
