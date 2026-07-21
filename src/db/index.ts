@@ -1037,6 +1037,8 @@ export async function ensureDbInitialized(): Promise<void> {
         CREATE INDEX IF NOT EXISTS rss_articles_starred_at_idx ON rss_articles(starred_at DESC);
         CREATE INDEX IF NOT EXISTS rss_articles_is_read_idx ON rss_articles(is_read);
         CREATE INDEX IF NOT EXISTS rss_articles_is_starred_idx ON rss_articles(is_starred);
+        CREATE INDEX IF NOT EXISTS rss_articles_read_composite_idx ON rss_articles(is_read, read_date DESC);
+        CREATE INDEX IF NOT EXISTS rss_articles_starred_composite_idx ON rss_articles(is_starred, starred_at DESC);
         CREATE INDEX IF NOT EXISTS rss_read_events_read_at_idx ON rss_read_events(read_at DESC);
       `);
 
@@ -1048,6 +1050,7 @@ export async function ensureDbInitialized(): Promise<void> {
           await client.execute(`ANALYZE analytics_memory_scores;`);
           await client.execute(`ANALYZE analytics_timeline;`);
           await client.execute(`ANALYZE analytics_snapshots;`);
+          await client.execute(`ANALYZE rss_articles;`);
           await client.execute(`ANALYZE;`);
         } catch (mErr) {}
       }, 200);

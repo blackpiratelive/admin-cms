@@ -128,6 +128,8 @@ export async function getModuleAnalyticsAction(
 
       const cacheKey = customRange?.startDate
         ? `summary_${moduleName}_${timeFilter}_${customRange.startDate}_${customRange.endDate}`
+        : timeFilter === "lifetime"
+        ? `summary_${moduleName}`
         : `summary_${moduleName}_${timeFilter}`;
 
       // 1. Read from DB cache if not forcing rebuild
