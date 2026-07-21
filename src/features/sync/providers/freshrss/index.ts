@@ -87,7 +87,9 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
     const username = config.username.trim();
     const password = config.apiPassword.trim();
 
-    let lastError: string | null = null;
+    let authError: string | null = null;
+    let notFoundError: string | null = null;
+    let otherError: string | null = null;
 
     for (const baseUrl of baseUrls) {
       try {
@@ -121,6 +123,10 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
           }
         }
 
+        if (loginRes.status === 401 || loginRes.status === 403) {
+          authError = `FreshRSS API endpoint found at ${baseUrl}, but authentication was rejected (HTTP ${loginRes.status}). Please verify: 1) API access is enabled under FreshRSS Profile -> Settings -> API. 2) You are using your API password (set in API settings), not your web login password.`;
+        }
+
         // 2. Direct token format: GoogleLogin auth=username/apiPassword
         const directToken = `GoogleLogin auth=${username}/${password}`;
         const directRes = await fetch(`${baseUrl}/reader/api/0/user-info?output=json`, {
@@ -128,6 +134,10 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
         });
         if (directRes.ok) {
           return { authHeader: directToken, baseUrl };
+        }
+
+        if (directRes.status === 401 || directRes.status === 403) {
+          authError = `FreshRSS API endpoint found at ${baseUrl}, but authentication was rejected (HTTP ${directRes.status}). Please verify: 1) API access is enabled under FreshRSS Profile -> Settings -> API. 2) You are using your API password (set in API settings), not your web login password.`;
         }
 
         // 3. Fallback: HTTP Basic Auth header
@@ -139,20 +149,22 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
           return { authHeader: basicAuth, baseUrl };
         }
 
-        if (loginRes.status === 401 || loginRes.status === 403) {
-          lastError = `Authentication rejected (HTTP ${loginRes.status}). Verify API access is enabled under FreshRSS Settings -> API and you are using your API password (not web login password).`;
-        } else if (loginRes.status === 404) {
-          lastError = `FreshRSS API endpoint not found at ${baseUrl}. Verify your FreshRSS URL.`;
+        if (basicRes.status === 401 || basicRes.status === 403) {
+          authError = `FreshRSS API endpoint found at ${baseUrl}, but authentication was rejected (HTTP ${basicRes.status}). Please verify: 1) API access is enabled under FreshRSS Profile -> Settings -> API. 2) You are using your API password (set in API settings), not your web login password.`;
+        } else if (loginRes.status === 404 && basicRes.status === 404) {
+          notFoundError = `FreshRSS API endpoint not found at ${baseUrl}.`;
         } else {
-          lastError = `FreshRSS returned HTTP ${loginRes.status} at ${baseUrl}.`;
+          otherError = `FreshRSS returned HTTP ${loginRes.status || basicRes.status} at ${baseUrl}.`;
         }
       } catch (err: any) {
-        lastError = err.message || String(err);
+        otherError = err.message || String(err);
       }
     }
 
     throw new Error(
-      lastError ||
+      authError ||
+        notFoundError ||
+        otherError ||
         `Could not authenticate with FreshRSS at ${config.instanceUrl}. Ensure API access is enabled in FreshRSS -> Profile -> Settings -> API and your API password is set.`
     );
   }
