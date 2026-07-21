@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ProviderOverviewDTO, syncProviderAction, cancelProviderSyncAction } from "../actions";
+import { ProviderOverviewDTO, syncProviderAction, cancelProviderSyncAction, getSyncLogsAction } from "../actions";
 import { ConfigureModal } from "./ConfigureModal";
 import Link from "next/link";
-import { RefreshCw, Settings, ListFilter, Square, Calculator, Terminal, ChevronDown, ChevronUp } from "lucide-react";
+import { RefreshCw, Settings, ListFilter, Square, Calculator, Terminal } from "lucide-react";
 
 interface LogEntry {
   time: string;
@@ -46,6 +46,26 @@ export function ProviderCard({
     if (diffSec < 3600) return `${Math.floor(diffSec / 60)} mins ago`;
     if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} hours ago`;
     return date.toLocaleDateString();
+  };
+
+  const handleFetchLocalLogs = async () => {
+    setShowLogsTerminal(true);
+    setLogs([{ time: new Date().toLocaleTimeString(), message: `Fetching local DB audit logs for ${provider.name}...` }]);
+    try {
+      const dbLogs = await getSyncLogsAction(provider.slug, 1, 30);
+      if (dbLogs.length === 0) {
+        setLogs([{ time: new Date().toLocaleTimeString(), message: "No local DB audit logs recorded yet." }]);
+      } else {
+        setLogs(
+          dbLogs.map((l) => ({
+            time: new Date(l.startedAt).toLocaleTimeString(),
+            message: `[${l.status.toUpperCase()}] ${l.provider} sync: ${l.itemsCreated} created, ${l.itemsUpdated} updated${l.errorMessage ? ` - ${l.errorMessage}` : ""}`,
+          }))
+        );
+      }
+    } catch (err: any) {
+      setLogs([{ time: new Date().toLocaleTimeString(), message: `[ERROR] Error reading DB logs: ${err.message}` }]);
+    }
   };
 
   const executeStreamAction = async (payload: { action?: string; target?: string; mode?: string; batchSize?: number }) => {
@@ -113,6 +133,14 @@ export function ProviderCard({
   };
 
   const handleSync = async () => {
+    setShowLogsTerminal(true);
+    setLogs([
+      {
+        time: new Date().toLocaleTimeString(),
+        message: `Starting ${provider.name} sync (mode: ${syncMode})...`,
+      },
+    ]);
+
     if (provider.slug === "lastfm") {
       await executeStreamAction({
         target: syncTarget,
@@ -132,9 +160,23 @@ export function ProviderCard({
         const updatedStr = updated > 0 ? `${updated} updated` : "";
         const msg = [createdStr, updatedStr].filter(Boolean).join(", ") || "Up to date";
         setSyncNotice({ type: "success", message: `Sync successful! ${msg}` });
+        setLogs((prev) => [
+          ...prev,
+          {
+            time: new Date().toLocaleTimeString(),
+            message: `[SUCCESS] Sync completed: ${msg}`,
+          },
+        ]);
         onRefresh();
       } else {
         setSyncNotice({ type: "error", message: res.errorMessage || "Sync failed" });
+        setLogs((prev) => [
+          ...prev,
+          {
+            time: new Date().toLocaleTimeString(),
+            message: `[ERROR] Sync failed: ${res.errorMessage || "Unknown error"}`,
+          },
+        ]);
         onRefresh();
       }
     }
@@ -152,6 +194,10 @@ export function ProviderCard({
 
     if (res.success) {
       setSyncNotice({ type: "error", message: "Sync stopped by user." });
+      setLogs((prev) => [
+        ...prev,
+        { time: new Date().toLocaleTimeString(), message: "[WARN] Sync execution cancelled by user." },
+      ]);
       onRefresh();
     }
   };
@@ -194,6 +240,41 @@ export function ProviderCard({
             </div>
           )}
         </div>
+
+        {/* FreshRSS & Trakt Options Panel */}
+        {(provider.slug === "freshrss" || provider.slug === "trakt") && provider.connected && (
+          <div
+            style={{
+              marginTop: "12px",
+              padding: "10px",
+              background: "var(--bg-sidebar)",
+              border: "1px solid var(--border-color)",
+              borderRadius: "4px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+            }}
+          >
+            <div style={{ fontSize: "11px", fontWeight: "bold", textTransform: "uppercase", color: "var(--text-muted)" }}>
+              {provider.name} Sync Options & Mode
+            </div>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                <label style={{ fontSize: "10px", color: "var(--text-muted)" }}>Sync Mode</label>
+                <select
+                  className="select-input"
+                  value={syncMode}
+                  onChange={(e) => setSyncMode(e.target.value as any)}
+                  style={{ padding: "3px 6px", fontSize: "11px", width: "auto" }}
+                  disabled={isSyncingActive}
+                >
+                  <option value="incremental">Incremental Sync</option>
+                  <option value="batch">Batch History (Deep Fetch)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Last.fm Options Panel */}
         {provider.slug === "lastfm" && provider.connected && (
@@ -279,7 +360,7 @@ export function ProviderCard({
           </div>
         )}
 
-        {/* Streaming Terminal Log Viewer */}
+        {/* Live Terminal Log Viewer */}
         {showLogsTerminal && (
           <div style={{ marginTop: "12px" }}>
             <div
@@ -295,7 +376,7 @@ export function ProviderCard({
             >
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <Terminal size={12} />
-                <span>Live Action Terminal Logs</span>
+                <span>Sync Terminal & Execution Logs</span>
               </div>
               <button
                 className="btn btn-sm"
@@ -309,7 +390,7 @@ export function ProviderCard({
               {logs.map((log, idx) => {
                 const isErr = log.message.includes("[ERROR]") || log.message.toLowerCase().includes("error");
                 const isWarn = log.message.includes("[WARN]");
-                const isSuccess = log.message.includes("completed") || log.message.includes("successfully");
+                const isSuccess = log.message.includes("completed") || log.message.includes("successfully") || log.message.includes("[SUCCESS]");
                 return (
                   <div key={idx} className="sync-log-line">
                     <span className="sync-log-time">[{log.time}]</span>
@@ -333,19 +414,6 @@ export function ProviderCard({
 
       <div className="sync-card-footer">
         <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-          {provider.slug !== "lastfm" && provider.slug === "trakt" && provider.connected && !isSyncingActive && (
-            <select
-              className="select-input"
-              value={syncMode}
-              onChange={(e) => setSyncMode(e.target.value as any)}
-              style={{ padding: "3px 6px", fontSize: "11px", width: "auto" }}
-              disabled={isSyncingActive}
-            >
-              <option value="incremental">Incremental</option>
-              <option value="batch">Batch History</option>
-            </select>
-          )}
-
           {isSyncingActive ? (
             <button
               className="btn btn-sm btn-danger"
@@ -367,16 +435,14 @@ export function ProviderCard({
             </button>
           ) : null}
 
-          {logs.length > 0 && !showLogsTerminal && (
-            <button
-              className="btn btn-sm"
-              onClick={() => setShowLogsTerminal(true)}
-              title="Show live terminal logs"
-            >
-              <Terminal size={12} />
-              <span>Show Live Logs</span>
-            </button>
-          )}
+          <button
+            className="btn btn-sm"
+            onClick={handleFetchLocalLogs}
+            title="Inspect local DB audit logs"
+          >
+            <Terminal size={12} />
+            <span>Local Logs</span>
+          </button>
         </div>
 
         <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
@@ -385,9 +451,9 @@ export function ProviderCard({
             <span>Configure</span>
           </button>
 
-          <Link href={`/sync/logs?provider=${provider.slug}`} className="btn btn-sm" title="View Provider Sync Logs">
+          <Link href={`/sync/logs?provider=${provider.slug}`} className="btn btn-sm" title="View Full Provider Sync Audit Page">
             <ListFilter size={13} />
-            <span>Logs</span>
+            <span>Audit Trail</span>
           </Link>
         </div>
       </div>

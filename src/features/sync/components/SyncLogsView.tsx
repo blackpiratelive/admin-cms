@@ -70,6 +70,7 @@ export function SyncLogsView({ initialProvider }: { initialProvider?: string }) 
             style={{ width: "160px" }}
           >
             <option value="">All Providers</option>
+            <option value="freshrss">FreshRSS</option>
             <option value="trakt">Trakt</option>
             <option value="lastfm">Last.fm</option>
           </select>
