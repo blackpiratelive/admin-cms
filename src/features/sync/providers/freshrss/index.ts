@@ -71,12 +71,13 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
 
   private getGReaderBaseUrls(instanceUrl: string): string[] {
     const base = this.normalizeUrl(instanceUrl);
-    if (base.endsWith("/api/greader.php") || base.endsWith("/p/api/greader.php")) {
+    if (base.endsWith("/api/greader.php") || base.endsWith("/p/api/greader.php") || base.endsWith("/i/api/greader.php")) {
       return [base];
     }
     return [
       `${base}/api/greader.php`,
       `${base}/p/api/greader.php`,
+      `${base}/i/api/greader.php`,
       base,
     ];
   }
@@ -86,69 +87,94 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
     const username = config.username.trim();
     const password = config.apiPassword.trim();
 
-    let lastError: any = null;
+    let lastError: string | null = null;
 
     for (const baseUrl of baseUrls) {
       try {
-        // Try ClientLogin first
+        // 1. Try ClientLogin endpoint
         const loginRes = await fetch(`${baseUrl}/accounts/ClientLogin`, {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
           },
-          body: `Email=${encodeURIComponent(username)}&Pass=${encodeURIComponent(password)}`,
+          body: `Email=${encodeURIComponent(username)}&Pass=${encodeURIComponent(password)}&account=${encodeURIComponent(username)}&user=${encodeURIComponent(username)}`,
         });
 
         if (loginRes.ok) {
           const bodyText = await loginRes.text();
-          const match = bodyText.match(/Auth=([^\s]+)/);
-          if (match && match[1]) {
-            return {
-              authHeader: `GoogleLogin auth=${match[1]}`,
-              baseUrl,
-            };
+          const authLine = bodyText.split("\n").find((line) => line.trim().startsWith("Auth="));
+          if (authLine) {
+            const rawToken = authLine.trim().substring(5).trim();
+            if (rawToken) {
+              const authHeader = rawToken.startsWith("GoogleLogin auth=")
+                ? rawToken
+                : `GoogleLogin auth=${rawToken}`;
+
+              // Verify token on user-info endpoint
+              const verifyRes = await fetch(`${baseUrl}/reader/api/0/user-info?output=json`, {
+                headers: { Authorization: authHeader },
+              });
+              if (verifyRes.ok) {
+                return { authHeader, baseUrl };
+              }
+            }
           }
         }
 
-        // Fallback: Check user-info using HTTP Basic Auth
+        // 2. Direct token format: GoogleLogin auth=username/apiPassword
+        const directToken = `GoogleLogin auth=${username}/${password}`;
+        const directRes = await fetch(`${baseUrl}/reader/api/0/user-info?output=json`, {
+          headers: { Authorization: directToken },
+        });
+        if (directRes.ok) {
+          return { authHeader: directToken, baseUrl };
+        }
+
+        // 3. Fallback: HTTP Basic Auth header
         const basicAuth = `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
-        const userInfoRes = await fetch(`${baseUrl}/reader/api/0/user-info?output=json`, {
+        const basicRes = await fetch(`${baseUrl}/reader/api/0/user-info?output=json`, {
           headers: { Authorization: basicAuth },
         });
-
-        if (userInfoRes.ok) {
-          return {
-            authHeader: basicAuth,
-            baseUrl,
-          };
+        if (basicRes.ok) {
+          return { authHeader: basicAuth, baseUrl };
         }
-      } catch (err) {
-        lastError = err;
+
+        if (loginRes.status === 401 || loginRes.status === 403) {
+          lastError = `Authentication rejected (HTTP ${loginRes.status}). Verify API access is enabled under FreshRSS Settings -> API and you are using your API password (not web login password).`;
+        } else if (loginRes.status === 404) {
+          lastError = `FreshRSS API endpoint not found at ${baseUrl}. Verify your FreshRSS URL.`;
+        } else {
+          lastError = `FreshRSS returned HTTP ${loginRes.status} at ${baseUrl}.`;
+        }
+      } catch (err: any) {
+        lastError = err.message || String(err);
       }
     }
 
     throw new Error(
-      `Could not authenticate with FreshRSS at ${config.instanceUrl}. Please check your URL, username, and API Password. ${
-        lastError ? `(${lastError.message})` : ""
-      }`
+      lastError ||
+        `Could not authenticate with FreshRSS at ${config.instanceUrl}. Ensure API access is enabled in FreshRSS -> Profile -> Settings -> API and your API password is set.`
     );
   }
 
   async testConnection(config: Record<string, any>): Promise<boolean> {
     const validation = await this.validateConfiguration(config);
-    if (!validation.valid) return false;
-
-    try {
-      const { authHeader, baseUrl } = await this.getAuthHeaders(config as FreshRSSConfig);
-      const res = await fetch(`${baseUrl}/reader/api/0/user-info?output=json`, {
-        headers: { Authorization: authHeader },
-      });
-      if (!res.ok) return false;
-      const data = await res.json();
-      return !!data.userId || !!data.userName;
-    } catch {
-      return false;
+    if (!validation.valid) {
+      throw new Error(validation.error || "Invalid configuration");
     }
+
+    const { authHeader, baseUrl } = await this.getAuthHeaders(config as FreshRSSConfig);
+    const res = await fetch(`${baseUrl}/reader/api/0/user-info?output=json`, {
+      headers: { Authorization: authHeader },
+    });
+    if (!res.ok) {
+      throw new Error(`FreshRSS check returned HTTP ${res.status} (${res.statusText}).`);
+    }
+    const data = await res.json();
+    if (!data.userId && !data.userName) {
+      throw new Error("FreshRSS user-info endpoint did not return valid user data.");
+    }
+    return true;
   }
 
   async getStatistics(): Promise<Record<string, number | string>> {
