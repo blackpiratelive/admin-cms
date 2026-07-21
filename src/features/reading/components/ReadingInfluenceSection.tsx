@@ -39,43 +39,63 @@ export function ReadingInfluenceSection({
   if (!loading && articles.length === 0) return null;
 
   return (
-    <div className="card my-6 border border-[var(--border-color)] p-5 rounded-xl bg-[var(--bg-secondary)] shadow-sm">
-      <div className="flex items-center gap-2 mb-3">
-        <Sparkles size={18} className="text-[var(--accent-color)]" />
-        <h3 className="text-base font-semibold text-[var(--fg-primary)]">{title}</h3>
+    <div
+      style={{
+        background: "var(--bg-card)",
+        border: "1px solid var(--border-color)",
+        borderRadius: "4px",
+        padding: "16px",
+        margin: "24px 0",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+        <Sparkles size={16} style={{ color: "var(--accent)" }} />
+        <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "var(--text-primary)" }}>{title}</h3>
       </div>
-      <p className="text-xs text-[var(--fg-muted)] mb-4">
+      <p style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "12px" }}>
         Articles read and starred around this timeframe that may have influenced thoughts or activities.
       </p>
 
       {loading ? (
-        <div className="animate-pulse flex flex-col gap-2">
-          <div className="h-4 bg-[var(--bg-tertiary)] rounded w-3/4"></div>
-          <div className="h-4 bg-[var(--bg-tertiary)] rounded w-1/2"></div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <div style={{ height: "16px", background: "var(--bg-hover)", borderRadius: "2px", width: "75%" }} />
+          <div style={{ height: "16px", background: "var(--bg-hover)", borderRadius: "2px", width: "50%" }} />
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
           {articles.map((art) => (
             <div
               key={art.id}
-              className="flex items-center justify-between p-2.5 rounded-lg hover:bg-[var(--bg-hover)] transition-colors text-sm"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "8px 10px",
+                borderRadius: "2px",
+                borderBottom: "1px solid var(--border-color)",
+                fontSize: "13px",
+              }}
             >
-              <div className="flex items-center gap-2.5 min-w-0 pr-3">
-                <BookOpen size={15} className="text-[var(--fg-muted)] shrink-0" />
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, paddingRight: "12px" }}>
+                <BookOpen size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
                 <a
                   href={art.originalUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-medium text-[var(--fg-primary)] hover:text-[var(--accent-color)] hover:underline truncate"
+                  style={{
+                    color: "var(--text-primary)",
+                    fontWeight: "500",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
                 >
                   {art.title}
                 </a>
-                {art.isStarred && (
-                  <Star size={13} className="fill-amber-400 text-amber-400 shrink-0" />
-                )}
+                {art.isStarred && <Star size={13} style={{ fill: "#f59e0b", color: "#f59e0b", flexShrink: 0 }} />}
               </div>
-              <div className="flex items-center gap-3 text-xs text-[var(--fg-muted)] shrink-0">
-                <span className="hidden sm:inline bg-[var(--bg-tertiary)] px-2 py-0.5 rounded">
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "11px", color: "var(--text-muted)", flexShrink: 0 }}>
+                <span style={{ background: "var(--bg-sidebar)", padding: "2px 6px", borderRadius: "2px", border: "1px solid var(--border-color)" }}>
                   {art.feedName || art.category || "RSS"}
                 </span>
                 <a
@@ -83,7 +103,7 @@ export function ReadingInfluenceSection({
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Open article in new tab"
-                  className="hover:text-[var(--accent-color)]"
+                  style={{ color: "var(--text-muted)" }}
                 >
                   <ExternalLink size={14} />
                 </a>

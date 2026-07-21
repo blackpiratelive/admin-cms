@@ -13,7 +13,6 @@ import {
   ExternalLink,
   Flame,
   Search,
-  Sparkles,
   Star,
   Tag,
   RefreshCw,
@@ -58,11 +57,11 @@ export function ReadingDashboard() {
     setLoadingHistory(true);
     try {
       const res = await getReadingArticlesAction({
-        filter: historyFilter,
+        filter: activeTab === "starred" ? "starred" : historyFilter,
         category: selectedCategory || undefined,
         query: searchQuery || undefined,
         page,
-        limit: 15,
+        limit: 25,
       });
       setArticles(res.items);
       setTotalPages(res.totalPages);
@@ -79,307 +78,366 @@ export function ReadingDashboard() {
 
   useEffect(() => {
     loadHistory();
-  }, [historyFilter, selectedCategory, searchQuery, page]);
+  }, [activeTab, historyFilter, selectedCategory, searchQuery, page]);
 
   return (
-    <div className="space-y-6">
+    <div>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--fg-primary)] flex items-center gap-2">
-            <Rss className="text-[var(--accent-color)]" size={24} />
-            Reading History & Discovery
+          <h1 className="page-title">
+            <Rss size={20} style={{ color: "var(--accent)" }} />
+            <span>Reading History & Discovery</span>
           </h1>
-          <p className="text-sm text-[var(--fg-muted)] mt-1">
+          <p style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "4px" }}>
             Personal reading analytics, starred knowledge graph, and FreshRSS activity stream.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
           <button
+            className="btn btn-sm"
             onClick={() => {
               loadData();
               loadHistory();
             }}
-            className="btn btn-secondary flex items-center gap-1.5 text-xs"
           >
-            <RefreshCw size={14} />
-            Refresh
+            <RefreshCw size={13} />
+            <span>Refresh</span>
           </button>
         </div>
       </div>
 
       {/* Top Metric Cards */}
       {analytics && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="card p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)]">
-            <div className="flex items-center justify-between text-[var(--fg-muted)] mb-2">
-              <span className="text-xs font-medium">Total Read</span>
-              <BookOpen size={16} className="text-blue-500" />
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: "12px",
+            marginBottom: "20px",
+          }}
+        >
+          <div
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              padding: "12px 16px",
+              borderRadius: "4px",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>
+              <span>Total Read</span>
+              <BookOpen size={16} style={{ color: "#3b82f6" }} />
             </div>
-            <div className="text-2xl font-bold text-[var(--fg-primary)]">{analytics.totalRead}</div>
-            <div className="text-[11px] text-[var(--fg-muted)] mt-1">Lifetime articles</div>
+            <div style={{ fontSize: "20px", fontWeight: "bold", color: "var(--text-primary)" }}>{analytics.totalRead}</div>
+            <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>Lifetime articles</div>
           </div>
 
-          <div className="card p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)]">
-            <div className="flex items-center justify-between text-[var(--fg-muted)] mb-2">
-              <span className="text-xs font-medium">Read Today</span>
-              <Calendar size={16} className="text-emerald-500" />
+          <div
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              padding: "12px 16px",
+              borderRadius: "4px",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>
+              <span>Read Today</span>
+              <Calendar size={16} style={{ color: "#10b981" }} />
             </div>
-            <div className="text-2xl font-bold text-[var(--fg-primary)]">{analytics.readToday}</div>
-            <div className="text-[11px] text-[var(--fg-muted)] mt-1">{analytics.readThisWeek} this week</div>
+            <div style={{ fontSize: "20px", fontWeight: "bold", color: "var(--text-primary)" }}>{analytics.readToday}</div>
+            <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>{analytics.readThisWeek} this week</div>
           </div>
 
-          <div className="card p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)]">
-            <div className="flex items-center justify-between text-[var(--fg-muted)] mb-2">
-              <span className="text-xs font-medium">Reading Streak</span>
-              <Flame size={16} className="text-amber-500" />
+          <div
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              padding: "12px 16px",
+              borderRadius: "4px",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>
+              <span>Reading Streak</span>
+              <Flame size={16} style={{ color: "#f59e0b" }} />
             </div>
-            <div className="text-2xl font-bold text-[var(--fg-primary)]">{analytics.streakDays} days</div>
-            <div className="text-[11px] text-[var(--fg-muted)] mt-1">Longest: {analytics.longestStreakDays} days</div>
+            <div style={{ fontSize: "20px", fontWeight: "bold", color: "var(--text-primary)" }}>{analytics.streakDays} days</div>
+            <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>Longest: {analytics.longestStreakDays} days</div>
           </div>
 
-          <div className="card p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)]">
-            <div className="flex items-center justify-between text-[var(--fg-muted)] mb-2">
-              <span className="text-xs font-medium">Reading Time</span>
-              <Clock size={16} className="text-purple-500" />
+          <div
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              padding: "12px 16px",
+              borderRadius: "4px",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>
+              <span>Reading Time</span>
+              <Clock size={16} style={{ color: "#8b5cf6" }} />
             </div>
-            <div className="text-2xl font-bold text-[var(--fg-primary)]">
+            <div style={{ fontSize: "20px", fontWeight: "bold", color: "var(--text-primary)" }}>
               {Math.round(analytics.totalEstimatedReadingTimeSeconds / 60)}m
             </div>
-            <div className="text-[11px] text-[var(--fg-muted)] mt-1">Avg ~{analytics.averageReadingTimeSeconds}s/article</div>
+            <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>Avg ~{analytics.averageReadingTimeSeconds}s/article</div>
           </div>
 
-          <div className="card p-4 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] col-span-2 md:col-span-1">
-            <div className="flex items-center justify-between text-[var(--fg-muted)] mb-2">
-              <span className="text-xs font-medium">Starred</span>
-              <Star size={16} className="text-yellow-500 fill-yellow-500" />
+          <div
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              padding: "12px 16px",
+              borderRadius: "4px",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>
+              <span>Starred</span>
+              <Star size={16} style={{ fill: "#f59e0b", color: "#f59e0b" }} />
             </div>
-            <div className="text-2xl font-bold text-[var(--fg-primary)]">{analytics.totalStarred}</div>
-            <div className="text-[11px] text-[var(--fg-muted)] mt-1">Saved to graph</div>
+            <div style={{ fontSize: "20px", fontWeight: "bold", color: "var(--text-primary)" }}>{analytics.totalStarred}</div>
+            <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>Saved to graph</div>
           </div>
         </div>
       )}
 
-      {/* Tabs Navigation */}
-      <div className="border-b border-[var(--border-color)] flex items-center gap-6 text-sm font-medium">
+      {/* Navigation Tabs */}
+      <div style={{ display: "flex", gap: "8px", borderBottom: "1px solid var(--border-color)", marginBottom: "16px", paddingBottom: "8px" }}>
         <button
           onClick={() => setActiveTab("overview")}
-          className={`pb-3 border-b-2 transition-colors ${
-            activeTab === "overview"
-              ? "border-[var(--accent-color)] text-[var(--accent-color)]"
-              : "border-transparent text-[var(--fg-muted)] hover:text-[var(--fg-primary)]"
-          }`}
+          className={`btn btn-sm ${activeTab === "overview" ? "btn-primary" : ""}`}
         >
-          Overview & Sessions
+          <span>Overview & Sessions</span>
         </button>
         <button
           onClick={() => setActiveTab("history")}
-          className={`pb-3 border-b-2 transition-colors ${
-            activeTab === "history"
-              ? "border-[var(--accent-color)] text-[var(--accent-color)]"
-              : "border-transparent text-[var(--fg-muted)] hover:text-[var(--fg-primary)]"
-          }`}
+          className={`btn btn-sm ${activeTab === "history" ? "btn-primary" : ""}`}
         >
-          Reading Stream
+          <span>Reading Stream</span>
         </button>
         <button
           onClick={() => setActiveTab("starred")}
-          className={`pb-3 border-b-2 transition-colors ${
-            activeTab === "starred"
-              ? "border-[var(--accent-color)] text-[var(--accent-color)]"
-              : "border-transparent text-[var(--fg-muted)] hover:text-[var(--fg-primary)]"
-          }`}
+          className={`btn btn-sm ${activeTab === "starred" ? "btn-primary" : ""}`}
         >
-          Starred Articles ({analytics?.totalStarred || 0})
+          <span>Starred Articles ({analytics?.totalStarred || 0})</span>
         </button>
         <button
           onClick={() => setActiveTab("sync")}
-          className={`pb-3 border-b-2 transition-colors ${
-            activeTab === "sync"
-              ? "border-[var(--accent-color)] text-[var(--accent-color)]"
-              : "border-transparent text-[var(--fg-muted)] hover:text-[var(--fg-primary)]"
-          }`}
+          className={`btn btn-sm ${activeTab === "sync" ? "btn-primary" : ""}`}
         >
-          FreshRSS Provider
+          <span>FreshRSS Provider</span>
         </button>
       </div>
 
-      {/* Tab Contents */}
+      {/* Tab 1: Overview */}
       {activeTab === "overview" && analytics && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Analytics & Sessions */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Reading Sessions */}
-            <div className="card p-5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)]">
-              <h3 className="text-base font-semibold text-[var(--fg-primary)] mb-3 flex items-center gap-2">
-                <Clock size={18} className="text-[var(--accent-color)]" />
-                Recent Reading Sessions
-              </h3>
-              <p className="text-xs text-[var(--fg-muted)] mb-4">
-                Activity automatically grouped into dedicated reading sessions (30m threshold).
-              </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "16px" }}>
+          {/* Recent Reading Sessions Card */}
+          <div
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              borderRadius: "4px",
+              padding: "16px",
+            }}
+          >
+            <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+              <Clock size={16} style={{ color: "var(--accent)" }} />
+              <span>Recent Reading Sessions</span>
+            </h3>
+            <p style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "12px" }}>
+              Activity automatically grouped into dedicated reading sessions (30m threshold).
+            </p>
 
-              {analytics.readingSessions.length === 0 ? (
-                <div className="text-xs text-[var(--fg-muted)] py-4 text-center">No reading sessions recorded yet. Sync FreshRSS to import activity.</div>
-              ) : (
-                <div className="space-y-3">
-                  {analytics.readingSessions.slice(0, 5).map((session, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-primary)] flex items-center justify-between text-xs"
-                    >
-                      <div>
-                        <div className="font-semibold text-[var(--fg-primary)]">
-                          {new Date(session.startDate).toLocaleDateString()} at{" "}
-                          {new Date(session.startDate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        </div>
-                        <div className="text-[var(--fg-muted)] mt-0.5">
-                          {session.articlesCount} articles read • ~{session.wordCount} words
-                        </div>
+            {analytics.readingSessions.length === 0 ? (
+              <div style={{ fontSize: "12px", color: "var(--text-muted)", padding: "16px 0", textAlign: "center" }}>
+                No reading sessions recorded yet. Sync FreshRSS to import activity.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {analytics.readingSessions.slice(0, 5).map((session, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "8px 10px",
+                      background: "var(--bg-sidebar)",
+                      border: "1px solid var(--border-color)",
+                      borderRadius: "2px",
+                      fontSize: "12px",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: "600", color: "var(--text-primary)" }}>
+                        {new Date(session.startDate).toLocaleDateString()} at{" "}
+                        {new Date(session.startDate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </div>
-                      <div className="bg-[var(--bg-tertiary)] px-2.5 py-1 rounded text-[var(--fg-primary)] font-medium">
-                        {session.durationMinutes} mins
+                      <div style={{ color: "var(--text-muted)", fontSize: "11px" }}>
+                        {session.articlesCount} articles read • ~{session.wordCount} words
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Top Categories & Feeds */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="card p-5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)]">
-                <h3 className="text-sm font-semibold text-[var(--fg-primary)] mb-3 flex items-center gap-2">
-                  <Tag size={16} className="text-emerald-500" />
-                  Top Reading Categories
-                </h3>
-                <div className="space-y-2">
-                  {analytics.topCategories.slice(0, 6).map((c, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-xs">
-                      <span className="text-[var(--fg-primary)]">{c.category}</span>
-                      <span className="text-[var(--fg-muted)] font-medium">{c.count} articles</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="card p-5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)]">
-                <h3 className="text-sm font-semibold text-[var(--fg-primary)] mb-3 flex items-center gap-2">
-                  <Rss size={16} className="text-orange-500" />
-                  Favorite Sources
-                </h3>
-                <div className="space-y-2">
-                  {analytics.favoriteSources.slice(0, 6).map((s, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-xs">
-                      <span className="text-[var(--fg-primary)] truncate max-w-[180px]">{s.name}</span>
-                      <span className="text-[var(--fg-muted)] font-medium">{s.count} reads</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Sidebar Stats */}
-          <div className="space-y-6">
-            <div className="card p-5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)]">
-              <h3 className="text-sm font-semibold text-[var(--fg-primary)] mb-3 flex items-center gap-2">
-                <TrendingUp size={16} className="text-purple-500" />
-                Reading Habits
-              </h3>
-              <div className="space-y-3 text-xs">
-                <div className="flex justify-between border-b border-[var(--border-color)] pb-2">
-                  <span className="text-[var(--fg-muted)]">Most Active Day:</span>
-                  <span className="font-semibold text-[var(--fg-primary)]">{analytics.mostActiveWeekday}</span>
-                </div>
-                <div className="flex justify-between border-b border-[var(--border-color)] pb-2">
-                  <span className="text-[var(--fg-muted)]">Peak Reading Hour:</span>
-                  <span className="font-semibold text-[var(--fg-primary)]">{analytics.mostActiveReadingHour}:00</span>
-                </div>
-                <div className="flex justify-between border-b border-[var(--border-color)] pb-2">
-                  <span className="text-[var(--fg-muted)]">Avg Reads / Day:</span>
-                  <span className="font-semibold text-[var(--fg-primary)]">{analytics.averageArticlesPerDay}</span>
-                </div>
-                <div className="flex justify-between border-b border-[var(--border-color)] pb-2">
-                  <span className="text-[var(--fg-muted)]">Top Feed:</span>
-                  <span className="font-semibold text-[var(--fg-primary)] truncate max-w-[140px]">
-                    {analytics.mostReadFeed?.name || "None"}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[var(--fg-muted)]">Top Category:</span>
-                  <span className="font-semibold text-[var(--fg-primary)]">
-                    {analytics.mostReadCategory?.category || "None"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Sync Widget */}
-            {freshrssProvider && (
-              <div className="card p-5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)]">
-                <h3 className="text-sm font-semibold text-[var(--fg-primary)] mb-2 flex items-center gap-2">
-                  <Rss size={16} className="text-orange-500" />
-                  FreshRSS Connection
-                </h3>
-                <p className="text-xs text-[var(--fg-muted)] mb-3">
-                  Status: <span className="font-semibold text-[var(--accent-color)] capitalize">{freshrssProvider.status}</span>
-                </p>
-                <button
-                  onClick={() => setActiveTab("sync")}
-                  className="btn btn-secondary w-full text-xs"
-                >
-                  Manage FreshRSS Provider
-                </button>
+                    <span className="status-badge status-draft" style={{ fontFamily: "var(--font-mono)" }}>
+                      {session.durationMinutes}m
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
+          </div>
+
+          {/* Top Reading Categories */}
+          <div
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              borderRadius: "4px",
+              padding: "16px",
+            }}
+          >
+            <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "6px", marginBottom: "12px" }}>
+              <Tag size={16} style={{ color: "#10b981" }} />
+              <span>Top Reading Categories</span>
+            </h3>
+            {analytics.topCategories.length === 0 ? (
+              <div style={{ fontSize: "12px", color: "var(--text-muted)", textAlign: "center", padding: "16px 0" }}>
+                No categories synced yet.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {analytics.topCategories.slice(0, 6).map((c, idx) => (
+                  <div key={idx} style={{ display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                    <span style={{ color: "var(--text-primary)" }}>{c.category}</span>
+                    <span style={{ color: "var(--text-muted)", fontWeight: "500" }}>{c.count} articles</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Favorite Sources */}
+          <div
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              borderRadius: "4px",
+              padding: "16px",
+            }}
+          >
+            <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "6px", marginBottom: "12px" }}>
+              <Rss size={16} style={{ color: "#f97316" }} />
+              <span>Favorite Sources</span>
+            </h3>
+            {analytics.favoriteSources.length === 0 ? (
+              <div style={{ fontSize: "12px", color: "var(--text-muted)", textAlign: "center", padding: "16px 0" }}>
+                No feed sources synced yet.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {analytics.favoriteSources.slice(0, 6).map((s, idx) => (
+                  <div key={idx} style={{ display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                    <span style={{ color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "200px" }}>
+                      {s.name}
+                    </span>
+                    <span style={{ color: "var(--text-muted)", fontWeight: "500" }}>{s.count} reads</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Reading Habits */}
+          <div
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              borderRadius: "4px",
+              padding: "16px",
+            }}
+          >
+            <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "6px", marginBottom: "12px" }}>
+              <TrendingUp size={16} style={{ color: "#8b5cf6" }} />
+              <span>Reading Habits</span>
+            </h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "12px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border-color)", paddingBottom: "4px" }}>
+                <span style={{ color: "var(--text-muted)" }}>Most Active Day:</span>
+                <span style={{ fontWeight: "600", color: "var(--text-primary)" }}>{analytics.mostActiveWeekday}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border-color)", paddingBottom: "4px" }}>
+                <span style={{ color: "var(--text-muted)" }}>Peak Reading Hour:</span>
+                <span style={{ fontWeight: "600", color: "var(--text-primary)" }}>{analytics.mostActiveReadingHour}:00</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border-color)", paddingBottom: "4px" }}>
+                <span style={{ color: "var(--text-muted)" }}>Avg Reads / Day:</span>
+                <span style={{ fontWeight: "600", color: "var(--text-primary)" }}>{analytics.averageArticlesPerDay}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border-color)", paddingBottom: "4px" }}>
+                <span style={{ color: "var(--text-muted)" }}>Top Feed:</span>
+                <span style={{ fontWeight: "600", color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "160px" }}>
+                  {analytics.mostReadFeed?.name || "None"}
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "var(--text-muted)" }}>Top Category:</span>
+                <span style={{ fontWeight: "600", color: "var(--text-primary)" }}>
+                  {analytics.mostReadCategory?.category || "None"}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Stream & Starred Tabs */}
+      {/* Tab 2 & 3: Reading Stream & Starred */}
       {(activeTab === "history" || activeTab === "starred") && (
-        <div className="space-y-4">
-          {/* Controls Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)]">
-            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-              <Search size={16} className="text-[var(--fg-muted)]" />
+        <div>
+          {/* Filter Bar */}
+          <div className="filter-bar">
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, minWidth: "200px" }}>
+              <Search size={16} style={{ color: "var(--text-muted)" }} />
               <input
                 type="text"
-                placeholder="Search articles, feeds, categories..."
+                placeholder="Search articles by title, feed, or category..."
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
                   setPage(1);
                 }}
-                className="bg-transparent text-xs text-[var(--fg-primary)] focus:outline-none w-full"
+                className="search-input"
               />
             </div>
 
-            <div className="flex items-center gap-2 text-xs">
-              {activeTab === "history" && (
+            {activeTab === "history" && (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <label style={{ fontSize: "12px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>Filter:</label>
                 <select
                   value={historyFilter}
                   onChange={(e: any) => {
                     setHistoryFilter(e.target.value);
                     setPage(1);
                   }}
-                  className="bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded p-1.5 text-[var(--fg-primary)] focus:outline-none"
+                  className="select-input"
                 >
                   <option value="read">Read Only</option>
                   <option value="starred">Starred Only</option>
                   <option value="all">All Articles</option>
                 </select>
-              )}
+              </div>
+            )}
 
-              {categories.length > 0 && (
+            {categories.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <label style={{ fontSize: "12px", color: "var(--text-muted)", whiteSpace: "nowrap" }}>Category:</label>
                 <select
                   value={selectedCategory}
                   onChange={(e) => {
                     setSelectedCategory(e.target.value);
                     setPage(1);
                   }}
-                  className="bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded p-1.5 text-[var(--fg-primary)] focus:outline-none"
+                  className="select-input"
                 >
                   <option value="">All Categories</option>
                   {categories.map((c) => (
@@ -388,79 +446,102 @@ export function ReadingDashboard() {
                     </option>
                   ))}
                 </select>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
-          {/* Article List */}
-          {loadingHistory ? (
-            <div className="py-12 text-center text-xs text-[var(--fg-muted)]">Loading reading stream...</div>
-          ) : articles.length === 0 ? (
-            <div className="card p-8 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] text-center text-xs text-[var(--fg-muted)]">
-              No reading history found matching your filters.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {articles.map((art) => (
-                <div
-                  key={art.id}
-                  className="p-3.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] transition-colors flex items-center justify-between gap-4"
-                >
-                  <div className="flex items-start gap-3 min-w-0">
-                    <BookOpen size={16} className="text-[var(--accent-color)] mt-0.5 shrink-0" />
-                    <div className="min-w-0">
-                      <a
-                        href={art.originalUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium text-sm text-[var(--fg-primary)] hover:text-[var(--accent-color)] hover:underline block truncate"
-                      >
-                        {art.title}
-                      </a>
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--fg-muted)] mt-1">
-                        <span className="font-medium">{art.feedName || "RSS"}</span>
-                        {art.category && <span>• {art.category}</span>}
-                        {art.readDate && <span>• Read {new Date(art.readDate).toLocaleDateString()}</span>}
-                        {art.wordCount > 0 && <span>• ~{art.wordCount} words</span>}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    {art.isStarred && <Star size={15} className="fill-amber-400 text-amber-400" />}
-                    <a
-                      href={art.originalUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 rounded text-[var(--fg-muted)] hover:text-[var(--fg-primary)] hover:bg-[var(--bg-tertiary)]"
-                      title="Open original URL"
-                    >
-                      <ExternalLink size={15} />
-                    </a>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Table Container */}
+          <div className="table-container">
+            {loadingHistory ? (
+              <div style={{ padding: "24px", textAlign: "center", fontSize: "13px", color: "var(--text-muted)" }}>
+                Loading reading stream...
+              </div>
+            ) : articles.length === 0 ? (
+              <div style={{ padding: "24px", textAlign: "center", fontSize: "13px", color: "var(--text-muted)" }}>
+                No reading history found matching your filters.
+              </div>
+            ) : (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Article / Title</th>
+                    <th>Feed Source</th>
+                    <th>Category</th>
+                    <th className="hide-on-mobile">Read Date</th>
+                    <th style={{ textAlign: "right" }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {articles.map((art) => (
+                    <tr key={art.id}>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <BookOpen size={14} style={{ color: "var(--accent)", flexShrink: 0 }} />
+                          <a
+                            href={art.originalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              color: "var(--text-primary)",
+                              fontWeight: "500",
+                              textDecoration: "none",
+                            }}
+                          >
+                            {art.title}
+                          </a>
+                          {art.isStarred && <Star size={13} style={{ fill: "#f59e0b", color: "#f59e0b", flexShrink: 0 }} />}
+                        </div>
+                      </td>
+                      <td style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                        {art.feedName || "RSS Feed"}
+                      </td>
+                      <td>
+                        {art.category ? (
+                          <span className="status-badge status-draft">{art.category}</span>
+                        ) : (
+                          <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>-</span>
+                        )}
+                      </td>
+                      <td className="hide-on-mobile" style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                        {art.readDate ? new Date(art.readDate).toLocaleDateString() : "-"}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <a
+                          href={art.originalUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-sm"
+                          style={{ padding: "2px 6px" }}
+                          title="Open original article"
+                        >
+                          <ExternalLink size={13} />
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between text-xs text-[var(--fg-muted)] pt-2">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "12px", fontSize: "12px", color: "var(--text-muted)" }}>
               <span>
                 Page {page} of {totalPages}
               </span>
-              <div className="flex items-center gap-2">
+              <div style={{ display: "flex", gap: "6px" }}>
                 <button
                   disabled={page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="btn btn-secondary text-xs px-3 py-1 disabled:opacity-50"
+                  className="btn btn-sm"
                 >
                   Previous
                 </button>
                 <button
                   disabled={page >= totalPages}
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  className="btn btn-secondary text-xs px-3 py-1 disabled:opacity-50"
+                  className="btn btn-sm"
                 >
                   Next
                 </button>
@@ -470,9 +551,9 @@ export function ReadingDashboard() {
         </div>
       )}
 
-      {/* Sync Provider Tab */}
+      {/* Tab 4: Sync Provider */}
       {activeTab === "sync" && freshrssProvider && (
-        <div className="max-w-2xl">
+        <div style={{ maxWidth: "600px" }}>
           <ProviderCard provider={freshrssProvider} onRefresh={loadData} />
         </div>
       )}
