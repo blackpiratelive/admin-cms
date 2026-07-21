@@ -91,15 +91,20 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
     let notFoundError: string | null = null;
     let otherError: string | null = null;
 
+    const commonHeaders = {
+      "User-Agent": "AdminCMS-FreshRSSSync/1.0 (Google Reader API Client)",
+    };
+
     for (const baseUrl of baseUrls) {
       try {
-        // 1. Try ClientLogin endpoint
+        // 1. Try ClientLogin endpoint with official Google Reader API parameter Passwd
         const loginRes = await fetch(`${baseUrl}/accounts/ClientLogin`, {
           method: "POST",
           headers: {
+            ...commonHeaders,
             "Content-Type": "application/x-www-form-urlencoded",
           },
-          body: `Email=${encodeURIComponent(username)}&Pass=${encodeURIComponent(password)}&account=${encodeURIComponent(username)}&user=${encodeURIComponent(username)}`,
+          body: `Email=${encodeURIComponent(username)}&Passwd=${encodeURIComponent(password)}&Pass=${encodeURIComponent(password)}&password=${encodeURIComponent(password)}&account=${encodeURIComponent(username)}&user=${encodeURIComponent(username)}`,
         });
 
         if (loginRes.ok) {
@@ -114,7 +119,7 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
 
               // Verify token on user-info endpoint
               const verifyRes = await fetch(`${baseUrl}/reader/api/0/user-info?output=json`, {
-                headers: { Authorization: authHeader },
+                headers: { ...commonHeaders, Authorization: authHeader },
               });
               if (verifyRes.ok) {
                 return { authHeader, baseUrl };
@@ -128,22 +133,31 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
         }
 
         // 2. Direct token format: GoogleLogin auth=username/apiPassword
-        const directToken = `GoogleLogin auth=${username}/${password}`;
-        const directRes = await fetch(`${baseUrl}/reader/api/0/user-info?output=json`, {
-          headers: { Authorization: directToken },
+        const directToken1 = `GoogleLogin auth=${username}/${password}`;
+        const directRes1 = await fetch(`${baseUrl}/reader/api/0/user-info?output=json`, {
+          headers: { ...commonHeaders, Authorization: directToken1 },
         });
-        if (directRes.ok) {
-          return { authHeader: directToken, baseUrl };
+        if (directRes1.ok) {
+          return { authHeader: directToken1, baseUrl };
         }
 
-        if (directRes.status === 401 || directRes.status === 403) {
-          authError = `FreshRSS API endpoint found at ${baseUrl}, but authentication was rejected (HTTP ${directRes.status}). Please verify: 1) API access is enabled under FreshRSS Profile -> Settings -> API. 2) You are using your API password (set in API settings), not your web login password.`;
+        // 3. Direct token format: GoogleLogin auth=apiPassword
+        const directToken2 = `GoogleLogin auth=${password}`;
+        const directRes2 = await fetch(`${baseUrl}/reader/api/0/user-info?output=json`, {
+          headers: { ...commonHeaders, Authorization: directToken2 },
+        });
+        if (directRes2.ok) {
+          return { authHeader: directToken2, baseUrl };
         }
 
-        // 3. Fallback: HTTP Basic Auth header
+        if (directRes1.status === 401 || directRes1.status === 403) {
+          authError = `FreshRSS API endpoint found at ${baseUrl}, but authentication was rejected (HTTP ${directRes1.status}). Please verify: 1) API access is enabled under FreshRSS Profile -> Settings -> API. 2) You are using your API password (set in API settings), not your web login password.`;
+        }
+
+        // 4. Fallback: HTTP Basic Auth header
         const basicAuth = `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
         const basicRes = await fetch(`${baseUrl}/reader/api/0/user-info?output=json`, {
-          headers: { Authorization: basicAuth },
+          headers: { ...commonHeaders, Authorization: basicAuth },
         });
         if (basicRes.ok) {
           return { authHeader: basicAuth, baseUrl };
@@ -177,7 +191,10 @@ export class FreshRSSSyncProvider extends BaseSyncProvider {
 
     const { authHeader, baseUrl } = await this.getAuthHeaders(config as FreshRSSConfig);
     const res = await fetch(`${baseUrl}/reader/api/0/user-info?output=json`, {
-      headers: { Authorization: authHeader },
+      headers: {
+        "User-Agent": "AdminCMS-FreshRSSSync/1.0 (Google Reader API Client)",
+        Authorization: authHeader,
+      },
     });
     if (!res.ok) {
       throw new Error(`FreshRSS check returned HTTP ${res.status} (${res.statusText}).`);
