@@ -1,16 +1,23 @@
 package com.personal.cms.journal.ui.journal
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.personal.cms.journal.data.local.entity.JournalEntryEntity
@@ -62,12 +69,24 @@ fun JournalDashboardScreen(
         streak
     }
 
+    val greeting = remember {
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        when (hour) {
+            in 0..11 -> "Good morning"
+            in 12..16 -> "Good afternoon"
+            else -> "Good evening"
+        }
+    }
+
     Scaffold(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onCreateNewEntry,
                 icon = { Icon(Icons.Default.Edit, contentDescription = "New Entry") },
-                text = { Text("Write Entry") }
+                text = { Text("Write Entry", fontWeight = FontWeight.SemiBold) },
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                shape = RoundedCornerShape(16.dp)
             )
         }
     ) { paddingValues ->
@@ -75,8 +94,8 @@ fun JournalDashboardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             item {
                 Row(
@@ -84,12 +103,20 @@ fun JournalDashboardScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Journal Overview",
-                        style = MaterialTheme.typography.headlineMedium
-                    )
+                    Column {
+                        Text(
+                            text = greeting,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Your Journal",
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
 
-                    IconButton(
+                    FilledIconButton(
                         onClick = {
                             scope.launch {
                                 isSyncing = true
@@ -97,7 +124,10 @@ fun JournalDashboardScreen(
                                 isSyncing = false
                             }
                         },
-                        enabled = !isSyncing
+                        enabled = !isSyncing,
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer
+                        )
                     ) {
                         if (isSyncing) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
@@ -112,72 +142,80 @@ fun JournalDashboardScreen(
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Card(
+                    StatCard(
                         modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.LocalFireDepartment, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Streak", style = MaterialTheme.typography.labelMedium)
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text("$streakDays Days", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    Card(
+                        title = "Streak",
+                        value = "$streakDays",
+                        subtitle = "Days",
+                        icon = Icons.Default.LocalFireDepartment,
+                        colors = listOf(Color(0xFFFFA726), Color(0xFFFF7043))
+                    )
+                    StatCard(
                         modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("This Month", style = MaterialTheme.typography.labelMedium)
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text("$entriesThisMonth", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    Card(
+                        title = "This Month",
+                        value = "$entriesThisMonth",
+                        subtitle = "Entries",
+                        icon = Icons.Default.CalendarMonth,
+                        colors = listOf(Color(0xFF42A5F5), Color(0xFF1E88E5))
+                    )
+                    StatCard(
                         modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Book, contentDescription = null)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Total", style = MaterialTheme.typography.labelMedium)
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text("$totalEntries", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        }
-                    }
+                        title = "Total",
+                        value = "$totalEntries",
+                        subtitle = "Entries",
+                        icon = Icons.Default.Book,
+                        colors = listOf(Color(0xFFAB47BC), Color(0xFF8E24AA))
+                    )
                 }
             }
 
             // Recent Entries Header
             item {
-                Text(
-                    text = "Recent Entries",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Recent Entries",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.surfaceVariant)
+                }
             }
 
             if (entriesState.isEmpty()) {
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    ) {
                         Column(
-                            modifier = Modifier.padding(24.dp),
+                            modifier = Modifier.padding(32.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Text("No journal entries yet. Tap 'Write Entry' to start journaling.")
+                            Icon(
+                                Icons.Default.EditNote,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                "No journal entries yet",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "Tap 'Write Entry' to start journaling.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -189,15 +227,60 @@ fun JournalDashboardScreen(
 
             if (favorites.isNotEmpty()) {
                 item {
-                    Text(
-                        text = "Favorite Entries",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Favorites",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.surfaceVariant)
+                    }
                 }
                 items(favorites.take(3)) { entry ->
                     EntryCardItem(entry = entry, onClick = { onOpenEntry(entry.id) }, journalRepository = journalRepository)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StatCard(
+    modifier: Modifier = Modifier,
+    title: String,
+    value: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    colors: List<Color>
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .background(Brush.linearGradient(colors))
+                .padding(16.dp)
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(title, style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.8f))
+                    Icon(icon, contentDescription = null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(subtitle, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f), modifier = Modifier.padding(bottom = 4.dp))
                 }
             }
         }
@@ -210,71 +293,182 @@ fun EntryCardItem(
     onClick: () -> Unit,
     journalRepository: JournalRepository? = null
 ) {
-    var title by remember(entry.id) { mutableStateOf("Journal Entry (${entry.entryDate})") }
+    var title by remember(entry.id) { mutableStateOf("Journal Entry") }
+    var preview by remember(entry.id) { mutableStateOf("") }
 
     LaunchedEffect(entry.id) {
         if (journalRepository != null) {
-            val decrypted = journalRepository.decryptEntryContent(entry)
-            val doc = LexicalParser.parseLexicalJson(decrypted)
-            val plain = LexicalParser.extractPlaintext(doc)
-            val firstLine = plain.lines().firstOrNull { it.isNotBlank() }?.trim()
-            if (!firstLine.isNullOrBlank()) {
-                title = if (firstLine.length > 50) firstLine.take(50) + "..." else firstLine
+            try {
+                val decrypted = journalRepository.decryptEntryContent(entry)
+                val doc = LexicalParser.parseLexicalJson(decrypted)
+                val plain = LexicalParser.extractPlaintext(doc)
+                val lines = plain.lines().filter { it.isNotBlank() }
+                if (lines.isNotEmpty()) {
+                    title = lines.first().trim()
+                    if (lines.size > 1) {
+                        preview = lines.drop(1).joinToString(" ").take(100)
+                    }
+                }
+            } catch (e: Exception) {
+                // Keep default
             }
         }
+    }
+
+    val displayDate = remember(entry.entryDate) {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val todayStr = sdf.format(Date())
+        val cal = Calendar.getInstance()
+        cal.add(Calendar.DAY_OF_YEAR, -1)
+        val yesterdayStr = sdf.format(cal.time)
+        when (entry.entryDate) {
+            todayStr -> "Today"
+            yesterdayStr -> "Yesterday"
+            else -> {
+                try {
+                    val date = sdf.parse(entry.entryDate)
+                    SimpleDateFormat("MMM dd, yyyy", Locale.US).format(date!!)
+                } catch (e: Exception) {
+                    entry.entryDate
+                }
+            }
+        }
+    }
+
+    val moodEmoji = when (entry.mood?.lowercase()) {
+        "happy" -> "😊"
+        "sad" -> "😢"
+        "excited" -> "🤩"
+        "angry" -> "😠"
+        "calm" -> "😌"
+        "anxious" -> "😰"
+        "tired" -> "😴"
+        else -> entry.mood ?: "📝"
+    }
+    
+    // Convert short moods to emojis, otherwise take the first char or a default
+    val displayMood = if (moodEmoji.length > 2) "📝" else moodEmoji
+
+    val typeColor = when (entry.entryType.lowercase()) {
+        "daily" -> MaterialTheme.colorScheme.primaryContainer
+        "gratitude" -> MaterialTheme.colorScheme.tertiaryContainer
+        "reflection" -> MaterialTheme.colorScheme.secondaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val typeTextColor = when (entry.entryType.lowercase()) {
+        "daily" -> MaterialTheme.colorScheme.onPrimaryContainer
+        "gratitude" -> MaterialTheme.colorScheme.onTertiaryContainer
+        "reflection" -> MaterialTheme.colorScheme.onSecondaryContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
+            // Mood / Avatar
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = displayMood, fontSize = 24.sp)
+            }
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = entry.entryDate,
+                        text = displayDate,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold
                     )
-                    SuggestionChip(
-                        onClick = {},
-                        label = { Text(entry.entryType, fontSize = 10.sp) },
-                        modifier = Modifier.height(22.dp)
-                    )
-                    if (entry.mood != null) {
-                        Text(text = "Mood: ${entry.mood}", style = MaterialTheme.typography.bodySmall)
+                    
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (entry.favorite == 1) {
+                            Icon(
+                                Icons.Default.Star,
+                                contentDescription = "Favorite",
+                                tint = Color(0xFFFFC107),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        // Sync indicator
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(if (entry.isSynced) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                        )
                     }
+                }
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                
+                if (preview.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = preview,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Surface(
+                        color = typeColor,
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = entry.entryType.uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = typeTextColor,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                    
                     Text(
                         text = "${entry.wordCount} words • ${entry.readingTime} min",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (entry.favorite == 1) {
-                    Icon(Icons.Default.Star, contentDescription = "Favorite", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

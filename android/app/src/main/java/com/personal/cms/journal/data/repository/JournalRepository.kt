@@ -64,8 +64,9 @@ class JournalRepository(
         val salt = CryptoEngine.generateSalt()
         val now = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).format(Date())
 
-        val id = existingId ?: "jnl_${System.currentTimeMillis()}_${UUID.randomUUID().toString().substring(0, 5)}"
-        val slug = "journal-$entryDate-${UUID.randomUUID().toString().substring(0, 5)}"
+        val existingEntry = existingId?.let { db.journalEntryDao().getEntryById(it) }
+        val id = existingEntry?.id ?: "jnl_${System.currentTimeMillis()}_${UUID.randomUUID().toString().substring(0, 5)}"
+        val slug = existingEntry?.slug ?: "journal-$entryDate-${UUID.randomUUID().toString().substring(0, 5)}"
 
         val entity = JournalEntryEntity(
             id = id,
@@ -83,7 +84,7 @@ class JournalRepository(
             salt = salt,
             wordCount = wordCount,
             readingTime = readingTime,
-            createdAt = now,
+            createdAt = existingEntry?.createdAt ?: now,
             updatedAt = now,
             isSynced = false,
             isDeleted = false
@@ -91,7 +92,7 @@ class JournalRepository(
 
         db.journalEntryDao().insertOrUpdate(entity)
 
-        val operation = if (existingId != null) "UPDATE" else "CREATE"
+        val operation = if (existingEntry != null) "UPDATE" else "CREATE"
         db.syncQueueDao().enqueue(
             SyncQueueEntity(
                 id = "sq_${System.currentTimeMillis()}_${UUID.randomUUID().toString().substring(0, 4)}",

@@ -421,6 +421,8 @@ export const tvShowMetadata = sqliteTable("tv_show_metadata", {
   tags: text("tags").notNull().default("[]"),
   visibility: text("visibility").notNull().default("public"),
   featured: integer("featured").notNull().default(0),
+  locationId: text("location_id"),
+  tripId: text("trip_id"),
   relatedPhotos: text("related_photos").notNull().default("[]"),
   relatedPosts: text("related_posts").notNull().default("[]"),
   relatedMicroblogs: text("related_microblogs").notNull().default("[]"),

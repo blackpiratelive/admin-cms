@@ -41,6 +41,8 @@ async function fetchShowsFromDb(options?: ShowFilterOptions): Promise<PaginatedR
     tags: tvShowMetadata.tags,
     visibility: tvShowMetadata.visibility,
     featured: tvShowMetadata.featured,
+    locationId: tvShowMetadata.locationId,
+    tripId: tvShowMetadata.tripId,
     createdAt: tvShowMetadata.createdAt,
     updatedAt: tvShowMetadata.updatedAt,
   }).from(tvShowMetadata);
@@ -262,6 +264,8 @@ export async function updateShowMetadataAction(
     tags?: string[];
     visibility?: string;
     featured?: boolean;
+    locationId?: string | null;
+    tripId?: string | null;
     relatedPhotos?: string[];
     relatedPosts?: string[];
     relatedMicroblogs?: string[];
@@ -282,6 +286,8 @@ export async function updateShowMetadataAction(
   if (data.tags !== undefined) updateValues.tags = JSON.stringify(data.tags);
   if (data.visibility !== undefined) updateValues.visibility = data.visibility;
   if (data.featured !== undefined) updateValues.featured = data.featured ? 1 : 0;
+  if (data.locationId !== undefined) updateValues.locationId = data.locationId;
+  if (data.tripId !== undefined) updateValues.tripId = data.tripId;
   if (data.relatedPhotos !== undefined) updateValues.relatedPhotos = JSON.stringify(data.relatedPhotos);
   if (data.relatedPosts !== undefined) updateValues.relatedPosts = JSON.stringify(data.relatedPosts);
   if (data.relatedMicroblogs !== undefined) updateValues.relatedMicroblogs = JSON.stringify(data.relatedMicroblogs);
@@ -298,6 +304,8 @@ export async function updateShowMetadataAction(
       tags: JSON.stringify(data.tags || []),
       visibility: data.visibility || "public",
       featured: data.featured ? 1 : 0,
+      locationId: data.locationId || null,
+      tripId: data.tripId || null,
       relatedPhotos: JSON.stringify(data.relatedPhotos || []),
       relatedPosts: JSON.stringify(data.relatedPosts || []),
       relatedMicroblogs: JSON.stringify(data.relatedMicroblogs || []),

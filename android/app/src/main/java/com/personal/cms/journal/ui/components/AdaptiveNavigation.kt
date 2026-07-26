@@ -38,7 +38,7 @@ fun AdaptiveNavigationContainer(
                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant
             ) {
                 Spacer(modifier = Modifier.height(32.dp))
-                JournalScreen.values().forEach { screen ->
+                JournalScreen.entries.forEach { screen ->
                     NavigationRailItem(
                         selected = currentScreen == screen,
                         onClick = { onNavigate(screen) },
@@ -62,7 +62,7 @@ fun AdaptiveNavigationContainer(
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                 ) {
-                    JournalScreen.values().forEach { screen ->
+                    JournalScreen.entries.forEach { screen ->
                         NavigationBarItem(
                             selected = currentScreen == screen,
                             onClick = { onNavigate(screen) },

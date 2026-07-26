@@ -30,7 +30,6 @@ fun JournalConnectionsPanel(
     modifier: Modifier = Modifier
 ) {
     val entriesState by journalRepository.getEntriesFlow().collectAsState(initial = emptyList())
-    val scope = rememberCoroutineScope()
     
     val pastEntries = remember(entriesState, entryDate) {
         if (entryDate.length >= 10) {
@@ -40,20 +39,17 @@ fun JournalConnectionsPanel(
                 it.entryDate.length >= 10 && 
                 it.entryDate.substring(5, 10) == monthDay &&
                 it.entryDate.substring(0, 4) != year
-            }.sortedByDescending { it.entryDate }
+            }.sortedByDescending { it.entryDate }.take(5)
         } else emptyList()
     }
 
     Surface(
-        modifier = modifier
-            .fillMaxHeight()
-            .width(280.dp)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp)),
+        modifier = modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp)),
         color = MaterialTheme.colorScheme.surfaceVariant
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -83,6 +79,12 @@ fun JournalConnectionsPanel(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Location Link", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         }
+                        
+                        Text(
+                            text = "Link this entry to a specific location context.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
 
                         OutlinedTextField(
                             value = locationId ?: "",
@@ -90,7 +92,14 @@ fun JournalConnectionsPanel(
                             placeholder = { Text("Enter locationId or name...") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
-                            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
+                            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
+                            trailingIcon = {
+                                if (!locationId.isNullOrEmpty()) {
+                                    IconButton(onClick = { onLocationChange(null) }) {
+                                        Icon(Icons.Default.Clear, contentDescription = "Clear location", modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
                         )
                     }
                 }
@@ -103,6 +112,12 @@ fun JournalConnectionsPanel(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Trip Link", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         }
+                        
+                        Text(
+                            text = "Group this entry as part of a larger trip.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
 
                         OutlinedTextField(
                             value = tripId ?: "",
@@ -110,7 +125,31 @@ fun JournalConnectionsPanel(
                             placeholder = { Text("Enter tripId or title...") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
-                            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
+                            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
+                            trailingIcon = {
+                                if (!tripId.isNullOrEmpty()) {
+                                    IconButton(onClick = { onTripChange(null) }) {
+                                        Icon(Icons.Default.Clear, contentDescription = "Clear trip", modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+                
+                // Tags Section (Placeholder for visual hierarchy)
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Label, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Tags", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        }
+                        
+                        Text(
+                            text = "Tags are managed within the editor.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -140,12 +179,17 @@ fun JournalConnectionsPanel(
                         var title by remember(pastEntry.id) { mutableStateOf("Journal Entry (${pastEntry.entryDate.substring(0, 4)})") }
                         
                         LaunchedEffect(pastEntry.id) {
-                            val decrypted = journalRepository.decryptEntryContent(pastEntry)
-                            val doc = LexicalParser.parseLexicalJson(decrypted)
-                            val plain = LexicalParser.extractPlaintext(doc)
-                            val firstLine = plain.lines().firstOrNull { it.isNotBlank() }?.trim()
-                            if (!firstLine.isNullOrBlank()) {
-                                title = if (firstLine.length > 30) firstLine.take(30) + "..." else firstLine
+                            try {
+                                val decrypted = journalRepository.decryptEntryContent(pastEntry)
+                                val doc = LexicalParser.parseLexicalJson(decrypted)
+                                val plain = LexicalParser.extractPlaintext(doc)
+                                val firstLine = plain.lines().firstOrNull { it.isNotBlank() }?.trim()
+                                if (!firstLine.isNullOrBlank()) {
+                                    title = if (firstLine.length > 30) firstLine.take(30) + "..." else firstLine
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                title = "Error loading entry"
                             }
                         }
                         

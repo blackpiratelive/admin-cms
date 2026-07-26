@@ -8,9 +8,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -19,7 +19,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,10 +54,16 @@ fun NativeLexicalEditor(
     val context = LocalContext.current
     val keystoreManager = remember { KeystoreManager(context) }
 
+    var hasEdited by remember(initialLexicalJson) { mutableStateOf(false) }
+
     var textContent by remember(initialLexicalJson) {
         mutableStateOf(
             if (initialLexicalJson.isNotBlank()) {
-                LexicalParser.extractPlaintext(LexicalParser.parseLexicalJson(initialLexicalJson))
+                try {
+                    LexicalParser.extractPlaintext(LexicalParser.parseLexicalJson(initialLexicalJson))
+                } catch (e: Exception) {
+                    ""
+                }
             } else ""
         )
     }
@@ -67,56 +72,21 @@ fun NativeLexicalEditor(
     var selectedType by remember(entryType) { mutableStateOf(entryType) }
     var selectedMood by remember(mood) { mutableStateOf(mood ?: "good") }
 
-    var isBold by remember { mutableStateOf(false) }
-    var isItalic by remember { mutableStateOf(false) }
-    var isHeading1 by remember { mutableStateOf(false) }
-    var isHeading2 by remember { mutableStateOf(false) }
-    var isList by remember { mutableStateOf(false) }
-    var isQuote by remember { mutableStateOf(false) }
-    var isCode by remember { mutableStateOf(false) }
-
     var showTemplateDialog by remember { mutableStateOf(false) }
     var showTypeDropdown by remember { mutableStateOf(false) }
     var showMoodDropdown by remember { mutableStateOf(false) }
 
-    val doc = remember(textContent, isHeading1, isHeading2, isList, isQuote, isCode, isBold, isItalic) {
-        val formatBitfield = (if (isBold) 1 else 0) or (if (isItalic) 2 else 0) or (if (isCode) 16 else 0)
-        val rootNodes = mutableListOf<LexicalNode>()
-        val lines = textContent.split("\n")
-
-        for (line in lines) {
-            val textNode = TextNode(text = line, format = formatBitfield)
-            when {
-                isHeading1 || line.startsWith("# ") -> {
-                    val cleanText = TextNode(text = line.removePrefix("# "))
-                    rootNodes.add(HeadingNode(tag = "h1", children = listOf(cleanText)))
-                }
-                isHeading2 || line.startsWith("## ") -> {
-                    val cleanText = TextNode(text = line.removePrefix("## "))
-                    rootNodes.add(HeadingNode(tag = "h2", children = listOf(cleanText)))
-                }
-                isQuote || line.startsWith("> ") -> {
-                    val cleanText = TextNode(text = line.removePrefix("> "))
-                    rootNodes.add(QuoteNode(children = listOf(cleanText)))
-                }
-                isList || line.startsWith("- ") || line.startsWith("* ") -> {
-                    val cleanText = TextNode(text = line.removePrefix("- ").removePrefix("* "))
-                    val item = ListItemNode(children = listOf(cleanText))
-                    rootNodes.add(ListNode(listType = "bullet", children = listOf(item)))
-                }
-                else -> {
-                    rootNodes.add(ParagraphNode(children = listOf(textNode)))
-                }
-            }
-        }
-        LexicalDocument(root = LexicalRootNode(children = rootNodes))
-    }
-
     val wordCount = remember(textContent) { LexicalParser.calculateWordCount(textContent) }
     val readingTime = remember(wordCount) { LexicalParser.calculateReadingTime(wordCount) }
 
-    LaunchedEffect(doc) {
-        onContentChanged(LexicalParser.toLexicalJson(doc), wordCount, readingTime)
+    LaunchedEffect(textContent, hasEdited) {
+        val json = if (!hasEdited && initialLexicalJson.isNotBlank()) {
+            initialLexicalJson
+        } else {
+            val lexicalDoc = LexicalParser.fromMarkdown(textContent)
+            LexicalParser.toLexicalJson(lexicalDoc)
+        }
+        onContentChanged(json, wordCount, readingTime)
     }
 
     LaunchedEffect(selectedDate, selectedType, selectedMood) {
@@ -135,6 +105,7 @@ fun NativeLexicalEditor(
                 AssetEncryptor.saveEncryptedAssetToFile(context, assetId, "orig", result.encryptedOriginalBytes)
 
                 textContent += "\n[Encrypted Image: $assetId]\n"
+                hasEdited = true
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -144,19 +115,20 @@ fun NativeLexicalEditor(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
     ) {
         // Metadata & Controls Header
         Surface(
-            color = MaterialTheme.colorScheme.surfaceVariant,
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(10.dp)) {
+            Column(modifier = Modifier.padding(16.dp)) {
                 // Row 1: Entry Date, Entry Type, Mood
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Date input
@@ -166,7 +138,7 @@ fun NativeLexicalEditor(
                         label = { Text("Date") },
                         singleLine = true,
                         modifier = Modifier.weight(1.2f),
-                        textStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
                     )
 
                     // Type Selector
@@ -174,9 +146,9 @@ fun NativeLexicalEditor(
                         OutlinedButton(
                             onClick = { showTypeDropdown = true },
                             modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
                         ) {
-                            Text(selectedType, fontSize = 12.sp)
+                            Text(selectedType, fontSize = 14.sp)
                         }
                         DropdownMenu(
                             expanded = showTypeDropdown,
@@ -199,9 +171,9 @@ fun NativeLexicalEditor(
                         OutlinedButton(
                             onClick = { showMoodDropdown = true },
                             modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
                         ) {
-                            Text(selectedMood, fontSize = 12.sp)
+                            Text(selectedMood, fontSize = 14.sp)
                         }
                         DropdownMenu(
                             expanded = showMoodDropdown,
@@ -225,53 +197,21 @@ fun NativeLexicalEditor(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // Row 2: Rich Text Toolbar
-                LazyRow(
+                // Markdown Hints Toolbar
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    item {
-                        IconButton(onClick = { isBold = !isBold }) {
-                            Icon(Icons.Default.FormatBold, contentDescription = "Bold", tint = if (isBold) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    item {
-                        IconButton(onClick = { isItalic = !isItalic }) {
-                            Icon(Icons.Default.FormatItalic, contentDescription = "Italic", tint = if (isItalic) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    item {
-                        IconButton(onClick = { isHeading1 = !isHeading1; if (isHeading1) isHeading2 = false }) {
-                            Text("H1", fontWeight = FontWeight.Bold, color = if (isHeading1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    item {
-                        IconButton(onClick = { isHeading2 = !isHeading2; if (isHeading2) isHeading1 = false }) {
-                            Text("H2", fontWeight = FontWeight.Bold, color = if (isHeading2) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    item {
-                        IconButton(onClick = { isList = !isList }) {
-                            Icon(Icons.AutoMirrored.Filled.FormatListBulleted, contentDescription = "Bullet List", tint = if (isList) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    item {
-                        IconButton(onClick = { isQuote = !isQuote }) {
-                            Icon(Icons.Default.FormatQuote, contentDescription = "Quote", tint = if (isQuote) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    item {
-                        IconButton(onClick = { isCode = !isCode }) {
-                            Icon(Icons.Default.Code, contentDescription = "Code Block", tint = if (isCode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    item {
-                        IconButton(onClick = { imagePickerLauncher.launch("image/*") }) {
-                            Icon(Icons.Default.Image, contentDescription = "Insert E2EE Image", tint = MaterialTheme.colorScheme.primary)
-                        }
+                    Text(
+                        text = "Markdown: # H1 • ## H2 • - List • > Quote",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    IconButton(onClick = { imagePickerLauncher.launch("image/*") }) {
+                        Icon(Icons.Default.Image, contentDescription = "Insert E2EE Image", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -281,7 +221,7 @@ fun NativeLexicalEditor(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 4.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.End
         ) {
             Text(
@@ -293,11 +233,14 @@ fun NativeLexicalEditor(
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-        // Native Rich Text Input
+        // Plain text / Markdown Input
         OutlinedTextField(
             value = textContent,
-            onValueChange = { textContent = it },
-            placeholder = { Text("Write your journal entry... Type '/' or markdown shortcuts (#, -, >)...") },
+            onValueChange = { 
+                textContent = it 
+                hasEdited = true
+            },
+            placeholder = { Text("Write your journal entry... Use markdown for formatting (#, ##, -, >)...") },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(8.dp),
@@ -307,9 +250,7 @@ fun NativeLexicalEditor(
             ),
             textStyle = LocalTextStyle.current.copy(
                 fontSize = 16.sp,
-                lineHeight = 24.sp,
-                fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal,
-                fontStyle = if (isItalic) FontStyle.Italic else FontStyle.Normal
+                lineHeight = 24.sp
             )
         )
     }
@@ -318,25 +259,34 @@ fun NativeLexicalEditor(
     if (showTemplateDialog) {
         AlertDialog(
             onDismissRequest = { showTemplateDialog = false },
-            title = { Text("Choose Journal Template") },
+            title = { Text("Choose Journal Template", style = MaterialTheme.typography.titleLarge) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     JOURNAL_TEMPLATES.forEach { t ->
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    val docT = LexicalParser.fromMarkdown(t.markdown)
-                                    textContent = LexicalParser.extractPlaintext(docT)
+                                    textContent = t.markdown
+                                    hasEdited = true
                                     showTemplateDialog = false
-                                }
+                                },
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text(
-                                text = t.name,
-                                modifier = Modifier.padding(12.dp),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = t.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
@@ -345,7 +295,8 @@ fun NativeLexicalEditor(
                 TextButton(onClick = { showTemplateDialog = false }) {
                     Text("Cancel")
                 }
-            }
+            },
+            shape = RoundedCornerShape(16.dp)
         )
     }
 }
