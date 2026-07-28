@@ -142,10 +142,10 @@ export function JournalTimeline({
                       fontSize: "12px",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div className="journal-timeline-meta-left" style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                       <span
                         style={{
-                          padding: "2px 8px",
+                          padding: "3px 8px",
                           borderRadius: "4px",
                           backgroundColor: "rgba(249, 115, 22, 0.12)",
                           color: "var(--accent)",
@@ -162,7 +162,7 @@ export function JournalTimeline({
                       {moodDef && (
                         <span
                           style={{
-                            padding: "2px 8px",
+                            padding: "3px 8px",
                             borderRadius: "4px",
                             backgroundColor: "var(--bg-input)",
                             border: "1px solid var(--border-color)",
@@ -176,13 +176,13 @@ export function JournalTimeline({
                         </span>
                       )}
 
-                      <span style={{ color: "var(--text-muted)" }}>{rec.entryDate}</span>
+                      <span style={{ color: "var(--text-muted)", fontSize: "11px" }}>{rec.entryDate}</span>
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                       <span style={{ fontSize: "11px", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "4px" }}>
                         <Clock size={12} />
-                        {rec.wordCount} words ({rec.readingTime} min)
+                        {rec.wordCount} words ({rec.readingTime}m)
                       </span>
 
                       <button
@@ -194,6 +194,11 @@ export function JournalTimeline({
                           color: rec.favorite ? "#eab308" : "var(--text-muted)",
                           cursor: "pointer",
                           display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: "6px",
+                          minWidth: "32px",
+                          minHeight: "32px",
                         }}
                       >
                         <Star size={16} fill={rec.favorite ? "#eab308" : "none"} />
@@ -208,6 +213,11 @@ export function JournalTimeline({
                           color: "var(--text-muted)",
                           cursor: "pointer",
                           display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: "6px",
+                          minWidth: "32px",
+                          minHeight: "32px",
                         }}
                         onMouseEnter={(e) => (e.currentTarget.style.color = "#f87171")}
                         onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}

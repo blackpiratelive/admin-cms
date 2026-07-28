@@ -109,7 +109,7 @@ export function JournalHubClient() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+    <div className="journal-container">
       <JournalHeader
         viewMode={viewMode}
         onViewModeChange={setViewMode}

@@ -53,16 +53,8 @@ export function JournalHeader({
         color: "var(--text-primary)",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: "12px",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+      <div className="journal-header-top">
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
           <div
             style={{
               padding: "8px",
@@ -75,7 +67,7 @@ export function JournalHeader({
             <BookOpen size={20} />
           </div>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
               <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 700 }}>Personal Memory Vault</h1>
               <button
                 onClick={onSecurityClick}
@@ -104,7 +96,7 @@ export function JournalHeader({
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <div className="journal-header-actions">
           {onSecurityClick && (
             <button
               onClick={onSecurityClick}
@@ -175,16 +167,19 @@ export function JournalHeader({
             onClick={onExportClick}
             title="Export / Backup"
             style={{
-              padding: "8px",
+              padding: "8px 12px",
               backgroundColor: "var(--bg-input)",
               border: "1px solid var(--border-color)",
               borderRadius: "6px",
               color: "var(--text-primary)",
               cursor: "pointer",
               display: "flex",
+              alignItems: "center",
+              gap: "6px",
             }}
           >
             <Download size={16} />
+            <span>Export</span>
           </button>
 
           <div style={{ position: "relative" }}>
@@ -273,16 +268,8 @@ export function JournalHeader({
       </div>
 
       {/* Control Bar: View switch + Search */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: "12px",
-        }}
-      >
-        <div style={{ display: "flex", backgroundColor: "var(--bg-input)", borderRadius: "6px", padding: "3px" }}>
+      <div className="journal-control-bar">
+        <div className="journal-view-toggle" style={{ backgroundColor: "var(--bg-input)", borderRadius: "6px", padding: "3px" }}>
           <button
             onClick={() => onViewModeChange("timeline")}
             style={{
@@ -344,7 +331,7 @@ export function JournalHeader({
           </button>
         </div>
 
-        <div style={{ position: "relative", minWidth: "260px", flex: 1, maxWidth: "400px" }}>
+        <div className="journal-search-container" style={{ position: "relative" }}>
           <Search size={15} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
           <input
             type="text"

@@ -912,6 +912,13 @@ export async function ensureDbInitialized(): Promise<void> {
       } catch (err) {}
 
       try {
+        await client.execute(`ALTER TABLE tv_show_metadata ADD COLUMN location_id TEXT;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE tv_show_metadata ADD COLUMN trip_id TEXT;`);
+      } catch (err) {}
+
+      try {
         await client.execute(`ALTER TABLE projects ADD COLUMN slug TEXT;`);
       } catch (err) {}
       try {

@@ -100,10 +100,12 @@ export function LockScreenModal() {
         style={{
           width: "100%",
           maxWidth: "440px",
+          maxHeight: "90vh",
+          overflowY: "auto",
           backgroundColor: "var(--bg-card)",
           border: "1px solid var(--border-color)",
           borderRadius: "12px",
-          padding: "32px 28px",
+          padding: "24px 20px",
           boxShadow: "0 20px 40px rgba(0,0,0,0.3)",
           display: "flex",
           flexDirection: "column",

@@ -212,13 +212,11 @@ export function JournalEditorClient() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+    <div className="journal-container">
       {/* Top action bar */}
       <div
+        className="journal-header-top"
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
           padding: "12px 18px",
           backgroundColor: "var(--bg-card)",
           border: "1px solid var(--border-color)",
@@ -242,7 +240,7 @@ export function JournalEditorClient() {
           }}
         >
           <ArrowLeft size={16} />
-          <span>Back to Memory Vault</span>
+          <span>Back to Vault</span>
         </button>
 
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -292,19 +290,17 @@ export function JournalEditorClient() {
       </div>
 
       {/* Main editor grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: "20px", alignItems: "start" }}>
+      <div className="journal-editor-grid">
         {/* Left Column: Title & Lexical Editor */}
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {/* Metadata Controls */}
           <div
+            className="journal-editor-meta-grid"
             style={{
               padding: "16px",
               backgroundColor: "var(--bg-card)",
               border: "1px solid var(--border-color)",
               borderRadius: "8px",
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: "12px",
             }}
           >
             {/* Entry Date */}

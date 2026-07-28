@@ -180,7 +180,12 @@ The database consists of **52 SQLite tables** managed via Drizzle ORM:
   - Scans all nested directories for `journal.json` and image files, resolving zip wrapper parent folders (`my-export/journal.json`, `my-folder/images/1_0.webp`).
   - Normalizes stringified Lexical JSON, raw Markdown, numeric 1–10 mood scales, and location tags (`📍 location`).
   - Double-guards per-image processing so individual image upload glitches do not abort entry text or remaining image imports.
-  - Stores created entry IDs and asset IDs in `localStorage` under `last_journal_import`, enabling 1-click atomic rollback via `undoJournalImportAction`.
+- **Mobile Responsiveness & Adaptive UX**:
+  - Fully mobile-optimized responsive layout across Journal Hub (`/journal`) and Lexical Editor (`/journal/editor`).
+  - Stacks two-column editor grid (`1fr 300px`) into 1-column on mobile viewports (<900px) so rich text editor and contextual connection panel do not overflow horizontally.
+  - Horizontal swipeable/scrollable Lexical toolbar with 34px+ touch targets, preventing icon clutter and off-screen button wrapping.
+  - Adaptive 2-column/1-column statistics widgets (`.journal-stats-grid`) and metadata pickers (`.journal-editor-meta-grid`) for portrait phone screens (320px–480px).
+  - Responsive calendar grid (`.journal-calendar-day`) with auto-scaling entry dot indicators on small mobile viewports.
 
 ### 4.5 Analytics Engine & Memory Discovery Architecture (`src/features/analytics/`)
 - **Modular Provider Architecture**:

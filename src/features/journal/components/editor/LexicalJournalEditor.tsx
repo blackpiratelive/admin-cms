@@ -207,7 +207,7 @@ function Toolbar({ wordCount, characterCount, readingTime, autosaveStatus, onSav
         fontSize: "13px",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
+      <div className="journal-toolbar-scroll">
         <button
           type="button"
           onClick={() => formatText("bold")}
@@ -357,7 +357,7 @@ function Toolbar({ wordCount, characterCount, readingTime, autosaveStatus, onSav
         </button>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "14px", color: "var(--text-muted)", fontSize: "12px" }}>
+      <div className="journal-toolbar-stats">
         <span>{wordCount} words</span>
         <span>{characterCount} chars</span>
         <span>{readingTime} min read</span>

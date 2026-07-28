@@ -122,7 +122,7 @@ export function JournalCalendar({ items, onSelectEntry, onSelectDate }: JournalC
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "6px" }}>
         {daysArray.map((day, idx) => {
           if (!day) {
-            return <div key={`empty_${idx}`} style={{ minHeight: "80px" }} />;
+            return <div key={`empty_${idx}`} className="journal-calendar-day" style={{ minHeight: "80px" }} />;
           }
 
           const hasEntries = day.entries.length > 0;
@@ -131,6 +131,7 @@ export function JournalCalendar({ items, onSelectEntry, onSelectDate }: JournalC
           return (
             <div
               key={day.dateStr}
+              className="journal-calendar-day"
               onClick={() => {
                 if (hasEntries) {
                   onSelectEntry(day.entries[0]);
@@ -173,6 +174,7 @@ export function JournalCalendar({ items, onSelectEntry, onSelectDate }: JournalC
                   {day.entries.map((item) => (
                     <div
                       key={item.record.id}
+                      className="journal-calendar-title-text"
                       style={{
                         fontSize: "10px",
                         fontWeight: 600,
@@ -185,6 +187,17 @@ export function JournalCalendar({ items, onSelectEntry, onSelectDate }: JournalC
                       {item.content?.title || "Entry"}
                     </div>
                   ))}
+                  <div
+                    className="journal-calendar-dot"
+                    style={{
+                      display: "none",
+                      width: "6px",
+                      height: "6px",
+                      borderRadius: "50%",
+                      backgroundColor: "var(--accent)",
+                      margin: "2px auto 0 auto",
+                    }}
+                  />
                 </div>
               ) : null}
             </div>
