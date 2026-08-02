@@ -4,7 +4,8 @@ import { db, ensureDbInitialized } from "@/db";
 import { microblogs, relatedMicroblogs } from "@/db/schema";
 import { count, eq, like, and, desc, or } from "drizzle-orm";
 import { generateSlug, microblogInputSchema, type MicroblogFormInput } from "./schema";
-import { triggerVercelDeployHook } from "@/lib/deploy-hook";
+import { triggerVercelDeployHook, triggerVercelDeployHookBackground } from "@/lib/deploy-hook";
+import { enqueueJob } from "@/features/jobs/actions";
 import { revalidatePath, unstable_cache, revalidateTag } from "next/cache";
 import { updateRelatedPosts, getRelatedPosts } from "./related";
 import { eventBus } from "@/lib/event-bus";
@@ -261,17 +262,18 @@ export async function saveMicroblog(input: MicroblogFormInput) {
 
   let crossPostSummary: Record<string, any> | null = null;
   if (validated.status === "published") {
-    await triggerVercelDeployHook();
+    triggerVercelDeployHookBackground();
     if (isNewPublish) {
-      crossPostSummary = await crossPostMicroblogToConfiguredProviders(
-        validated.contentMarkdown,
-        validated.images,
-        validated.coverImageUrl,
-        {
+      const job = await enqueueJob("crosspost_microblog", {
+        contentMarkdown: validated.contentMarkdown,
+        images: validated.images,
+        coverImageUrl: validated.coverImageUrl,
+        options: {
           postToBluesky: validated.postToBluesky,
           postToMastodon: validated.postToMastodon,
-        }
-      );
+        },
+      });
+      crossPostSummary = { status: "queued", jobId: job.id };
     }
   }
 
@@ -327,14 +329,15 @@ export async function setMicroblogStatus(id: string, status: "draft" | "publishe
 
   let crossPostSummary: Record<string, any> | null = null;
   if (status === "published") {
-    await triggerVercelDeployHook();
+    triggerVercelDeployHookBackground();
     if (isNewPublish) {
       const parsedImages = existing.images ? JSON.parse(existing.images) : [];
-      crossPostSummary = await crossPostMicroblogToConfiguredProviders(
-        existing.contentMarkdown,
-        parsedImages,
-        existing.coverImageUrl
-      );
+      const job = await enqueueJob("crosspost_microblog", {
+        contentMarkdown: existing.contentMarkdown,
+        images: parsedImages,
+        coverImageUrl: existing.coverImageUrl,
+      });
+      crossPostSummary = { status: "queued", jobId: job.id };
     }
   }
 

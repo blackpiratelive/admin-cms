@@ -13,7 +13,7 @@ This repository is **`admin-cms`**, a private, single-user **Personal Knowledge 
 
 - **Strict Separation of Concerns**: Hugo site is read-only static; CMS is the sole writer to Turso. Provider data (Trakt, Last.fm) is owned by external providers, while CMS personal metadata (ratings, notes, tags, reviews, visibility) belongs exclusively to the CMS.
 - **Entity-Driven Interconnected Architecture**: Reusable core entities (Locations, Trips, Projects, Persons, Tags, Collections) connected seamlessly via a generic Relationship Engine and Attachment System without redundant join tables.
-- **Publishing Workflow**: Create/Edit Post or Media -> Save to Turso -> Status set to `published` -> Trigger `VERCEL_DEPLOY_HOOK` -> Hugo site rebuilds automatically.
+- **Publishing Workflow**: Create/Edit Post or Media -> Save to Turso -> Status set to `published` -> Non-blocking background trigger for `VERCEL_DEPLOY_HOOK` (`triggerVercelDeployHookBackground`) and asynchronous Job Queue (`jobs` table) cross-posting to Bluesky & Mastodon -> Hugo site rebuilds automatically.
 - **UI & UX Highlights**: Keyboard-first Command Palette (`Ctrl+K`) for global fuzzy search across all entities and quick actions, central Settings Hub (`/settings`), Locations (`/locations` & `/locations/[slug]`), Trips (`/trips` & `/trips/[slug]`), People Memory Hubs (`/people` & `/people/[slug]`), real-time R2 usage monitors, responsive themes (HN Orange, Dark, Mono, Teal), and non-blocking background toast notifications.
 
 ---

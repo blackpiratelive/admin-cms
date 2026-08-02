@@ -4,6 +4,27 @@ import { db, ensureDbInitialized } from "@/db";
 import { jobs, JobRecord } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 
+function processBackgroundJob(jobId: string, type: string, payload: any) {
+  queueMicrotask(async () => {
+    try {
+      await updateJobStatus(jobId, "running", 10);
+      if (type === "crosspost_microblog") {
+        const { crossPostMicroblogToConfiguredProviders } = await import("@/features/microblog/actions");
+        const results = await crossPostMicroblogToConfiguredProviders(
+          payload.contentMarkdown,
+          payload.images || [],
+          payload.coverImageUrl,
+          payload.options
+        );
+        await updateJobStatus(jobId, "completed", 100, results);
+      }
+    } catch (err: any) {
+      console.error(`[JobEngine] Error processing job '${jobId}':`, err);
+      await updateJobStatus(jobId, "failed", 0, {}, err.message || String(err));
+    }
+  });
+}
+
 export async function enqueueJob(
   type: string,
   payload: Record<string, any> = {},
@@ -29,6 +50,7 @@ export async function enqueueJob(
   };
 
   await db.insert(jobs).values(record);
+  processBackgroundJob(id, type, payload);
   return record;
 }
 

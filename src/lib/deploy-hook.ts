@@ -17,3 +17,28 @@ export async function triggerVercelDeployHook() {
     return { status: "error", error: String(err) };
   }
 }
+
+/**
+ * Triggers Vercel Deploy Hook asynchronously in a background microtask
+ * so caller Server Actions return immediately without awaiting HTTP network latency.
+ */
+export function triggerVercelDeployHookBackground(): void {
+  queueMicrotask(async () => {
+    try {
+      const res = await triggerVercelDeployHook();
+      if (res.status === "success" || res.status === "error") {
+        const { logActivity } = await import("@/features/activity/actions");
+        await logActivity(
+          "deploy_hook_triggered",
+          "deploy",
+          "vercel",
+          `Vercel Deploy Hook: ${res.status}`,
+          res
+        );
+      }
+    } catch (err) {
+      console.error("[DeployHook] Error in background deploy hook execution:", err);
+    }
+  });
+}
+
