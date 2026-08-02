@@ -156,7 +156,7 @@ The database consists of **52 SQLite tables** managed via Drizzle ORM:
 - **Optimistic Client State & Background Modal Execution**: Client components (`TodoDashboard`, `LocationFormModal`, `PersonFormModal`, `TripFormModal`) close modals and update UI state immediately (**0 ms perceived latency**), executing server actions in background worker tasks via `notify.bg(...)`.
 - **Client-Side SWR Browser Caching (`getBrowserCache` / `setBrowserCache`)**: Client-side browser cache in `src/lib/client-cache.ts` providing **0ms instant initial paints** on navigation.
 - **Non-Blocking Background Write Engine & Toast Notifications**: Modals and forms close instantly (0ms latency). Operations execute asynchronously in the background, presenting floating toast notifications (`src/lib/notifications.ts` & `src/components/ToastNotification.tsx`).
-- **Navigation Feedback**: Global `NavigationProgressBar` (`src/components/NavigationProgressBar.tsx`) shows immediate top accent progress on internal route link clicks.
+- **Performance Budget Enforcement**: Enforces `<50ms` latency budgets (`entityEditMaxMs: 50`) in `src/lib/telemetry.ts` across all entity edit Server Actions (`saveMicroblog`, `updateLocation`, `updatePersonAction`, `saveTodo`).
 
 ### 4.3 Universal Search & Command Palette (`Ctrl+K`)
 - Accessible via header button or `Ctrl+K`.

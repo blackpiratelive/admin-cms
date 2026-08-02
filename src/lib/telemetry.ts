@@ -8,6 +8,7 @@ export interface PerformanceBudgetConfig {
   memoryIndexRankingsMaxMs: number;
   timelineQueryMaxMs: number;
   fullRebuildMaxMs: number;
+  entityEditMaxMs: number;
 }
 
 export const ANALYTICS_PERFORMANCE_BUDGET: PerformanceBudgetConfig = {
@@ -15,6 +16,7 @@ export const ANALYTICS_PERFORMANCE_BUDGET: PerformanceBudgetConfig = {
   memoryIndexRankingsMaxMs: 100,
   timelineQueryMaxMs: 200,
   fullRebuildMaxMs: 300,
+  entityEditMaxMs: 50,
 };
 
 export async function measureTelemetry<T>(
