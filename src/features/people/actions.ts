@@ -65,7 +65,10 @@ async function fetchPeopleRaw(options: PeopleFilterOptions = {}): Promise<Person
   if (sortBy === "memory_score" || sortBy === "significant_relationships") {
     try {
       const { analyticsMemoryScores } = await import("@/db/schema");
-      const scores = await db.select().from(analyticsMemoryScores).where(eq(analyticsMemoryScores.entityType, "person"));
+      const scores = await db
+        .select({ entityId: analyticsMemoryScores.entityId, finalScore: analyticsMemoryScores.finalScore })
+        .from(analyticsMemoryScores)
+        .where(eq(analyticsMemoryScores.entityType, "person"));
       const scoreMap = new Map(scores.map((s) => [s.entityId, s.finalScore]));
       results.sort((a, b) => (scoreMap.get(b.id) || 0) - (scoreMap.get(a.id) || 0));
     } catch (e) {}

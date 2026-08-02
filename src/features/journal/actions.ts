@@ -397,10 +397,12 @@ export async function updateJournalEntry(
   purgeTag("journal-entries-list");
   purgeTag(`journal-entry-${existing.id}`);
   purgeTag(`journal-entry-${existing.slug}`);
-  revalidatePath("/journal");
+  try {
+    revalidatePath("/journal");
+  } catch {}
 
-  const updated = await getJournalEntryByIdOrSlug(existing.id);
-  return updated!;
+  const updatedRecord = { ...existing, ...updatePayload };
+  return updatedRecord as JournalEntryRecord;
 }
 
 export async function deleteJournalEntry(id: string): Promise<void> {

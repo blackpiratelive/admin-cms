@@ -168,18 +168,17 @@ export async function updateTrip(
     revalidatePath(`/trips/${updates.slug || existing[0].slug}`);
   } catch {}
 
-  const updatedRecord = await db.select().from(trips).where(eq(trips.id, id)).limit(1);
-  if (updatedRecord[0]) {
-    eventBus.emit("entity.saved", {
-      type: "trip",
-      id,
-      title: updatedRecord[0].title,
-      subtitle: updatedRecord[0].description || "Trip",
-      keywords: `${updatedRecord[0].title} ${updatedRecord[0].description || ""} ${updatedRecord[0].tags}`,
-      url: `/trips`,
-    });
-  }
-  return updatedRecord[0] || null;
+  const updatedRecord = { ...existing[0], ...updates };
+  eventBus.emit("entity.saved", {
+    type: "trip",
+    id,
+    title: updatedRecord.title,
+    subtitle: updatedRecord.description || "Trip",
+    keywords: `${updatedRecord.title} ${updatedRecord.description || ""} ${updatedRecord.tags}`,
+    url: `/trips`,
+  });
+
+  return updatedRecord as TripRecord;
 }
 
 export async function deleteTrip(id: string): Promise<boolean> {

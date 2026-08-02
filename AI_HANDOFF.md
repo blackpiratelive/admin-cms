@@ -150,7 +150,9 @@ The database consists of **52 SQLite tables** managed via Drizzle ORM:
 
 ### 4.2 Performance & Multi-Layer Caching Architecture
 - **Single-Batch Composite Queries**: High-traffic hub pages (`/locations/[slug]`, `/trips/[slug]`, `/people/[slug]`) execute 1 single DB roundtrip using Drizzle `inArray` queries instead of 50+ sequential database requests.
-- **Vercel Data Cache (`createCachedQuery` & `purgeTag`)**: Server-side cache layer in `src/lib/server-cache.ts` serving responses in **0-1ms** with instantaneous tag invalidation on mutations.
+- **Granular Tag Purging over Root Revalidation**: Server Actions use targeted `purgeTag()` invalidations instead of `revalidatePath("/")`, preventing Next.js App Router from synchronously re-rendering root server components during action responses.
+- **Background Microtasks for Keyword & Related Posts Matching**: Microblog keyword matching (`updateRelatedPosts`) runs asynchronously in `queueMicrotask`, allowing `saveMicroblog` to return immediately.
+- **Network Resilience & Timeout Bounds**: External API integrations (e.g., `fetchFromRapidLinkApi` in `src/features/links/actions.ts`) use `AbortController` with 3,000ms timeout limits to prevent external service degradation from blocking CMS updates.
 - **Client-Side SWR Browser Caching (`getBrowserCache` / `setBrowserCache`)**: Client-side browser cache in `src/lib/client-cache.ts` providing **0ms instant initial paints** on navigation.
 - **Non-Blocking Background Write Engine & Toast Notifications**: Modals and forms close instantly (0ms latency). Operations execute asynchronously in the background, presenting floating toast notifications (`src/lib/notifications.ts` & `src/components/ToastNotification.tsx`).
 - **Navigation Feedback**: Global `NavigationProgressBar` (`src/components/NavigationProgressBar.tsx`) shows immediate top accent progress on internal route link clicks.

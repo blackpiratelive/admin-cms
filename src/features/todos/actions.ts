@@ -4,6 +4,7 @@ import { desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, ensureDbInitialized } from "@/db";
 import { projects, todos } from "@/db/schema";
+import { purgeTag } from "@/lib/server-cache";
 
 function parseTags(value: string | string[]) {
   const tags = Array.isArray(value) ? value : value.split(",");
@@ -11,8 +12,11 @@ function parseTags(value: string | string[]) {
 }
 
 function refresh() {
-  revalidatePath("/todos");
-  revalidatePath("/");
+  purgeTag("todos-list");
+  purgeTag("projects-list");
+  try {
+    revalidatePath("/todos");
+  } catch {}
 }
 
 export async function getTodoData() {

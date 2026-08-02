@@ -252,13 +252,13 @@ export async function saveMicroblog(input: MicroblogFormInput) {
     });
   }
 
-  let updatedRelated: any[] = [];
-  try {
-    await updateRelatedPosts(id, validated.tags, validated.contentMarkdown);
-    updatedRelated = await getRelatedPosts(id);
-  } catch (err) {
-    console.error("Error updating related posts:", err);
-  }
+  queueMicrotask(async () => {
+    try {
+      await updateRelatedPosts(id, validated.tags, validated.contentMarkdown);
+    } catch (err) {
+      console.error("Error updating related posts in background:", err);
+    }
+  });
 
   let crossPostSummary: Record<string, any> | null = null;
   if (validated.status === "published") {
@@ -278,8 +278,10 @@ export async function saveMicroblog(input: MicroblogFormInput) {
   }
 
   purgeTag("microblogs-list");
-  revalidatePath("/microblog");
-  revalidatePath("/");
+  purgeTag(`microblog-${id}`);
+  try {
+    revalidatePath("/microblog");
+  } catch {}
 
   eventBus.emit("entity.saved", {
     type: "microblog",
@@ -290,7 +292,7 @@ export async function saveMicroblog(input: MicroblogFormInput) {
     url: `/microblog/${id}`,
   });
 
-  return { success: true, id, slug, relatedPosts: updatedRelated, crossPostSummary };
+  return { success: true, id, slug, crossPostSummary };
 }
 
 export async function deleteMicroblog(id: string) {
@@ -298,8 +300,10 @@ export async function deleteMicroblog(id: string) {
     await ensureDbInitialized();
     await db.delete(microblogs).where(eq(microblogs.id, id));
     purgeTag("microblogs-list");
-    revalidatePath("/microblog");
-    revalidatePath("/");
+    purgeTag(`microblog-${id}`);
+    try {
+      revalidatePath("/microblog");
+    } catch {}
 
     eventBus.emit("entity.deleted", { type: "microblog", id });
     return { success: true };
@@ -342,8 +346,10 @@ export async function setMicroblogStatus(id: string, status: "draft" | "publishe
   }
 
   purgeTag("microblogs-list");
-  revalidatePath("/microblog");
-  revalidatePath("/");
+  purgeTag(`microblog-${id}`);
+  try {
+    revalidatePath("/microblog");
+  } catch {}
   return { success: true, crossPostSummary };
 }
 

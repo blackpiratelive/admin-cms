@@ -41,25 +41,38 @@ async function fetchFromRapidLinkApi(endpoint: string, options: RequestInit = {}
   }
 
   const url = `${config.baseUrl}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    cache: "no-store",
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-  const text = await response.text();
-  let data: any;
   try {
-    data = JSON.parse(text);
-  } catch {
-    data = { error: text || `HTTP ${response.status} Error` };
-  }
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      cache: "no-store",
+      signal: options.signal || controller.signal,
+    });
+    clearTimeout(timeoutId);
 
-  if (!response.ok) {
-    throw new Error(data.error || `Request failed with status ${response.status}`);
-  }
+    const text = await response.text();
+    let data: any;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { error: text || `HTTP ${response.status} Error` };
+    }
 
-  return data;
+    if (!response.ok) {
+      throw new Error(data.error || `Request failed with status ${response.status}`);
+    }
+
+    return data;
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === "AbortError") {
+      throw new Error("RapidLink service API request timed out after 3000ms");
+    }
+    throw err;
+  }
 }
 
 // --- SHORT LINKS ---
