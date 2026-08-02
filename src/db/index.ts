@@ -19,7 +19,7 @@ export async function ensureDbInitialized(): Promise<void> {
 
   initPromise = (async () => {
     try {
-      await client.execute(`
+      await client.executeMultiple(`
         CREATE TABLE IF NOT EXISTS microblogs (
           id TEXT PRIMARY KEY,
           slug TEXT NOT NULL UNIQUE,
@@ -32,18 +32,14 @@ export async function ensureDbInitialized(): Promise<void> {
           cover_image_url TEXT,
           images TEXT NOT NULL DEFAULT '[]'
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS related_microblogs (
           microblog_id TEXT NOT NULL,
           related_microblog_id TEXT NOT NULL,
           score INTEGER NOT NULL DEFAULT 0,
           PRIMARY KEY (microblog_id, related_microblog_id)
         );
-      `);
-      
-      await client.execute(`
+
         CREATE TABLE IF NOT EXISTS gallery (
           id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
@@ -75,9 +71,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS projects (
           id TEXT PRIMARY KEY,
           name TEXT NOT NULL UNIQUE,
@@ -85,9 +79,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS todos (
           id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
@@ -100,9 +92,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS providers (
           id TEXT PRIMARY KEY,
           name TEXT NOT NULL,
@@ -116,9 +106,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS sync_logs (
           id TEXT PRIMARY KEY,
           provider TEXT NOT NULL,
@@ -132,9 +120,7 @@ export async function ensureDbInitialized(): Promise<void> {
           error_message TEXT,
           metadata_json TEXT NOT NULL DEFAULT '{}'
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS trakt_movies (
           trakt_id INTEGER PRIMARY KEY,
           tmdb_id INTEGER,
@@ -155,9 +141,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS trakt_shows (
           trakt_id INTEGER PRIMARY KEY,
           tmdb_id INTEGER,
@@ -175,9 +159,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS trakt_episodes (
           id TEXT PRIMARY KEY,
           show_trakt_id INTEGER NOT NULL,
@@ -189,9 +171,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS lastfm_scrobbles (
           id TEXT PRIMARY KEY,
           lastfm_id TEXT,
@@ -203,9 +183,7 @@ export async function ensureDbInitialized(): Promise<void> {
           mbid TEXT,
           created_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS lastfm_artists (
           artist_name TEXT PRIMARY KEY,
           play_count INTEGER NOT NULL DEFAULT 0,
@@ -218,9 +196,7 @@ export async function ensureDbInitialized(): Promise<void> {
           review TEXT,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS lastfm_albums (
           id TEXT PRIMARY KEY,
           album_name TEXT NOT NULL,
@@ -233,9 +209,7 @@ export async function ensureDbInitialized(): Promise<void> {
           review TEXT,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS lastfm_tracks (
           id TEXT PRIMARY KEY,
           track_name TEXT NOT NULL,
@@ -248,9 +222,7 @@ export async function ensureDbInitialized(): Promise<void> {
           review TEXT,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS movie_metadata (
           trakt_id INTEGER PRIMARY KEY,
           favorite INTEGER NOT NULL DEFAULT 0,
@@ -268,9 +240,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS tv_show_metadata (
           trakt_id INTEGER PRIMARY KEY,
           favorite INTEGER NOT NULL DEFAULT 0,
@@ -286,9 +256,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS artist_metadata (
           artist_name TEXT PRIMARY KEY,
           favorite INTEGER NOT NULL DEFAULT 0,
@@ -304,9 +272,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS album_metadata (
           id TEXT PRIMARY KEY,
           favorite INTEGER NOT NULL DEFAULT 0,
@@ -318,9 +284,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS track_metadata (
           id TEXT PRIMARY KEY,
           favorite INTEGER NOT NULL DEFAULT 0,
@@ -332,9 +296,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS collections (
           id TEXT PRIMARY KEY,
           name TEXT NOT NULL UNIQUE,
@@ -345,9 +307,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS collection_items (
           id TEXT PRIMARY KEY,
           collection_id TEXT NOT NULL,
@@ -355,9 +315,7 @@ export async function ensureDbInitialized(): Promise<void> {
           item_id TEXT NOT NULL,
           added_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS activities (
           id TEXT PRIMARY KEY,
           action TEXT NOT NULL,
@@ -367,9 +325,7 @@ export async function ensureDbInitialized(): Promise<void> {
           metadata_json TEXT NOT NULL DEFAULT '{}',
           created_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS locations (
           id TEXT PRIMARY KEY,
           name TEXT NOT NULL,
@@ -400,9 +356,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS trips (
           id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
@@ -417,9 +371,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS persons (
           id TEXT PRIMARY KEY,
           display_name TEXT NOT NULL,
@@ -440,9 +392,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS tags (
           id TEXT PRIMARY KEY,
           name TEXT NOT NULL UNIQUE,
@@ -450,9 +400,7 @@ export async function ensureDbInitialized(): Promise<void> {
           color TEXT,
           created_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS entity_tags (
           id TEXT PRIMARY KEY,
           tag_id TEXT NOT NULL,
@@ -460,9 +408,7 @@ export async function ensureDbInitialized(): Promise<void> {
           entity_id TEXT NOT NULL,
           created_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS relationships (
           id TEXT PRIMARY KEY,
           source_type TEXT NOT NULL,
@@ -472,9 +418,7 @@ export async function ensureDbInitialized(): Promise<void> {
           relationship TEXT NOT NULL,
           created_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS attachments (
           id TEXT PRIMARY KEY,
           entity_type TEXT NOT NULL,
@@ -487,9 +431,7 @@ export async function ensureDbInitialized(): Promise<void> {
           metadata_json TEXT NOT NULL DEFAULT '{}',
           created_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS jobs (
           id TEXT PRIMARY KEY,
           type TEXT NOT NULL,
@@ -504,9 +446,7 @@ export async function ensureDbInitialized(): Promise<void> {
           started_at TEXT,
           completed_at TEXT
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS notes (
           id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
@@ -518,9 +458,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS bookmarks (
           id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
@@ -532,9 +470,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS quotes (
           id TEXT PRIMARY KEY,
           quote TEXT NOT NULL,
@@ -546,17 +482,13 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS dashboard_cache (
           key TEXT PRIMARY KEY,
           data_json TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS search_index (
           id TEXT PRIMARY KEY,
           entity_type TEXT NOT NULL,
@@ -567,17 +499,13 @@ export async function ensureDbInitialized(): Promise<void> {
           url TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS system_stats (
           key TEXT PRIMARY KEY,
           data_json TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS journal_entries (
           id TEXT PRIMARY KEY,
           slug TEXT NOT NULL UNIQUE,
@@ -599,9 +527,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS journal_revisions (
           id TEXT PRIMARY KEY,
           entry_id TEXT NOT NULL,
@@ -610,9 +536,7 @@ export async function ensureDbInitialized(): Promise<void> {
           salt TEXT NOT NULL,
           created_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS journal_settings (
           id TEXT PRIMARY KEY,
           salt TEXT NOT NULL,
@@ -621,9 +545,7 @@ export async function ensureDbInitialized(): Promise<void> {
           auto_lock_minutes INTEGER NOT NULL DEFAULT 15,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS journal_keys (
           id TEXT PRIMARY KEY,
           encrypted_dek TEXT NOT NULL,
@@ -638,9 +560,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS journal_assets (
           id TEXT PRIMARY KEY,
           asset_type TEXT NOT NULL DEFAULT 'image',
@@ -658,9 +578,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS journal_entry_assets (
           id TEXT PRIMARY KEY,
           entry_id TEXT NOT NULL,
@@ -669,13 +587,10 @@ export async function ensureDbInitialized(): Promise<void> {
           position INTEGER NOT NULL DEFAULT 0,
           created_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`CREATE INDEX IF NOT EXISTS journal_entry_assets_entry_idx ON journal_entry_assets(entry_id);`);
-      await client.execute(`CREATE INDEX IF NOT EXISTS journal_entry_assets_asset_idx ON journal_entry_assets(asset_id);`);
+        CREATE INDEX IF NOT EXISTS journal_entry_assets_entry_idx ON journal_entry_assets(entry_id);
+        CREATE INDEX IF NOT EXISTS journal_entry_assets_asset_idx ON journal_entry_assets(asset_id);
 
-      // Analytics Engine Cache Tables DDL
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS analytics_metrics (
           id TEXT PRIMARY KEY,
           module TEXT NOT NULL,
@@ -684,9 +599,7 @@ export async function ensureDbInitialized(): Promise<void> {
           metadata_json TEXT NOT NULL DEFAULT '{}',
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS analytics_daily (
           id TEXT PRIMARY KEY,
           date TEXT NOT NULL,
@@ -695,9 +608,7 @@ export async function ensureDbInitialized(): Promise<void> {
           value REAL NOT NULL DEFAULT 0,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS analytics_monthly (
           id TEXT PRIMARY KEY,
           year_month TEXT NOT NULL,
@@ -706,9 +617,7 @@ export async function ensureDbInitialized(): Promise<void> {
           value REAL NOT NULL DEFAULT 0,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS analytics_yearly (
           id TEXT PRIMARY KEY,
           year TEXT NOT NULL,
@@ -717,9 +626,7 @@ export async function ensureDbInitialized(): Promise<void> {
           value REAL NOT NULL DEFAULT 0,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS analytics_relationships (
           id TEXT PRIMARY KEY,
           source_type TEXT NOT NULL,
@@ -731,9 +638,7 @@ export async function ensureDbInitialized(): Promise<void> {
           metadata_json TEXT NOT NULL DEFAULT '{}',
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS analytics_timeline (
           id TEXT PRIMARY KEY,
           date TEXT NOT NULL,
@@ -749,9 +654,7 @@ export async function ensureDbInitialized(): Promise<void> {
           importance_score REAL NOT NULL DEFAULT 0,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS analytics_snapshots (
           id TEXT PRIMARY KEY,
           snapshot_type TEXT NOT NULL,
@@ -759,9 +662,7 @@ export async function ensureDbInitialized(): Promise<void> {
           data_json TEXT NOT NULL,
           created_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS analytics_memory_scores (
           id TEXT PRIMARY KEY,
           entity_type TEXT NOT NULL,
@@ -780,17 +681,13 @@ export async function ensureDbInitialized(): Promise<void> {
           metadata_json TEXT NOT NULL DEFAULT '{}',
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS analytics_dashboard (
           key TEXT PRIMARY KEY,
           data_json TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS analytics_search (
           id TEXT PRIMARY KEY,
           entity_type TEXT NOT NULL,
@@ -799,9 +696,7 @@ export async function ensureDbInitialized(): Promise<void> {
           keywords TEXT NOT NULL DEFAULT '',
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS analytics_trends (
           id TEXT PRIMARY KEY,
           period TEXT NOT NULL,
@@ -810,10 +705,7 @@ export async function ensureDbInitialized(): Promise<void> {
           data_json TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      // FreshRSS & Reading Activity Tables DDL
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS rss_articles (
           id TEXT PRIMARY KEY,
           freshrss_id TEXT NOT NULL UNIQUE,
@@ -836,9 +728,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS rss_feeds (
           id TEXT PRIMARY KEY,
           feed_id TEXT NOT NULL UNIQUE,
@@ -850,9 +740,7 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS rss_categories (
           id TEXT PRIMARY KEY,
           category_id TEXT NOT NULL UNIQUE,
@@ -860,27 +748,21 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS rss_read_events (
           id TEXT PRIMARY KEY,
           article_id TEXT NOT NULL,
           read_at TEXT NOT NULL,
           created_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS rss_starred_articles (
           id TEXT PRIMARY KEY,
           article_id TEXT NOT NULL,
           starred_at TEXT NOT NULL,
           created_at TEXT NOT NULL
         );
-      `);
 
-      await client.execute(`
         CREATE TABLE IF NOT EXISTS rss_sync_state (
           id TEXT PRIMARY KEY,
           last_sync TEXT,
