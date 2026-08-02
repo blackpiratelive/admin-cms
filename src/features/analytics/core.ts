@@ -42,6 +42,43 @@ import { measureTelemetry, ANALYTICS_PERFORMANCE_BUDGET } from "@/lib/telemetry"
 let l1GlobalOverviewCache: { data: GlobalOverviewStats; timestamp: number } | null = null;
 const L1_TTL_MS = 60000; // 60 seconds TTL
 
+let analyticsRebuildTimer: NodeJS.Timeout | null = null;
+let isAnalyticsRebuilding = false;
+let hasPendingAnalyticsRebuild = false;
+
+/**
+ * Schedules a background analytics cache rebuild with sliding window debouncing (default 5000ms).
+ * Prevents multiple heavy analytics computations during rapid entity edits or batch operations.
+ */
+export function scheduleBackgroundAnalyticsRebuild(
+  delayMs = 5000,
+  weights: MemoryIndexWeights = DEFAULT_MEMORY_INDEX_WEIGHTS
+): void {
+  if (analyticsRebuildTimer) {
+    clearTimeout(analyticsRebuildTimer);
+    analyticsRebuildTimer = null;
+  }
+
+  analyticsRebuildTimer = setTimeout(() => {
+    analyticsRebuildTimer = null;
+    if (isAnalyticsRebuilding) {
+      hasPendingAnalyticsRebuild = true;
+      return;
+    }
+
+    isAnalyticsRebuilding = true;
+    rebuildAllAnalyticsCache(weights)
+      .catch((err) => console.error("[BackgroundAnalytics] Error in background rebuild:", err))
+      .finally(() => {
+        isAnalyticsRebuilding = false;
+        if (hasPendingAnalyticsRebuild) {
+          hasPendingAnalyticsRebuild = false;
+          scheduleBackgroundAnalyticsRebuild(1000, weights);
+        }
+      });
+  }, delayMs);
+}
+
 export function invalidateAnalyticsL1Cache() {
   l1GlobalOverviewCache = null;
 }
