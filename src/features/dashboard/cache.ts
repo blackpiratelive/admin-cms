@@ -4,6 +4,7 @@ import { db, ensureDbInitialized } from "@/db";
 import { dashboardCache } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { purgeTag } from "@/lib/server-cache";
 import { getMicroblogDashboardData } from "@/features/microblog/actions";
 import { getRecentMoviesAction } from "@/features/libraries/actions/movies";
 import { getRecentShowsAction } from "@/features/libraries/actions/shows";
@@ -106,6 +107,7 @@ export async function rebuildDashboardCache(skipRevalidate = false): Promise<Das
   };
 
   await setDashboardCacheEntry("dashboard_overview", snapshot);
+  purgeTag("dashboard-overview");
   if (!skipRevalidate) {
     try {
       revalidatePath("/");

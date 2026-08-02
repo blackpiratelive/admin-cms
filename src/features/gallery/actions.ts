@@ -4,7 +4,8 @@ import { db, ensureDbInitialized } from "@/db";
 import { gallery, type GalleryPhoto } from "@/db/schema";
 import { count, desc, eq, sql } from "drizzle-orm";
 import { galleryPhotoInputSchema, type GalleryPhotoInput, generatePhotoSlug } from "./schema";
-import { triggerVercelDeployHook } from "@/lib/deploy-hook";
+import { triggerVercelDeployHook, triggerVercelDeployHookBackground } from "@/lib/deploy-hook";
+import { purgeTag } from "@/lib/server-cache";
 import { revalidatePath } from "next/cache";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -174,12 +175,15 @@ export async function saveGalleryPhoto(input: GalleryPhotoInput) {
 
     // Trigger Hugo rebuild via deploy hook on successful publish
     if (validated.visibility === "public") {
-      await triggerVercelDeployHook();
+      triggerVercelDeployHookBackground();
     }
 
     usageStatsCache = null;
-    revalidatePath("/gallery");
-    revalidatePath("/");
+    purgeTag("gallery-list");
+    purgeTag(`gallery-${id}`);
+    try {
+      revalidatePath("/gallery");
+    } catch {}
     return { success: true, id, slug };
   } catch (error: any) {
     console.error("Error saving gallery photo:", error);
@@ -224,8 +228,11 @@ export async function deleteGalleryPhoto(id: string) {
     await ensureDbInitialized();
     await db.delete(gallery).where(eq(gallery.id, id));
     usageStatsCache = null;
-    revalidatePath("/gallery");
-    revalidatePath("/");
+    purgeTag("gallery-list");
+    purgeTag(`gallery-${id}`);
+    try {
+      revalidatePath("/gallery");
+    } catch {}
     return { success: true };
   } catch (error: any) {
     console.error("Error deleting gallery photo:", error);

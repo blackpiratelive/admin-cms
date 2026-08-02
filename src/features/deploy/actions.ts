@@ -2,6 +2,7 @@
 
 import { triggerVercelDeployHook } from "@/lib/deploy-hook";
 import { revalidatePath } from "next/cache";
+import { purgeTag } from "@/lib/server-cache";
 
 export async function manualDeployAction() {
   const now = new Date().toLocaleTimeString("en-US", {
@@ -12,7 +13,10 @@ export async function manualDeployAction() {
 
   const result = await triggerVercelDeployHook();
 
-  revalidatePath("/");
+  purgeTag("deploy-status");
+  try {
+    revalidatePath("/settings");
+  } catch {}
 
   if (result.status === "success") {
     return {

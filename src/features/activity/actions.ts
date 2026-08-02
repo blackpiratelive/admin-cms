@@ -3,7 +3,7 @@
 import { db, ensureDbInitialized } from "@/db";
 import { activities, ActivityRecord } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { purgeTag } from "@/lib/server-cache";
 
 export async function logActivity(
   action: string,
@@ -27,7 +27,7 @@ export async function logActivity(
   };
 
   await db.insert(activities).values(newActivity);
-  revalidatePath("/");
+  purgeTag("recent-activities");
   return newActivity;
 }
 
