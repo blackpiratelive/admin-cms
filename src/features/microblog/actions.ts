@@ -292,7 +292,7 @@ export async function saveMicroblog(input: MicroblogFormInput) {
     url: `/microblog/${id}`,
   });
 
-  return { success: true, id, slug, crossPostSummary };
+  return { success: true, id, slug, relatedPosts: [], crossPostSummary };
 }
 
 export async function deleteMicroblog(id: string) {
