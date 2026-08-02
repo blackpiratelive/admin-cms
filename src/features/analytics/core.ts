@@ -23,7 +23,7 @@ import {
   journalEntryAssets,
   rssArticles,
 } from "@/db/schema";
-import { eq, desc, inArray, count, gte, lte } from "drizzle-orm";
+import { eq, desc, inArray, count, gte, lte, sql } from "drizzle-orm";
 import { getAllAnalyticsProviders, getAnalyticsProvider } from "./providers";
 import { computeMemoryScore } from "./scoring";
 import { DEFAULT_MEMORY_INDEX_WEIGHTS } from "./config";
@@ -270,45 +270,49 @@ export async function rebuildAllAnalyticsCache(
         memoryScoreRecords.push(score);
       }
 
-      // Save Memory Scores via atomic upserts (eliminates N+1 select queries)
-      for (const ms of memoryScoreRecords) {
-        const recordId = `${ms.entityType}_${ms.entityId}`;
-        await db
-          .insert(analyticsMemoryScores)
-          .values({
-            id: recordId,
-            entityType: ms.entityType,
-            entityId: ms.entityId,
-            title: ms.title,
-            slug: ms.slug,
-            richnessScore: ms.richnessScore,
-            diversityScore: ms.diversityScore,
-            longevityScore: ms.longevityScore,
-            recurrenceScore: ms.recurrenceScore,
-            recencyScore: ms.recencyScore,
-            favoriteBonus: ms.favoriteBonus,
-            pinnedBonus: ms.pinnedBonus,
-            finalScore: ms.finalScore,
-            isPinned: ms.isPinned ? 1 : 0,
-            metadataJson: JSON.stringify(ms.metadata || {}),
-            updatedAt: now,
-          })
-          .onConflictDoUpdate({
-            target: analyticsMemoryScores.id,
-            set: {
-              richnessScore: ms.richnessScore,
-              diversityScore: ms.diversityScore,
-              longevityScore: ms.longevityScore,
-              recurrenceScore: ms.recurrenceScore,
-              recencyScore: ms.recencyScore,
-              favoriteBonus: ms.favoriteBonus,
-              pinnedBonus: ms.pinnedBonus,
-              finalScore: ms.finalScore,
-              isPinned: ms.isPinned ? 1 : 0,
-              metadataJson: JSON.stringify(ms.metadata || {}),
-              updatedAt: now,
-            },
-          });
+      // Save Memory Scores via bulk chunked upserts (chunks of 50 items)
+      if (memoryScoreRecords.length > 0) {
+        const msPayloads = memoryScoreRecords.map((ms) => ({
+          id: `${ms.entityType}_${ms.entityId}`,
+          entityType: ms.entityType,
+          entityId: ms.entityId,
+          title: ms.title,
+          slug: ms.slug,
+          richnessScore: ms.richnessScore,
+          diversityScore: ms.diversityScore,
+          longevityScore: ms.longevityScore,
+          recurrenceScore: ms.recurrenceScore,
+          recencyScore: ms.recencyScore,
+          favoriteBonus: ms.favoriteBonus,
+          pinnedBonus: ms.pinnedBonus,
+          finalScore: ms.finalScore,
+          isPinned: ms.isPinned ? 1 : 0,
+          metadataJson: JSON.stringify(ms.metadata || {}),
+          updatedAt: now,
+        }));
+
+        for (let i = 0; i < msPayloads.length; i += 50) {
+          const chunk = msPayloads.slice(i, i + 50);
+          await db
+            .insert(analyticsMemoryScores)
+            .values(chunk)
+            .onConflictDoUpdate({
+              target: analyticsMemoryScores.id,
+              set: {
+                richnessScore: sql`excluded.richness_score`,
+                diversityScore: sql`excluded.diversity_score`,
+                longevityScore: sql`excluded.longevity_score`,
+                recurrenceScore: sql`excluded.recurrence_score`,
+                recencyScore: sql`excluded.recency_score`,
+                favoriteBonus: sql`excluded.favorite_bonus`,
+                pinnedBonus: sql`excluded.pinned_bonus`,
+                finalScore: sql`excluded.final_score`,
+                isPinned: sql`excluded.is_pinned`,
+                metadataJson: sql`excluded.metadata_json`,
+                updatedAt: now,
+              },
+            });
+        }
       }
 
       // 3. Rebuild Unified Activity Timeline Cache (`analytics_timeline`)
@@ -378,42 +382,48 @@ export async function rebuildAllAnalyticsCache(
         });
       });
 
-      // Atomic upserts for timeline items
-      for (const ti of timelineItems.slice(0, 200)) {
-        await db
-          .insert(analyticsTimeline)
-          .values({
-            id: ti.id,
-            date: ti.date,
-            type: ti.type,
-            title: ti.title,
-            entityType: ti.entityType,
-            entityId: ti.entityId,
-            relatedPeopleJson: JSON.stringify(ti.relatedPeople),
-            relatedLocationId: ti.relatedLocationId || null,
-            relatedTripId: ti.relatedTripId || null,
-            relatedJournalId: ti.relatedJournalId || null,
-            thumbnailUrl: ti.thumbnailUrl || null,
-            importanceScore: ti.importanceScore,
-            updatedAt: now,
-          })
-          .onConflictDoUpdate({
-            target: analyticsTimeline.id,
-            set: {
-              date: ti.date,
-              type: ti.type,
-              title: ti.title,
-              entityType: ti.entityType,
-              entityId: ti.entityId,
-              relatedPeopleJson: JSON.stringify(ti.relatedPeople),
-              relatedLocationId: ti.relatedLocationId || null,
-              relatedTripId: ti.relatedTripId || null,
-              relatedJournalId: ti.relatedJournalId || null,
-              thumbnailUrl: ti.thumbnailUrl || null,
-              importanceScore: ti.importanceScore,
-              updatedAt: now,
-            },
-          });
+      // Bulk upserts for timeline items (chunks of 50)
+      const slicedTimeline = timelineItems.slice(0, 200);
+      if (slicedTimeline.length > 0) {
+        const tiPayloads = slicedTimeline.map((ti) => ({
+          id: ti.id,
+          date: ti.date,
+          type: ti.type,
+          title: ti.title,
+          entityType: ti.entityType,
+          entityId: ti.entityId,
+          relatedPeopleJson: JSON.stringify(ti.relatedPeople),
+          relatedLocationId: ti.relatedLocationId || null,
+          relatedTripId: ti.relatedTripId || null,
+          relatedJournalId: ti.relatedJournalId || null,
+          thumbnailUrl: ti.thumbnailUrl || null,
+          importanceScore: ti.importanceScore,
+          updatedAt: now,
+        }));
+
+        for (let i = 0; i < tiPayloads.length; i += 50) {
+          const chunk = tiPayloads.slice(i, i + 50);
+          await db
+            .insert(analyticsTimeline)
+            .values(chunk)
+            .onConflictDoUpdate({
+              target: analyticsTimeline.id,
+              set: {
+                date: sql`excluded.date`,
+                type: sql`excluded.type`,
+                title: sql`excluded.title`,
+                entityType: sql`excluded.entity_type`,
+                entityId: sql`excluded.entity_id`,
+                relatedPeopleJson: sql`excluded.related_people_json`,
+                relatedLocationId: sql`excluded.related_location_id`,
+                relatedTripId: sql`excluded.related_trip_id`,
+                relatedJournalId: sql`excluded.related_journal_id`,
+                thumbnailUrl: sql`excluded.thumbnail_url`,
+                importanceScore: sql`excluded.importance_score`,
+                updatedAt: now,
+              },
+            });
+        }
       }
 
       // 4. Global Stats Summary
@@ -506,54 +516,61 @@ export async function rebuildAllAnalyticsCache(
         addMetricCount(mb.createdAt, "microblog", "posts_count", 1);
       });
 
-      for (const [key, item] of Object.entries(dailyCounts)) {
+      // Bulk upserts for daily, monthly, and yearly counts (chunks of 50)
+      const dailyPayloads = Object.entries(dailyCounts).map(([key, item]) => ({
+        id: key,
+        date: item.date,
+        module: item.module,
+        metricName: item.metricName,
+        value: item.value,
+        updatedAt: now,
+      }));
+      for (let i = 0; i < dailyPayloads.length; i += 50) {
+        const chunk = dailyPayloads.slice(i, i + 50);
         await db
           .insert(analyticsDaily)
-          .values({
-            id: key,
-            date: item.date,
-            module: item.module,
-            metricName: item.metricName,
-            value: item.value,
-            updatedAt: now,
-          })
+          .values(chunk)
           .onConflictDoUpdate({
             target: analyticsDaily.id,
-            set: { value: item.value, updatedAt: now },
+            set: { value: sql`excluded.value`, updatedAt: now },
           });
       }
 
-      for (const [key, item] of Object.entries(monthlyCounts)) {
+      const monthlyPayloads = Object.entries(monthlyCounts).map(([key, item]) => ({
+        id: key,
+        yearMonth: item.yearMonth,
+        module: item.module,
+        metricName: item.metricName,
+        value: item.value,
+        updatedAt: now,
+      }));
+      for (let i = 0; i < monthlyPayloads.length; i += 50) {
+        const chunk = monthlyPayloads.slice(i, i + 50);
         await db
           .insert(analyticsMonthly)
-          .values({
-            id: key,
-            yearMonth: item.yearMonth,
-            module: item.module,
-            metricName: item.metricName,
-            value: item.value,
-            updatedAt: now,
-          })
+          .values(chunk)
           .onConflictDoUpdate({
             target: analyticsMonthly.id,
-            set: { value: item.value, updatedAt: now },
+            set: { value: sql`excluded.value`, updatedAt: now },
           });
       }
 
-      for (const [key, item] of Object.entries(yearlyCounts)) {
+      const yearlyPayloads = Object.entries(yearlyCounts).map(([key, item]) => ({
+        id: key,
+        year: item.year,
+        module: item.module,
+        metricName: item.metricName,
+        value: item.value,
+        updatedAt: now,
+      }));
+      for (let i = 0; i < yearlyPayloads.length; i += 50) {
+        const chunk = yearlyPayloads.slice(i, i + 50);
         await db
           .insert(analyticsYearly)
-          .values({
-            id: key,
-            year: item.year,
-            module: item.module,
-            metricName: item.metricName,
-            value: item.value,
-            updatedAt: now,
-          })
+          .values(chunk)
           .onConflictDoUpdate({
             target: analyticsYearly.id,
-            set: { value: item.value, updatedAt: now },
+            set: { value: sql`excluded.value`, updatedAt: now },
           });
       }
 
