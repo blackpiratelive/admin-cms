@@ -36,6 +36,7 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
   String? _selectedTripId;
   String? _selectedPersonId;
   String? _existingLexicalState;
+  String? _existingSalt;
 
   List<dynamic> _locations = [];
   List<dynamic> _trips = [];
@@ -96,13 +97,14 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
 
         if (match.entryDate.isNotEmpty) {
           try {
-            _entryDate = DateFormat('yyyy-MM-DD').parse(match.entryDate);
+            _entryDate = DateFormat('yyyy-MM-dd').parse(match.entryDate);
           } catch (_) {}
         }
         _entryType = match.entryType;
         _mood = match.mood ?? 'good';
         _selectedLocationId = match.locationId;
         _selectedTripId = match.tripId;
+        _existingSalt = match.salt;
       }
 
       await _fetchContextData();
@@ -161,7 +163,7 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
         'tripId': _selectedTripId,
         'encryptedContent': encrypted['ciphertext'],
         'iv': encrypted['iv'],
-        'salt': JournalCryptoEngine.generateSalt(),
+        'salt': _existingSalt ?? JournalCryptoEngine.generateSalt(),
         'wordCount': wordCount,
         'readingTime': readingTime,
       };

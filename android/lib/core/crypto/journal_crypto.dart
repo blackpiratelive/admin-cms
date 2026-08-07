@@ -59,7 +59,7 @@ class JournalCryptoEngine {
       nonce: ivBytes,
     );
 
-    final combinedCiphertext = secretBox.concatenation();
+    final combinedCiphertext = secretBox.concatenation(nonce: false, mac: true);
     return {
       'encryptedDek': base64Encode(combinedCiphertext),
       'iv': base64Encode(ivBytes),
@@ -107,7 +107,7 @@ class JournalCryptoEngine {
       nonce: ivBytes,
     );
 
-    final combinedCiphertext = secretBox.concatenation();
+    final combinedCiphertext = secretBox.concatenation(nonce: false, mac: true);
     return {
       'ciphertext': base64Encode(combinedCiphertext),
       'iv': base64Encode(ivBytes),
@@ -155,7 +155,7 @@ class JournalCryptoEngine {
       nonce: ivBytes,
     );
 
-    final combinedCiphertext = secretBox.concatenation();
+    final combinedCiphertext = secretBox.concatenation(nonce: false, mac: true);
     return {
       'encryptedBytes': combinedCiphertext,
       'iv': base64Encode(ivBytes),
