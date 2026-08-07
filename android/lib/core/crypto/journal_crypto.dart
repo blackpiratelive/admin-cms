@@ -126,22 +126,48 @@ class JournalCryptoEngine {
     final ivBytes = base64Decode(ivBase64);
     final combinedBytes = base64Decode(ciphertextBase64);
 
-    final macLength = 16;
-    final ciphertext = combinedBytes.sublist(0, combinedBytes.length - macLength);
-    final mac = Mac(combinedBytes.sublist(combinedBytes.length - macLength));
+    try {
+      final macLength = 16;
+      final ciphertext = combinedBytes.sublist(0, combinedBytes.length - macLength);
+      final mac = Mac(combinedBytes.sublist(combinedBytes.length - macLength));
 
-    final secretBox = SecretBox(
-      ciphertext,
-      nonce: ivBytes,
-      mac: mac,
-    );
+      final secretBox = SecretBox(
+        ciphertext,
+        nonce: ivBytes,
+        mac: mac,
+      );
 
-    final decryptedBytes = await algorithm.decrypt(
-      secretBox,
-      secretKey: dek,
-    );
+      final decryptedBytes = await algorithm.decrypt(
+        secretBox,
+        secretKey: dek,
+      );
 
-    return utf8.decode(decryptedBytes);
+      return utf8.decode(decryptedBytes);
+    } catch (_) {
+      // Fallback for legacy entries saved during double-IV bug window
+      if (combinedBytes.length > 28) {
+        try {
+          final legacyBytes = combinedBytes.sublist(12);
+          final macLength = 16;
+          final ciphertext = legacyBytes.sublist(0, legacyBytes.length - macLength);
+          final mac = Mac(legacyBytes.sublist(legacyBytes.length - macLength));
+
+          final secretBox = SecretBox(
+            ciphertext,
+            nonce: ivBytes,
+            mac: mac,
+          );
+
+          final decryptedBytes = await algorithm.decrypt(
+            secretBox,
+            secretKey: dek,
+          );
+
+          return utf8.decode(decryptedBytes);
+        } catch (_) {}
+      }
+      rethrow;
+    }
   }
 
   // Encrypt raw byte array (for E2EE images & attachments)

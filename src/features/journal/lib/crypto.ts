@@ -189,14 +189,31 @@ export async function decryptText(
   const ciphertextBuffer = base64ToArrayBuffer(ciphertextBase64);
   const ivBuffer = base64ToArrayBuffer(ivBase64);
 
-  const decryptedBuffer = await window.crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: ivBuffer },
-    dekKey,
-    ciphertextBuffer
-  );
+  try {
+    const decryptedBuffer = await window.crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: ivBuffer },
+      dekKey,
+      ciphertextBuffer
+    );
 
-  const dec = new TextDecoder();
-  return dec.decode(decryptedBuffer);
+    const dec = new TextDecoder();
+    return dec.decode(decryptedBuffer);
+  } catch (err) {
+    // Fallback for legacy entries saved during double-IV bug window
+    if (ciphertextBuffer.byteLength > 28) {
+      try {
+        const legacyBuffer = ciphertextBuffer.slice(12);
+        const decryptedBuffer = await window.crypto.subtle.decrypt(
+          { name: "AES-GCM", iv: ivBuffer },
+          dekKey,
+          legacyBuffer
+        );
+        const dec = new TextDecoder();
+        return dec.decode(decryptedBuffer);
+      } catch (_) {}
+    }
+    throw err;
+  }
 }
 
 export async function createVerificationPayload(
