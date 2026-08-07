@@ -215,13 +215,20 @@ The database consists of **52 SQLite tables** managed via Drizzle ORM:
 ### 5.1 Overview
 The mobile app (`android/`) is a cross-platform Flutter application designed to replicate the web CMS visual aesthetics, responsive ergonomics, and theme system across Android smartphones and tablets.
 
-### 5.2 Key Architecture Modules
-- `lib/core/network/`: `api_client.dart` (REST client handling dynamic server URL connection, authentication, Microblog CRUD, location/trip pickers, and Vercel deployment hook trigger).
+### 5.2 Key Architecture Modules & REST API
+- **Next.js REST API Endpoints (`src/app/api/`)**:
+  - `/api/microblogs` (`GET` list/search/pagination, `POST` save/update microblog)
+  - `/api/microblogs/[id]` (`GET` single microblog, `DELETE` microblog)
+  - `/api/microblogs/batch-delete` (`POST` batch delete microblogs)
+  - `/api/locations` (`GET` location records for editor picker)
+  - `/api/trips` (`GET` trip records for editor picker)
+  - `/api/upload` (`POST` multipart image upload to Cloudinary)
+- `lib/core/network/`: `api_client.dart` (REST client handling dynamic server URL connection, authentication, Microblog CRUD, location/trip pickers, image uploads, and Vercel deployment hook trigger).
 - `lib/core/theme/`: `app_theme.dart` (Design system tokens supporting HN Orange `#FF6600`, Dark Mode, Mono, and Teal themes).
 - `lib/core/storage/`: `app_storage.dart` (Encrypted secure storage for JWT tokens, server URL, theme selection, and autosave preferences).
 - `lib/core/models/`: Models for `microblog.dart`, `location.dart`, `trip.dart`, and `social_status.dart`.
-- `lib/shared/widgets/`: `app_header.dart` (Header bar with `Ctrl+K` Command Palette launcher), `app_sidebar.dart` (Tablet/Desktop 16-module navigation sidebar), `app_drawer.dart` (Mobile navigation drawer), `deploy_widget.dart` (Sidebar footer Vercel deploy trigger widget), `command_palette.dart` (Fuzzy command search modal), and `toast_notification.dart`.
-- `lib/modules/microblog/`: `microblog_list_screen.dart` (Feature-complete list view with search, status filters, per page pagination, batch selection & deletion, inline edit/delete, status badges) and `microblog_editor_screen.dart` (CRUD editor with 4-tab metadata panel, location/trip pickers, date-time pickers, tag chip editor, social cross-posting to Bluesky & Mastodon, cover/media manager, RapidLink short URL generator, and live markdown preview).
+- `lib/shared/widgets/`: `app_header.dart` (Header bar wrapped in `SafeArea` with `Ctrl+K` Command Palette launcher), `app_sidebar.dart` (Tablet/Desktop 16-module navigation sidebar), `app_drawer.dart` (Mobile navigation drawer), `deploy_widget.dart` (Sidebar footer Vercel deploy trigger widget), `command_palette.dart` (Fuzzy command search modal), and `toast_notification.dart`.
+- `lib/modules/microblog/`: `microblog_list_screen.dart` (Feature-complete list view with search, status filters, per page pagination, batch selection & deletion, inline edit/delete, status badges) and `microblog_editor_screen.dart` (CRUD editor with 4-tab metadata panel, location/trip pickers, date-time pickers, tag chip editor, social cross-posting to Bluesky & Mastodon, native `image_picker` Cloudinary media uploader, RapidLink short URL generator, and live markdown preview).
 - `lib/modules/placeholders/`: `placeholder_module_screen.dart` (Polished "Coming Soon" placeholder views for remaining 15 CMS modules).
 
 ### 5.3 CircleCI CI/CD Pipeline (`.circleci/config.yml`)
