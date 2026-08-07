@@ -22,7 +22,7 @@ class AppSidebar extends StatelessWidget {
           fontSize: 10,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.1,
-          color: theme.colorScheme.onSurface.withOpacity(0.5),
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
         ),
       ),
     );
@@ -42,7 +42,7 @@ class AppSidebar extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       child: Material(
-        color: isActive ? colorScheme.primary.withOpacity(0.15) : Colors.transparent,
+        color: isActive ? colorScheme.primary.withValues(alpha: 0.15) : Colors.transparent,
         borderRadius: BorderRadius.circular(6),
         child: InkWell(
           borderRadius: BorderRadius.circular(6),
@@ -54,7 +54,7 @@ class AppSidebar extends StatelessWidget {
                 Icon(
                   icon,
                   size: 16,
-                  color: isActive ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.7),
+                  color: isActive ? colorScheme.primary : colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -71,14 +71,14 @@ class AppSidebar extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                     decoration: BoxDecoration(
-                      color: colorScheme.onSurface.withOpacity(0.08),
+                      color: colorScheme.onSurface.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(3),
                     ),
                     child: Text(
                       'soon',
                       style: TextStyle(
                         fontSize: 9,
-                        color: colorScheme.onSurface.withOpacity(0.5),
+                        color: colorScheme.onSurface.withValues(alpha: 0.5),
                       ),
                     ),
                   ),
@@ -100,7 +100,7 @@ class AppSidebar extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         border: Border(
-          right: BorderSide(color: colorScheme.outline.withOpacity(0.2)),
+          right: BorderSide(color: colorScheme.outline.withValues(alpha: 0.2)),
         ),
       ),
       child: Column(

@@ -19,7 +19,7 @@ class ToastNotification {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
           side: BorderSide(
-            color: isError ? Colors.red.shade700 : colorScheme.outline.withOpacity(0.3),
+            color: isError ? Colors.red.shade700 : colorScheme.outline.withValues(alpha: 0.3),
           ),
         ),
         content: Row(
@@ -48,7 +48,7 @@ class ToastNotification {
                       message,
                       style: TextStyle(
                         fontSize: 12,
-                        color: isError ? Colors.white70 : colorScheme.onSurface.withOpacity(0.7),
+                        color: isError ? Colors.white70 : colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                     ),
                 ],

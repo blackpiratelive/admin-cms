@@ -238,7 +238,7 @@ class _MicroblogListScreenState extends State<MicroblogListScreen> {
             decoration: BoxDecoration(
               color: colorScheme.surface,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+              border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
             ),
             child: Wrap(
               spacing: 12,
@@ -351,18 +351,18 @@ class _MicroblogListScreenState extends State<MicroblogListScreen> {
               decoration: BoxDecoration(
                 color: colorScheme.surface,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+                border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
               ),
               child: _items.isEmpty
                   ? Center(
                       child: Text(
                         _isFetching ? 'Loading microblog posts...' : 'No microblog posts found.',
-                        style: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
+                        style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.5)),
                       ),
                     )
                   : ListView.separated(
                       itemCount: _items.length,
-                      separatorBuilder: (ctx, i) => Divider(height: 1, color: colorScheme.outline.withOpacity(0.15)),
+                      separatorBuilder: (ctx, i) => Divider(height: 1, color: colorScheme.outline.withValues(alpha: 0.15)),
                       itemBuilder: (context, index) {
                         final item = _items[index];
                         final snippet = item.contentMarkdown.length > 60
@@ -409,14 +409,14 @@ class _MicroblogListScreenState extends State<MicroblogListScreen> {
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontFamily: 'monospace',
-                                  color: colorScheme.onSurface.withOpacity(0.5),
+                                  color: colorScheme.onSurface.withValues(alpha: 0.5),
                                 ),
                               ),
                               const Spacer(),
                               if (!isMobile)
                                 Text(
                                   _formatDate(item.publishedAt ?? item.createdAt),
-                                  style: TextStyle(fontSize: 11, color: colorScheme.onSurface.withOpacity(0.6)),
+                                  style: TextStyle(fontSize: 11, color: colorScheme.onSurface.withValues(alpha: 0.6)),
                                 ),
                             ],
                           ),
@@ -449,7 +449,7 @@ class _MicroblogListScreenState extends State<MicroblogListScreen> {
             children: [
               Text(
                 'Showing $startIndex to $endIndex of $_totalItems entries',
-                style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withOpacity(0.6)),
+                style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withValues(alpha: 0.6)),
               ),
               const Spacer(),
               IconButton(

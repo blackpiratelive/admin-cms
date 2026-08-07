@@ -245,7 +245,7 @@ class _MicroblogEditorScreenState extends State<MicroblogEditorScreen> with Sing
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: _status == 'published' ? Colors.green.withOpacity(0.2) : Colors.orange.withOpacity(0.2),
+                  color: _status == 'published' ? Colors.green.withValues(alpha: 0.2) : Colors.orange.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -279,7 +279,7 @@ class _MicroblogEditorScreenState extends State<MicroblogEditorScreen> with Sing
                   backgroundColor: colorScheme.surface,
                   foregroundColor: colorScheme.onSurface,
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  side: BorderSide(color: colorScheme.outline.withOpacity(0.3)),
+                  side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.3)),
                 ),
                 icon: const Icon(LucideIcons.save, size: 14),
                 label: const Text('Save Draft', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
@@ -341,7 +341,7 @@ class _MicroblogEditorScreenState extends State<MicroblogEditorScreen> with Sing
               decoration: BoxDecoration(
                 color: colorScheme.surface,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+                border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
               ),
               child: Column(
                 children: [
@@ -349,9 +349,9 @@ class _MicroblogEditorScreenState extends State<MicroblogEditorScreen> with Sing
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: colorScheme.onSurface.withOpacity(0.03),
+                      color: colorScheme.onSurface.withValues(alpha: 0.03),
                       borderRadius: const BorderRadius.only(topLeft: Radius.circular(8), topRight: Radius.circular(8)),
-                      border: Border(bottom: BorderSide(color: colorScheme.outline.withOpacity(0.15))),
+                      border: Border(bottom: BorderSide(color: colorScheme.outline.withValues(alpha: 0.15))),
                     ),
                     child: Row(
                       children: [
@@ -392,7 +392,7 @@ class _MicroblogEditorScreenState extends State<MicroblogEditorScreen> with Sing
                         // Words & Chars Telemetry
                         Text(
                           'Words: $_wordCount  Chars: $_charCount',
-                          style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: colorScheme.onSurface.withOpacity(0.6)),
+                          style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: colorScheme.onSurface.withValues(alpha: 0.6)),
                         ),
                       ],
                     ),
@@ -423,7 +423,7 @@ class _MicroblogEditorScreenState extends State<MicroblogEditorScreen> with Sing
                                   ),
                                 ),
                               ),
-                              VerticalDivider(width: 1, color: colorScheme.outline.withOpacity(0.2)),
+                              VerticalDivider(width: 1, color: colorScheme.outline.withValues(alpha: 0.2)),
                               // Right: Live Markdown Preview
                               Expanded(
                                 child: SingleChildScrollView(

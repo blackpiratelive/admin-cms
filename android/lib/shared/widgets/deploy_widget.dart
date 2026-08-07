@@ -51,7 +51,7 @@ class _DeployWidgetState extends State<DeployWidget> {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -76,7 +76,7 @@ class _DeployWidgetState extends State<DeployWidget> {
             'Ready to deploy',
             style: TextStyle(
               fontSize: 11,
-              color: colorScheme.onSurface.withOpacity(0.6),
+              color: colorScheme.onSurface.withValues(alpha: 0.6),
             ),
           ),
           const SizedBox(height: 10),
@@ -86,7 +86,7 @@ class _DeployWidgetState extends State<DeployWidget> {
               onPressed: _isDeploying ? null : _handleDeploy,
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-                side: BorderSide(color: colorScheme.outline.withOpacity(0.3)),
+                side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.3)),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
               ),
               icon: _isDeploying

@@ -59,10 +59,10 @@ class PlaceholderModuleScreen extends StatelessWidget {
           decoration: BoxDecoration(
             color: colorScheme.surface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+            border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
@@ -74,7 +74,7 @@ class PlaceholderModuleScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: colorScheme.primary.withOpacity(0.1),
+                  color: colorScheme.primary.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -99,7 +99,7 @@ class PlaceholderModuleScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: colorScheme.primary.withOpacity(0.15),
+                  color: colorScheme.primary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(

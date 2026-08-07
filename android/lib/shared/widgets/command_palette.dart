@@ -55,7 +55,7 @@ class _CommandPaletteModalState extends State<CommandPaletteModal> {
         decoration: BoxDecoration(
           color: colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: colorScheme.outline.withOpacity(0.3)),
+          border: Border.all(color: colorScheme.outline.withValues(alpha: 0.3)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -85,7 +85,7 @@ class _CommandPaletteModalState extends State<CommandPaletteModal> {
                       padding: const EdgeInsets.all(24),
                       child: Text(
                         'No matching command found.',
-                        style: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
+                        style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.5)),
                       ),
                     )
                   : ListView.builder(
@@ -105,13 +105,13 @@ class _CommandPaletteModalState extends State<CommandPaletteModal> {
                           ),
                           subtitle: Text(
                             item['category'],
-                            style: TextStyle(fontSize: 11, color: colorScheme.onSurface.withOpacity(0.5)),
+                            style: TextStyle(fontSize: 11, color: colorScheme.onSurface.withValues(alpha: 0.5)),
                           ),
                           trailing: isMicroblog
                               ? Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: colorScheme.primary.withOpacity(0.15),
+                                    color: colorScheme.primary.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
@@ -126,7 +126,7 @@ class _CommandPaletteModalState extends State<CommandPaletteModal> {
                               : Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: Colors.grey.withOpacity(0.15),
+                                    color: Colors.grey.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: const Text(

@@ -18,7 +18,7 @@ class LiveMarkdownPreview extends StatelessWidget {
         child: Text(
           'Live markdown preview will appear here as you type...',
           style: TextStyle(
-            color: colorScheme.onSurface.withOpacity(0.4),
+            color: colorScheme.onSurface.withValues(alpha: 0.4),
             fontStyle: FontStyle.italic,
           ),
         ),
@@ -38,16 +38,16 @@ class LiveMarkdownPreview extends StatelessWidget {
           code: TextStyle(
             fontSize: 13,
             fontFamily: 'monospace',
-            backgroundColor: colorScheme.onSurface.withOpacity(0.08),
+            backgroundColor: colorScheme.onSurface.withValues(alpha: 0.08),
             color: colorScheme.primary,
           ),
           codeblockDecoration: BoxDecoration(
             color: colorScheme.surface,
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+            border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
           ),
           blockquoteDecoration: BoxDecoration(
-            color: colorScheme.primary.withOpacity(0.05),
+            color: colorScheme.primary.withValues(alpha: 0.05),
             borderRadius: const BorderRadius.only(
               topRight: Radius.circular(4),
               bottomRight: Radius.circular(4),

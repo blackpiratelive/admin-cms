@@ -113,7 +113,7 @@ class _MetadataSettingsPanelState extends State<MetadataSettingsPanel> {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -134,13 +134,13 @@ class _MetadataSettingsPanelState extends State<MetadataSettingsPanel> {
                   const Spacer(),
                   Text(
                     _isCollapsed ? 'Expand Settings' : 'Collapse Settings',
-                    style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withOpacity(0.5)),
+                    style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withValues(alpha: 0.5)),
                   ),
                   const SizedBox(width: 4),
                   Icon(
                     _isCollapsed ? LucideIcons.chevronDown : LucideIcons.chevronUp,
                     size: 16,
-                    color: colorScheme.onSurface.withOpacity(0.5),
+                    color: colorScheme.onSurface.withValues(alpha: 0.5),
                   ),
                 ],
               ),
@@ -148,7 +148,7 @@ class _MetadataSettingsPanelState extends State<MetadataSettingsPanel> {
           ),
 
           if (!_isCollapsed) ...[
-            Divider(height: 1, color: colorScheme.outline.withOpacity(0.2)),
+            Divider(height: 1, color: colorScheme.outline.withValues(alpha: 0.2)),
 
             // Sub-Tabs
             SingleChildScrollView(
@@ -167,7 +167,7 @@ class _MetadataSettingsPanelState extends State<MetadataSettingsPanel> {
               ),
             ),
 
-            Divider(height: 1, color: colorScheme.outline.withOpacity(0.2)),
+            Divider(height: 1, color: colorScheme.outline.withValues(alpha: 0.2)),
 
             // Tab Content
             Padding(
@@ -194,7 +194,7 @@ class _MetadataSettingsPanelState extends State<MetadataSettingsPanel> {
           color: isSelected ? colorScheme.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
           border: Border.all(
-            color: isSelected ? colorScheme.primary : colorScheme.outline.withOpacity(0.2),
+            color: isSelected ? colorScheme.primary : colorScheme.outline.withValues(alpha: 0.2),
           ),
         ),
         child: Row(
@@ -402,9 +402,9 @@ class _MetadataSettingsPanelState extends State<MetadataSettingsPanel> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: colorScheme.onSurface.withOpacity(0.04),
+            color: colorScheme.onSurface.withValues(alpha: 0.04),
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+            border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

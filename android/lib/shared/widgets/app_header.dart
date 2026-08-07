@@ -57,9 +57,9 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: colors.headerText.withOpacity(0.15),
+                  color: colors.headerText.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: colors.headerText.withOpacity(0.3)),
+                  border: Border.all(color: colors.headerText.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   'HUGO + TURSO',
@@ -89,24 +89,24 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: colors.headerText.withOpacity(0.12),
+                  color: colors.headerText.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: colors.headerText.withOpacity(0.2)),
+                  border: Border.all(color: colors.headerText.withValues(alpha: 0.2)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(LucideIcons.search, size: 14, color: colors.headerText.withOpacity(0.8)),
+                    Icon(LucideIcons.search, size: 14, color: colors.headerText.withValues(alpha: 0.8)),
                     const SizedBox(width: 6),
                     Text(
                       'Search Everything...',
-                      style: TextStyle(fontSize: 12, color: colors.headerText.withOpacity(0.8)),
+                      style: TextStyle(fontSize: 12, color: colors.headerText.withValues(alpha: 0.8)),
                     ),
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                       decoration: BoxDecoration(
-                        color: colors.headerText.withOpacity(0.2),
+                        color: colors.headerText.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(3),
                       ),
                       child: Text(
@@ -160,7 +160,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
             onPressed: onLogout,
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              side: BorderSide(color: colors.headerText.withOpacity(0.4)),
+              side: BorderSide(color: colors.headerText.withValues(alpha: 0.4)),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
             ),
             icon: Icon(LucideIcons.logOut, size: 13, color: colors.headerText),
