@@ -1,0 +1,38 @@
+version: 2.1
+
+jobs:
+  build_android_apk:
+    docker:
+      - image: cimg/android:2026.07-ndk
+    steps:
+      - checkout
+      - run:
+          name: Install Flutter SDK
+          command: |
+            git clone https://github.com/flutter/flutter.git -b stable $HOME/flutter
+            echo 'export PATH="$HOME/flutter/bin:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
+            flutter doctor
+      - run:
+          name: Fetch Flutter Dependencies
+          command: |
+            cd android
+            flutter pub get
+      - run:
+          name: Analyze Flutter Code
+          command: |
+            cd android
+            flutter analyze
+      - run:
+          name: Build Android APK
+          command: |
+            cd android
+            flutter build apk --release
+      - store_artifacts:
+          path: android/build/app/outputs/flutter-apk/app-release.apk
+          destination: app-release.apk
+
+workflows:
+  build_and_test:
+    jobs:
+      - build_android_apk

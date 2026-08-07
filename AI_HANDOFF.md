@@ -22,7 +22,8 @@ This repository is **`admin-cms`**, a private, single-user **Personal Knowledge 
 
 ```text
 admin-cms/
-├── android/                     # Native Android Journal Application (Kotlin, Jetpack Compose, Room, WorkManager, DEK/KEK E2EE, Adaptive UI)
+├── android/                     # Flutter Cross-Platform Mobile & Tablet Application (Dart, Clean Architecture, Responsive Shell, Microblog Module, Multi-Theme)
+├── .circleci/                   # CircleCI CI/CD pipeline configuration for Flutter analyze and APK build
 ├── src/
 │   ├── app/
 │   │   ├── (auth)/login/        # Password login page
@@ -209,28 +210,23 @@ The database consists of **52 SQLite tables** managed via Drizzle ORM:
 
 ---
 
-## 5. Native Android Journal Application (`android/`) & Mobile REST API
+## 5. Flutter Mobile & Tablet Application (`android/`) & CircleCI Pipeline
 
 ### 5.1 Overview
-The native Android app ([android-journal.md](file:///home/dog/git/admin-cms/android-journal.md)) is an offline-first, E2EE companion application built with Kotlin, Jetpack Compose, Material 3, Room, WorkManager, Ktor, and BouncyCastle (Argon2id).
+The mobile app (`android/`) is a cross-platform Flutter application designed to replicate the web CMS visual aesthetics, responsive ergonomics, and theme system across Android smartphones and tablets.
 
 ### 5.2 Key Architecture Modules
-- `data/crypto/`: `CryptoEngine.kt` (Argon2id + AES-GCM), `KeystoreManager.kt`, `AssetEncryptor.kt`.
-- `data/local/`: Room DB (`JournalDatabase.kt`), entities, DAOs.
-- `data/remote/`: `JournalApiService.kt` (Ktor HTTP client).
-- `data/sync/`: `JournalSyncWorker.kt` (WorkManager background sync).
-- `domain/`: `LexicalDocument.kt` (AST node models), `LexicalParser.kt` (Bidirectional Lexical parser).
-- `ui/`: Compose views, adaptive layouts, native editor, encrypted image viewer.
+- `lib/core/network/`: `api_client.dart` (REST client handling dynamic server URL connection, authentication, Microblog CRUD, location/trip pickers, and Vercel deployment hook trigger).
+- `lib/core/theme/`: `app_theme.dart` (Design system tokens supporting HN Orange `#FF6600`, Dark Mode, Mono, and Teal themes).
+- `lib/core/storage/`: `app_storage.dart` (Encrypted secure storage for JWT tokens, server URL, theme selection, and autosave preferences).
+- `lib/core/models/`: Models for `microblog.dart`, `location.dart`, `trip.dart`, and `social_status.dart`.
+- `lib/shared/widgets/`: `app_header.dart` (Header bar with `Ctrl+K` Command Palette launcher), `app_sidebar.dart` (Tablet/Desktop 16-module navigation sidebar), `app_drawer.dart` (Mobile navigation drawer), `deploy_widget.dart` (Sidebar footer Vercel deploy trigger widget), `command_palette.dart` (Fuzzy command search modal), and `toast_notification.dart`.
+- `lib/modules/microblog/`: `microblog_list_screen.dart` (Feature-complete list view with search, status filters, per page pagination, batch selection & deletion, inline edit/delete, status badges) and `microblog_editor_screen.dart` (CRUD editor with 4-tab metadata panel, location/trip pickers, date-time pickers, tag chip editor, social cross-posting to Bluesky & Mastodon, cover/media manager, RapidLink short URL generator, and live markdown preview).
+- `lib/modules/placeholders/`: `placeholder_module_screen.dart` (Polished "Coming Soon" placeholder views for remaining 15 CMS modules).
 
-### 5.3 Mobile REST API Endpoints
-- `POST /api/auth/login`: Authenticates password and returns JWT token.
-- `GET /api/journal/status`: Reachability & health check.
-- `GET` & `POST /api/journal/keys`: Manages wrapped DEK & Argon2 parameters.
-- `GET` & `POST /api/journal/settings`: Manages verification payload and auto-lock settings.
-- `GET`, `POST`, `PUT`, `DELETE /api/journal/entries`: Entry CRUD endpoints.
-- `POST /api/journal/sync`: Batch incremental synchronization.
-- `GET` & `POST /api/journal/assets`: Reads and creates E2EE journal assets.
-- `POST /api/sync/stream`: Real-time Server-Sent Events (SSE) streaming endpoint for live terminal log output across all data providers.
+### 5.3 CircleCI CI/CD Pipeline (`.circleci/config.yml`)
+- Automated build workflow running on `cimg/android:2026.07-ndk`.
+- Clones Flutter stable channel, runs `flutter pub get`, performs `flutter analyze` static analysis check, builds `--release` APK (`flutter build apk --release`), and stores `app-release.apk` artifact.
 
 ---
 
@@ -241,7 +237,7 @@ The native Android app ([android-journal.md](file:///home/dog/git/admin-cms/andr
 - **Execute Vitest Suite**: `npm run test`
 - **Type Check**: `npx tsc --noEmit`
 - **Drizzle DB Push**: `npm run db:push`
-- **Android App Compile**: `cd android && ./gradlew assembleDebug` (requires `JAVA_HOME=/home/dog/jdk-17` and `ANDROID_HOME=/home/dog/Android/Sdk`)
+- **Flutter App Static Analysis**: `cd android && flutter analyze`
 
 ---
 
