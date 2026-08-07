@@ -144,6 +144,115 @@ class JournalCryptoEngine {
     return utf8.decode(decryptedBytes);
   }
 
+  // Encrypt raw byte array (for E2EE images & attachments)
+  static Future<Map<String, dynamic>> encryptBytes(List<int> bytes, SecretKey dek) async {
+    final algorithm = AesGcm.with256bits();
+    final ivBytes = base64Decode(generateIv());
+
+    final secretBox = await algorithm.encrypt(
+      bytes,
+      secretKey: dek,
+      nonce: ivBytes,
+    );
+
+    final combinedCiphertext = secretBox.concatenation();
+    return {
+      'encryptedBytes': combinedCiphertext,
+      'iv': base64Encode(ivBytes),
+    };
+  }
+
+  // Decrypt raw byte array (for E2EE images & attachments)
+  static Future<List<int>> decryptBytes(List<int> combinedBytes, String ivBase64, SecretKey dek) async {
+    final algorithm = AesGcm.with256bits();
+    final ivBytes = base64Decode(ivBase64);
+
+    final macLength = 16;
+    final ciphertext = combinedBytes.sublist(0, combinedBytes.length - macLength);
+    final mac = Mac(combinedBytes.sublist(combinedBytes.length - macLength));
+
+    final secretBox = SecretBox(
+      ciphertext,
+      nonce: ivBytes,
+      mac: mac,
+    );
+
+    return await algorithm.decrypt(
+      secretBox,
+      secretKey: dek,
+    );
+  }
+
+  // Helper to extract clean plaintext from Lexical JSON AST structure
+  static String extractPlaintextFromLexicalState(String lexicalJsonStr) {
+    if (lexicalJsonStr.trim().isEmpty) return '';
+    try {
+      final state = jsonDecode(lexicalJsonStr);
+      final StringBuffer buffer = StringBuffer();
+
+      void traverse(dynamic node) {
+        if (node is Map) {
+          if (node.containsKey('text') && node['text'] is String) {
+            buffer.write('${node['text']} ');
+          }
+          if (node.containsKey('children') && node['children'] is List) {
+            for (final child in node['children']) {
+              traverse(child);
+            }
+          }
+        }
+      }
+
+      if (state is Map && state.containsKey('root')) {
+        traverse(state['root']);
+      }
+      return buffer.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+    } catch (_) {
+      return lexicalJsonStr;
+    }
+  }
+
+  // Helper to convert plain markdown/text into valid Lexical JSON AST for Web CMS compatibility
+  static String buildLexicalStateFromText(String text) {
+    if (text.trim().isEmpty) {
+      return jsonEncode({
+        'root': {'children': [], 'direction': null, 'format': '', 'indent': 0, 'type': 'root', 'version': 1}
+      });
+    }
+
+    final paragraphs = text.split('\n\n').where((p) => p.trim().isNotEmpty).toList();
+    final children = paragraphs.map((p) => {
+      'children': [
+        {
+          'detail': 0,
+          'format': 0,
+          'mode': 'normal',
+          'style': '',
+          'text': p.trim(),
+          'type': 'text',
+          'version': 1,
+        }
+      ],
+      'direction': 'ltr',
+      'format': '',
+      'indent': 0,
+      'type': 'paragraph',
+      'version': 1,
+      'textFormat': 0,
+    }).toList();
+
+    return jsonEncode({
+      'root': {
+        'children': children,
+        'direction': 'ltr',
+        'format': '',
+        'indent': 0,
+        'type': 'root',
+        'version': 1,
+      }
+    });
+  }
+
   // Verify DEK against verificationPayload
   static Future<bool> verifyDEK(
     SecretKey dek,

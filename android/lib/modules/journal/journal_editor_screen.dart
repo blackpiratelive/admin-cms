@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
+import 'dart:convert';
 import '../../core/crypto/journal_crypto.dart';
 import '../../core/crypto/journal_session_vault.dart';
 import '../../core/network/api_client.dart';
 import '../../shared/widgets/toast_notification.dart';
+import 'widgets/journal_attachments_widget.dart';
 
 class JournalEditorScreen extends StatefulWidget {
   final String? editId;
@@ -33,6 +35,7 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
   String? _selectedLocationId;
   String? _selectedTripId;
   String? _selectedPersonId;
+  String? _existingLexicalState;
 
   List<dynamic> _locations = [];
   List<dynamic> _trips = [];
@@ -67,13 +70,27 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
         final dek = JournalSessionVault.activeDek;
         if (dek != null && match.encryptedContent.isNotEmpty) {
           final plaintext = await JournalCryptoEngine.decryptText(match.encryptedContent, match.iv, dek);
-          final lines = plaintext.split('\n');
-          if (lines.isNotEmpty && lines[0].trim().startsWith('#')) {
-            _titleController.text = lines[0].replaceAll(RegExp(r'^#+\s*'), '').trim();
-            _contentController.text = lines.sublist(1).join('\n').trim();
+
+          if (plaintext.trim().startsWith('{')) {
+            try {
+              final Map<String, dynamic> json = jsonDecode(plaintext);
+              _titleController.text = (json['title'] as String?) ?? '';
+              _existingLexicalState = json['lexicalState'] as String?;
+              _contentController.text = (json['markdown'] as String?) ??
+                  (_existingLexicalState != null ? JournalCryptoEngine.extractPlaintextFromLexicalState(_existingLexicalState!) : '');
+            } catch (_) {
+              _titleController.text = match.decryptedTitle ?? '';
+              _contentController.text = match.decryptedMarkdown ?? '';
+            }
           } else {
-            _titleController.text = lines.first;
-            _contentController.text = lines.sublist(1).join('\n').trim();
+            final lines = plaintext.split('\n');
+            if (lines.isNotEmpty && lines[0].trim().startsWith('#')) {
+              _titleController.text = lines[0].replaceAll(RegExp(r'^#+\s*'), '').trim();
+              _contentController.text = lines.sublist(1).join('\n').trim();
+            } else {
+              _titleController.text = lines.first;
+              _contentController.text = lines.sublist(1).join('\n').trim();
+            }
           }
         }
 
@@ -123,8 +140,14 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
     setState(() => _isSaving = true);
 
     try {
-      final plaintext = '# $title\n\n$body';
-      final encrypted = await JournalCryptoEngine.encryptText(plaintext, dek);
+      final lexicalState = JournalCryptoEngine.buildLexicalStateFromText(body);
+      final jsonPayload = jsonEncode({
+        'title': title.isEmpty ? 'Untitled Journal Entry' : title,
+        'lexicalState': lexicalState,
+        'markdown': body,
+      });
+
+      final encrypted = await JournalCryptoEngine.encryptText(jsonPayload, dek);
 
       final dateStr = DateFormat('yyyy-MM-dd').format(_entryDate);
       final wordCount = body.trim().isEmpty ? 0 : body.trim().split(RegExp(r'\s+')).length;
@@ -326,36 +349,65 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
 
           // Main Editor Body + Context Sidebar
           Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Left: Editor
-                Expanded(
-                  flex: 3,
-                  child: Column(
-                    children: [
-                      // Title Input Box
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isMobile = constraints.maxWidth < 750;
+
+                final editorSection = Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Title Input Box
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surface,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+                      ),
+                      child: TextField(
+                        controller: _titleController,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        decoration: const InputDecoration(
+                          hintText: 'Title of your journal entry...',
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Textarea & Formatting Bar
+                    if (isMobile)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
                           color: colorScheme.surface,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
                         ),
-                        child: TextField(
-                          controller: _titleController,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                          decoration: const InputDecoration(
-                            hintText: 'Title of your journal entry...',
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                          ),
+                        child: Column(
+                          children: [
+                            _buildFormattingToolbar(context),
+                            Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: TextField(
+                                controller: _contentController,
+                                minLines: 8,
+                                maxLines: null,
+                                style: const TextStyle(fontSize: 14, height: 1.5),
+                                decoration: const InputDecoration(
+                                  hintText: 'Write your journal entry... Type \'/\' for commands or \'@\' to mention entities.',
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                ),
+                                onChanged: (_) => setState(() {}),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 8),
-
-                      // Textarea & Formatting Bar
+                      )
+                    else
                       Expanded(
                         child: Container(
                           decoration: BoxDecoration(
@@ -365,55 +417,7 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
                           ),
                           child: Column(
                             children: [
-                              // Formatting Toolbar & Telemetry Bar
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: colorScheme.onSurface.withValues(alpha: 0.03),
-                                  border: Border(bottom: BorderSide(color: colorScheme.outline.withValues(alpha: 0.15))),
-                                ),
-                                child: Row(
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(LucideIcons.bold, size: 14),
-                                      onPressed: () => setState(() => _contentController.text += '**bold text**'),
-                                      tooltip: 'Bold',
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(LucideIcons.italic, size: 14),
-                                      onPressed: () => setState(() => _contentController.text += '*italic text*'),
-                                      tooltip: 'Italic',
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(LucideIcons.heading1, size: 14),
-                                      onPressed: () => setState(() => _contentController.text += '\n# Heading 1\n'),
-                                      tooltip: 'H1',
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(LucideIcons.heading2, size: 14),
-                                      onPressed: () => setState(() => _contentController.text += '\n## Heading 2\n'),
-                                      tooltip: 'H2',
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(LucideIcons.list, size: 14),
-                                      onPressed: () => setState(() => _contentController.text += '\n- List item\n'),
-                                      tooltip: 'Bullet List',
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(LucideIcons.image, size: 14),
-                                      onPressed: _pickAndInsertImage,
-                                      tooltip: 'Insert Image',
-                                    ),
-                                    const Spacer(),
-                                    Text(
-                                      '$_wordCount words  $_charCount chars  $_readTime min read',
-                                      style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: colorScheme.onSurface.withValues(alpha: 0.6)),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              // Text Field
+                              _buildFormattingToolbar(context),
                               Expanded(
                                 child: Padding(
                                   padding: const EdgeInsets.all(12),
@@ -436,147 +440,227 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
+                    const SizedBox(height: 12),
 
-                // Right Sidebar: Context & Connections
-                Expanded(
-                  flex: 1,
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surface,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
-                    ),
+                    // Encrypted Attachments Section
+                    JournalAttachmentsWidget(entryId: widget.editId),
+                  ],
+                );
+
+                if (isMobile) {
+                  return SingleChildScrollView(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text(
-                          'Context & Connections',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
-                        const Divider(height: 16),
-
-                        // Location Picker
-                        Row(
-                          children: const [
-                            Icon(LucideIcons.mapPin, size: 13, color: Colors.orange),
-                            SizedBox(width: 6),
-                            Text('Location', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        DropdownButtonFormField<String?>(
-                          initialValue: _selectedLocationId,
-                          isDense: true,
-                          style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
-                          items: [
-                            const DropdownMenuItem(value: null, child: Text('No location linked')),
-                            ..._locations.map((loc) => DropdownMenuItem(
-                                  value: loc['id'] as String,
-                                  child: Text(loc['name'] as String, overflow: TextOverflow.ellipsis),
-                                )),
-                          ],
-                          onChanged: (val) => setState(() => _selectedLocationId = val),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Trip Picker
-                        Row(
-                          children: const [
-                            Icon(LucideIcons.navigation, size: 13, color: Colors.orange),
-                            SizedBox(width: 6),
-                            Text('Trip', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        DropdownButtonFormField<String?>(
-                          initialValue: _selectedTripId,
-                          isDense: true,
-                          style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
-                          items: [
-                            const DropdownMenuItem(value: null, child: Text('No trip linked')),
-                            ..._trips.map((trip) => DropdownMenuItem(
-                                  value: trip['id'] as String,
-                                  child: Text(trip['title'] as String, overflow: TextOverflow.ellipsis),
-                                )),
-                          ],
-                          onChanged: (val) => setState(() => _selectedTripId = val),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // People Present Picker
-                        Row(
-                          children: const [
-                            Icon(LucideIcons.users, size: 13, color: Colors.orange),
-                            SizedBox(width: 6),
-                            Text('People Present', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        DropdownButtonFormField<String?>(
-                          initialValue: _selectedPersonId,
-                          isDense: true,
-                          style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
-                          items: [
-                            const DropdownMenuItem(value: null, child: Text('+ Tag Person')),
-                            ..._people.map((person) => DropdownMenuItem(
-                                  value: person['id'] as String,
-                                  child: Text(person['displayName'] as String, overflow: TextOverflow.ellipsis),
-                                )),
-                          ],
-                          onChanged: (val) => setState(() => _selectedPersonId = val),
-                        ),
+                        editorSection,
                         const SizedBox(height: 16),
-
-                        // On This Day Box
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: colorScheme.onSurface.withValues(alpha: 0.04),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: colorScheme.outline.withValues(alpha: 0.15)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'ON THIS DAY (${DateFormat('yyyy-MM-dd').format(_entryDate)})',
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: colorScheme.onSurface.withValues(alpha: 0.6)),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  const Icon(LucideIcons.film, size: 12),
-                                  const SizedBox(width: 6),
-                                  Text('Movies Watched (${_contextData['moviesCount'] ?? 0})', style: const TextStyle(fontSize: 11)),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  const Icon(LucideIcons.music, size: 12),
-                                  const SizedBox(width: 6),
-                                  Text('Music Listen Count (${_contextData['scrobblesCount'] ?? 0})', style: const TextStyle(fontSize: 11)),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  const Icon(LucideIcons.camera, size: 12),
-                                  const SizedBox(width: 6),
-                                  Text('Photos Captured (${_contextData['photosCount'] ?? 0})', style: const TextStyle(fontSize: 11)),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
+                        _buildContextSidebar(context),
                       ],
                     ),
-                  ),
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 3, child: editorSection),
+                    const SizedBox(width: 12),
+                    Expanded(flex: 1, child: SingleChildScrollView(child: _buildContextSidebar(context))),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFormattingToolbar(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: colorScheme.onSurface.withValues(alpha: 0.03),
+        border: Border(bottom: BorderSide(color: colorScheme.outline.withValues(alpha: 0.15))),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(LucideIcons.bold, size: 14),
+              onPressed: () => setState(() => _contentController.text += '**bold text**'),
+              tooltip: 'Bold',
+            ),
+            IconButton(
+              icon: const Icon(LucideIcons.italic, size: 14),
+              onPressed: () => setState(() => _contentController.text += '*italic text*'),
+              tooltip: 'Italic',
+            ),
+            IconButton(
+              icon: const Icon(LucideIcons.heading1, size: 14),
+              onPressed: () => setState(() => _contentController.text += '\n# Heading 1\n'),
+              tooltip: 'H1',
+            ),
+            IconButton(
+              icon: const Icon(LucideIcons.heading2, size: 14),
+              onPressed: () => setState(() => _contentController.text += '\n## Heading 2\n'),
+              tooltip: 'H2',
+            ),
+            IconButton(
+              icon: const Icon(LucideIcons.list, size: 14),
+              onPressed: () => setState(() => _contentController.text += '\n- List item\n'),
+              tooltip: 'Bullet List',
+            ),
+            IconButton(
+              icon: const Icon(LucideIcons.image, size: 14),
+              onPressed: _pickAndInsertImage,
+              tooltip: 'Insert Image',
+            ),
+            const SizedBox(width: 12),
+            Text(
+              '$_wordCount words  $_charCount chars  $_readTime min read',
+              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: colorScheme.onSurface.withValues(alpha: 0.6)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContextSidebar(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Context & Connections',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          ),
+          const Divider(height: 16),
+
+          // Location Picker
+          Row(
+            children: const [
+              Icon(LucideIcons.mapPin, size: 13, color: Colors.orange),
+              SizedBox(width: 6),
+              Text('Location', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          DropdownButtonFormField<String?>(
+            initialValue: _selectedLocationId,
+            isDense: true,
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('No location linked')),
+              ..._locations.map((loc) => DropdownMenuItem(
+                    value: loc['id'] as String,
+                    child: Text(loc['name'] as String, overflow: TextOverflow.ellipsis),
+                  )),
+            ],
+            onChanged: (val) => setState(() => _selectedLocationId = val),
+          ),
+          const SizedBox(height: 12),
+
+          // Trip Picker
+          Row(
+            children: const [
+              Icon(LucideIcons.navigation, size: 13, color: Colors.orange),
+              SizedBox(width: 6),
+              Text('Trip', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          DropdownButtonFormField<String?>(
+            initialValue: _selectedTripId,
+            isDense: true,
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('No trip linked')),
+              ..._trips.map((trip) => DropdownMenuItem(
+                    value: trip['id'] as String,
+                    child: Text(trip['title'] as String, overflow: TextOverflow.ellipsis),
+                  )),
+            ],
+            onChanged: (val) => setState(() => _selectedTripId = val),
+          ),
+          const SizedBox(height: 12),
+
+          // People Present Picker
+          Row(
+            children: const [
+              Icon(LucideIcons.users, size: 13, color: Colors.orange),
+              SizedBox(width: 6),
+              Text('People Present', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          DropdownButtonFormField<String?>(
+            initialValue: _selectedPersonId,
+            isDense: true,
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('+ Tag Person')),
+              ..._people.map((person) => DropdownMenuItem(
+                    value: person['id'] as String,
+                    child: Text(person['displayName'] as String, overflow: TextOverflow.ellipsis),
+                  )),
+            ],
+            onChanged: (val) => setState(() => _selectedPersonId = val),
+          ),
+          const SizedBox(height: 16),
+
+          // On This Day Box
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: colorScheme.onSurface.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: colorScheme.outline.withValues(alpha: 0.15)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ON THIS DAY (${DateFormat('yyyy-MM-dd').format(_entryDate)})',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: colorScheme.onSurface.withValues(alpha: 0.6)),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(LucideIcons.film, size: 12),
+                    const SizedBox(width: 6),
+                    Text('Movies Watched (${_contextData['moviesCount'] ?? 0})', style: const TextStyle(fontSize: 11)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(LucideIcons.music, size: 12),
+                    const SizedBox(width: 6),
+                    Text('Music Listen Count (${_contextData['scrobblesCount'] ?? 0})', style: const TextStyle(fontSize: 11)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(LucideIcons.camera, size: 12),
+                    const SizedBox(width: 6),
+                    Text('Photos Captured (${_contextData['photosCount'] ?? 0})', style: const TextStyle(fontSize: 11)),
+                  ],
                 ),
               ],
             ),

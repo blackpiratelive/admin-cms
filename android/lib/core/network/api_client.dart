@@ -8,6 +8,7 @@ import '../models/social_status.dart';
 import '../models/journal_entry.dart';
 import '../models/journal_key.dart';
 import '../models/journal_settings.dart';
+import '../models/journal_asset.dart';
 
 class ApiClient {
   static const Duration timeoutDuration = Duration(seconds: 5);
@@ -344,5 +345,85 @@ class ApiClient {
       }
     } catch (_) {}
     return {'moviesCount': 0, 'scrobblesCount': 0, 'photosCount': 0, 'microblogsCount': 0};
+  }
+
+  // --- JOURNAL ASSETS ENDPOINTS ---
+
+  static Future<List<JournalAssetRecord>> getJournalAssets(String entryId) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/journal/assets?entryId=$entryId');
+    final headers = await _getHeaders();
+
+    final response = await http.get(uri, headers: headers).timeout(timeoutDuration);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final list = (data['assets'] as List? ?? []);
+      return list.map((e) => JournalAssetRecord.fromJson(e)).toList();
+    }
+    return [];
+  }
+
+  static Future<Map<String, dynamic>> uploadRawEncryptedAsset(List<int> bytes, String fileName) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/upload/raw');
+    final token = await AppStorage.getAuthToken();
+
+    final request = http.MultipartRequest('POST', uri);
+    if (token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+
+    request.files.add(http.MultipartFile.fromBytes(
+      'file',
+      bytes,
+      filename: fileName,
+    ));
+    request.fields['fileName'] = fileName;
+
+    final streamedResponse = await request.send().timeout(const Duration(seconds: 45));
+    final response = await http.Response.fromStream(streamedResponse);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(response.body);
+    }
+    throw Exception('Failed to upload raw asset (${response.statusCode})');
+  }
+
+  static Future<JournalAssetRecord> createJournalAssetRecord(Map<String, dynamic> input) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/journal/assets');
+    final headers = await _getHeaders();
+
+    final response = await http.post(uri, headers: headers, body: jsonEncode(input)).timeout(timeoutDuration);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return JournalAssetRecord.fromJson(jsonDecode(response.body));
+    }
+    throw Exception('Failed to create journal asset record (${response.statusCode})');
+  }
+
+  static Future<bool> deleteJournalAssetRecord(String assetId) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/journal/assets?assetId=$assetId');
+    final headers = await _getHeaders();
+
+    final response = await http.delete(uri, headers: headers).timeout(timeoutDuration);
+    return response.statusCode == 200;
+  }
+
+  static Future<List<int>> downloadRawEncryptedAsset(String publicId) async {
+    final cloudName = 'dhz4kwmsy'; // Standard Cloudinary cloud name fallback
+    final url = 'https://res.cloudinary.com/$cloudName/raw/upload/$publicId';
+
+    final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
+    if (response.statusCode == 200) {
+      return response.bodyBytes;
+    }
+    // Attempt fallback auto/upload
+    final autoUrl = 'https://res.cloudinary.com/$cloudName/auto/upload/$publicId';
+    final fallbackRes = await http.get(Uri.parse(autoUrl)).timeout(const Duration(seconds: 30));
+    if (fallbackRes.statusCode == 200) {
+      return fallbackRes.bodyBytes;
+    }
+    throw Exception('Failed to download encrypted asset HTTP ${response.statusCode}');
   }
 }

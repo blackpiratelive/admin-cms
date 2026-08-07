@@ -24,6 +24,7 @@ class JournalEntryRecord {
   // Decrypted fields (cached after decryption)
   String? decryptedTitle;
   String? decryptedMarkdown;
+  String? decryptedLexicalState;
 
   JournalEntryRecord({
     required this.id,
@@ -47,6 +48,7 @@ class JournalEntryRecord {
     required this.updatedAt,
     this.decryptedTitle,
     this.decryptedMarkdown,
+    this.decryptedLexicalState,
   });
 
   factory JournalEntryRecord.fromJson(Map<String, dynamic> json) {

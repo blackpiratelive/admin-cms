@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
+import 'dart:convert';
 import '../../core/crypto/journal_crypto.dart';
 import '../../core/crypto/journal_session_vault.dart';
 import '../../core/models/journal_entry.dart';
@@ -56,6 +57,23 @@ class _JournalMainScreenState extends State<JournalMainScreen> {
               entry.iv,
               dek,
             );
+
+            // Attempt Lexical JSON payload decryption
+            if (plaintext.trim().startsWith('{')) {
+              try {
+                final Map<String, dynamic> json = jsonDecode(plaintext);
+                final title = (json['title'] as String?) ?? 'Untitled Journal Entry';
+                final lexicalState = (json['lexicalState'] as String?) ?? '';
+                final markdown = (json['markdown'] as String?) ?? JournalCryptoEngine.extractPlaintextFromLexicalState(lexicalState);
+
+                entry.decryptedTitle = title;
+                entry.decryptedMarkdown = markdown;
+                entry.decryptedLexicalState = lexicalState;
+                continue;
+              } catch (_) {}
+            }
+
+            // Legacy Plaintext Markdown Fallback
             final lines = plaintext.split('\n');
             var title = 'Untitled Entry';
             var body = plaintext;
@@ -392,21 +410,43 @@ class _JournalMainScreenState extends State<JournalMainScreen> {
   Widget _buildTimelineView(BuildContext context, List<JournalEntryRecord> entries) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final isMobile = MediaQuery.of(context).size.width < 650;
 
     return Column(
       children: [
-        // 4 Telemetry Cards Row
-        Row(
-          children: [
-            _buildStatCard(context, title: 'WRITING STREAK', value: '$_streakDays Days', sub: 'Best: 21 days', icon: LucideIcons.flame, color: Colors.orange),
-            const SizedBox(width: 12),
-            _buildStatCard(context, title: 'TOTAL ENTRIES', value: '${entries.length}', sub: '${entries.length} recorded', icon: LucideIcons.book, color: Colors.blue),
-            const SizedBox(width: 12),
-            _buildStatCard(context, title: 'WORDS WRITTEN', value: NumberFormat('#,###').format(_totalWords), sub: 'Avg $_avgWords words/entry', icon: LucideIcons.fileText, color: Colors.purple),
-            const SizedBox(width: 12),
-            _buildStatCard(context, title: 'FAVORITES', value: '$_totalFavorites', sub: 'Starred memories', icon: LucideIcons.star, color: Colors.amber),
-          ],
-        ),
+        // 4 Telemetry Cards (2x2 on Mobile, 1x4 on Tablet/Desktop)
+        if (isMobile)
+          Column(
+            children: [
+              Row(
+                children: [
+                  _buildStatCard(context, title: 'WRITING STREAK', value: '$_streakDays Days', sub: 'Best: 21 days', icon: LucideIcons.flame, color: Colors.orange),
+                  const SizedBox(width: 8),
+                  _buildStatCard(context, title: 'TOTAL ENTRIES', value: '${entries.length}', sub: '${entries.length} recorded', icon: LucideIcons.book, color: Colors.blue),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _buildStatCard(context, title: 'WORDS WRITTEN', value: NumberFormat('#,###').format(_totalWords), sub: 'Avg $_avgWords words/entry', icon: LucideIcons.fileText, color: Colors.purple),
+                  const SizedBox(width: 8),
+                  _buildStatCard(context, title: 'FAVORITES', value: '$_totalFavorites', sub: 'Starred memories', icon: LucideIcons.star, color: Colors.amber),
+                ],
+              ),
+            ],
+          )
+        else
+          Row(
+            children: [
+              _buildStatCard(context, title: 'WRITING STREAK', value: '$_streakDays Days', sub: 'Best: 21 days', icon: LucideIcons.flame, color: Colors.orange),
+              const SizedBox(width: 12),
+              _buildStatCard(context, title: 'TOTAL ENTRIES', value: '${entries.length}', sub: '${entries.length} recorded', icon: LucideIcons.book, color: Colors.blue),
+              const SizedBox(width: 12),
+              _buildStatCard(context, title: 'WORDS WRITTEN', value: NumberFormat('#,###').format(_totalWords), sub: 'Avg $_avgWords words/entry', icon: LucideIcons.fileText, color: Colors.purple),
+              const SizedBox(width: 12),
+              _buildStatCard(context, title: 'FAVORITES', value: '$_totalFavorites', sub: 'Starred memories', icon: LucideIcons.star, color: Colors.amber),
+            ],
+          ),
         const SizedBox(height: 16),
 
         // Grouped Entries List
