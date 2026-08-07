@@ -245,6 +245,25 @@ class _MicroblogListScreenState extends State<MicroblogListScreen> {
               runSpacing: 12,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
+                // Select All Checkbox
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Checkbox(
+                      value: isAllSelected,
+                      onChanged: (val) {
+                        setState(() {
+                          if (val == true) {
+                            _selectedIds.addAll(_items.map((e) => e.id));
+                          } else {
+                            _selectedIds.removeAll(_items.map((e) => e.id));
+                          }
+                        });
+                      },
+                    ),
+                    const Text('Select All', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                  ],
+                ),
                 // Search Input
                 ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: isMobile ? double.infinity : 350),

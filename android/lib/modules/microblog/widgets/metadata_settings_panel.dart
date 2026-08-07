@@ -265,7 +265,7 @@ class _MetadataSettingsPanelState extends State<MetadataSettingsPanel> {
                   const Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   DropdownButtonFormField<String>(
-                    value: widget.status,
+                    initialValue: widget.status,
                     isDense: true,
                     style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
                     items: const [
@@ -295,7 +295,7 @@ class _MetadataSettingsPanelState extends State<MetadataSettingsPanel> {
                   const Text('Associated Location', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   DropdownButtonFormField<String?>(
-                    value: widget.selectedLocationId?.isEmpty ?? true ? null : widget.selectedLocationId,
+                    initialValue: widget.selectedLocationId?.isEmpty ?? true ? null : widget.selectedLocationId,
                     isDense: true,
                     style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
                     items: [
@@ -318,7 +318,7 @@ class _MetadataSettingsPanelState extends State<MetadataSettingsPanel> {
                   const Text('Associated Trip', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   DropdownButtonFormField<String?>(
-                    value: widget.selectedTripId?.isEmpty ?? true ? null : widget.selectedTripId,
+                    initialValue: widget.selectedTripId?.isEmpty ?? true ? null : widget.selectedTripId,
                     isDense: true,
                     style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
                     items: [

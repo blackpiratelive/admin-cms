@@ -70,7 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Container(
-            maxWidth: 440,
+            constraints: const BoxConstraints(maxWidth: 440),
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
               color: colorScheme.surface,
