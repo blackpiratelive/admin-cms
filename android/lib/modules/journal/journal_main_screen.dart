@@ -31,6 +31,23 @@ class _JournalMainScreenState extends State<JournalMainScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   DateTime _calendarMonth = DateTime.now();
+  String? _selectedCalendarDate;
+
+  static const Map<String, String> _entryTypeLabels = {
+    'daily': '📖 Daily Journal',
+    'reflection': '🧠 Reflection',
+    'travel': '✈️ Travel Journal',
+    'dream': '🌙 Dream',
+    'meeting': '🤝 Meeting Notes',
+    'ideas': '💡 Ideas',
+    'gratitude': '🙏 Gratitude',
+    'life_event': '🎉 Life Event',
+    'health': '🏋️ Health & Fitness',
+    'thoughts': '💬 Random Thoughts',
+    'project': '📁 Project Journal',
+    'learning': '📚 Learning Journal',
+    'custom': '✍️ Custom',
+  };
 
   @override
   void initState() {
@@ -510,7 +527,7 @@ class _JournalMainScreenState extends State<JournalMainScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final typeLabel = entry.entryType.toUpperCase();
+    final typeLabel = _entryTypeLabels[entry.entryType.toLowerCase()] ?? '📖 ${entry.entryType.toUpperCase()}';
     final moodLabel = entry.mood != null && entry.mood!.isNotEmpty
         ? entry.mood![0].toUpperCase() + entry.mood!.substring(1)
         : 'Neutral';
@@ -592,54 +609,170 @@ class _JournalMainScreenState extends State<JournalMainScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final entryDates = entries.map((e) => e.entryDate).toSet();
+    final firstDayOfMonth = DateTime(_calendarMonth.year, _calendarMonth.month, 1);
+    final firstWeekday = firstDayOfMonth.weekday % 7; // 0 for Sun, 1 for Mon ... 6 for Sat
+    final daysInMonth = DateUtils.getDaysInMonth(_calendarMonth.year, _calendarMonth.month);
+    final totalCells = ((firstWeekday + daysInMonth) / 7.0).ceil() * 7;
 
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            IconButton(
-              icon: const Icon(LucideIcons.chevronLeft),
-              onPressed: () => setState(() => _calendarMonth = DateTime(_calendarMonth.year, _calendarMonth.month - 1, 1)),
-            ),
-            Text(
-              DateFormat('MMMM yyyy').format(_calendarMonth),
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            IconButton(
-              icon: const Icon(LucideIcons.chevronRight),
-              onPressed: () => setState(() => _calendarMonth = DateTime(_calendarMonth.year, _calendarMonth.month + 1, 1)),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
+    final Map<String, List<JournalEntryRecord>> entriesByDate = {};
+    for (final e in entries) {
+      if (e.entryDate.isNotEmpty) {
+        entriesByDate.putIfAbsent(e.entryDate, () => []).add(e);
+      }
+    }
 
-        GridView.builder(
-          shrinkWrap: true,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 7, childAspectRatio: 1.2),
-          itemCount: 35,
-          itemBuilder: (context, index) {
-            final day = index + 1;
-            final dateStr = DateFormat('yyyy-MM-dd').format(DateTime(_calendarMonth.year, _calendarMonth.month, day <= 28 ? day : 1));
-            final hasEntry = entryDates.contains(dateStr);
+    final selectedEntries = _selectedCalendarDate != null ? (entriesByDate[_selectedCalendarDate!] ?? []) : [];
 
-            return Container(
-              margin: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: hasEntry ? colorScheme.primary.withValues(alpha: 0.2) : colorScheme.surface,
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Month Selector Bar
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: const Icon(LucideIcons.chevronLeft),
+                onPressed: () => setState(() => _calendarMonth = DateTime(_calendarMonth.year, _calendarMonth.month - 1, 1)),
+              ),
+              Text(
+                DateFormat('MMMM yyyy').format(_calendarMonth),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              IconButton(
+                icon: const Icon(LucideIcons.chevronRight),
+                onPressed: () => setState(() => _calendarMonth = DateTime(_calendarMonth.year, _calendarMonth.month + 1, 1)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Weekdays Header Row
+          Row(
+            children: const [
+              Expanded(child: Center(child: Text('Sun', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)))),
+              Expanded(child: Center(child: Text('Mon', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)))),
+              Expanded(child: Center(child: Text('Tue', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)))),
+              Expanded(child: Center(child: Text('Wed', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)))),
+              Expanded(child: Center(child: Text('Thu', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)))),
+              Expanded(child: Center(child: Text('Fri', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)))),
+              Expanded(child: Center(child: Text('Sat', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)))),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Calendar Grid
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 7,
+              childAspectRatio: 1.1,
+            ),
+            itemCount: totalCells,
+            itemBuilder: (context, index) {
+              final dayNumber = index - firstWeekday + 1;
+              if (dayNumber < 1 || dayNumber > daysInMonth) {
+                return const SizedBox.shrink();
+              }
+
+              final dateStr = DateFormat('yyyy-MM-dd').format(DateTime(_calendarMonth.year, _calendarMonth.month, dayNumber));
+              final dayEntries = entriesByDate[dateStr] ?? [];
+              final hasEntries = dayEntries.isNotEmpty;
+              final isSelected = _selectedCalendarDate == dateStr;
+
+              return InkWell(
+                onTap: () {
+                  if (hasEntries) {
+                    setState(() => _selectedCalendarDate = dateStr);
+                  } else {
+                    // Blank date clicked -> Create new entry pre-filled with date
+                    widget.onOpenEditor(null);
+                  }
+                },
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: hasEntry ? colorScheme.primary : colorScheme.outline.withValues(alpha: 0.15)),
+                child: Container(
+                  margin: const EdgeInsets.all(3),
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? colorScheme.primary.withValues(alpha: 0.3)
+                        : (hasEntries ? colorScheme.primary.withValues(alpha: 0.15) : colorScheme.surface),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: isSelected
+                          ? colorScheme.primary
+                          : (hasEntries ? colorScheme.primary.withValues(alpha: 0.5) : colorScheme.outline.withValues(alpha: 0.15)),
+                      width: isSelected ? 2 : 1,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '$dayNumber',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: hasEntries ? FontWeight.bold : FontWeight.normal,
+                          color: hasEntries ? colorScheme.primary : colorScheme.onSurface,
+                        ),
+                      ),
+                      if (hasEntries) ...[
+                        const SizedBox(height: 2),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${dayEntries.length}',
+                            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // Selected Date Entries Section
+          if (_selectedCalendarDate != null) ...[
+            Row(
+              children: [
+                Text(
+                  'Entries for $_selectedCalendarDate (${selectedEntries.length})',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () => widget.onOpenEditor(null),
+                  icon: const Icon(LucideIcons.plus, size: 14),
+                  label: const Text('Add Entry', style: TextStyle(fontSize: 12)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (selectedEntries.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text('No entries recorded for this date.', style: TextStyle(color: Colors.grey)),
+              )
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: selectedEntries.length,
+                itemBuilder: (context, index) {
+                  return _buildEntryCard(context, selectedEntries[index]);
+                },
               ),
-              alignment: Alignment.center,
-              child: Text(
-                '$day',
-                style: TextStyle(fontWeight: hasEntry ? FontWeight.bold : FontWeight.normal, color: hasEntry ? colorScheme.primary : colorScheme.onSurface),
-              ),
-            );
-          },
-        ),
-      ],
+          ],
+        ],
+      ),
     );
   }
 
