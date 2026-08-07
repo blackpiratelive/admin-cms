@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/network/api_client.dart';
 import '../../core/storage/app_storage.dart';
 import '../../shared/widgets/toast_notification.dart';
