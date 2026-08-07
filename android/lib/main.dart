@@ -7,6 +7,8 @@ import 'shared/widgets/app_drawer.dart';
 import 'modules/auth/login_screen.dart';
 import 'modules/microblog/microblog_list_screen.dart';
 import 'modules/microblog/microblog_editor_screen.dart';
+import 'modules/journal/journal_main_screen.dart';
+import 'modules/journal/journal_editor_screen.dart';
 import 'modules/placeholders/placeholder_module_screen.dart';
 
 void main() {
@@ -26,9 +28,12 @@ class _PersonalCmsAppState extends State<PersonalCmsApp> {
   bool _isLoggedIn = false;
   bool _isCheckingAuth = true;
 
-  String _activeModuleKey = 'microblog';
+  String _activeModuleKey = 'journal';
   bool _isEditingMicroblog = false;
   String? _editingMicroblogId;
+
+  bool _isEditingJournal = false;
+  String? _editingJournalId;
 
   @override
   void initState() {
@@ -59,6 +64,8 @@ class _PersonalCmsAppState extends State<PersonalCmsApp> {
       _isLoggedIn = false;
       _isEditingMicroblog = false;
       _editingMicroblogId = null;
+      _isEditingJournal = false;
+      _editingJournalId = null;
     });
   }
 
@@ -67,13 +74,22 @@ class _PersonalCmsAppState extends State<PersonalCmsApp> {
       _activeModuleKey = key;
       _isEditingMicroblog = false;
       _editingMicroblogId = null;
+      _isEditingJournal = false;
+      _editingJournalId = null;
     });
   }
 
-  void _handleOpenEditor(String? editId) {
+  void _handleOpenMicroblogEditor(String? editId) {
     setState(() {
       _isEditingMicroblog = true;
       _editingMicroblogId = editId;
+    });
+  }
+
+  void _handleOpenJournalEditor(String? editId) {
+    setState(() {
+      _isEditingJournal = true;
+      _editingJournalId = editId;
     });
   }
 
@@ -81,6 +97,8 @@ class _PersonalCmsAppState extends State<PersonalCmsApp> {
     setState(() {
       _isEditingMicroblog = false;
       _editingMicroblogId = null;
+      _isEditingJournal = false;
+      _editingJournalId = null;
     });
   }
 
@@ -125,7 +143,20 @@ class _PersonalCmsAppState extends State<PersonalCmsApp> {
           } else {
             contentWidget = MicroblogListScreen(
               activeThemeKey: _activeTheme,
-              onOpenEditor: _handleOpenEditor,
+              onOpenEditor: _handleOpenMicroblogEditor,
+            );
+          }
+        } else if (_activeModuleKey == 'journal') {
+          if (_isEditingJournal) {
+            contentWidget = JournalEditorScreen(
+              editId: _editingJournalId,
+              activeThemeKey: _activeTheme,
+              onBackToList: _handleBackToList,
+            );
+          } else {
+            contentWidget = JournalMainScreen(
+              activeThemeKey: _activeTheme,
+              onOpenEditor: _handleOpenJournalEditor,
             );
           }
         } else {

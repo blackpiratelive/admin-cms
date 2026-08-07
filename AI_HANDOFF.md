@@ -223,13 +223,22 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
   - `/api/locations` (`GET` location records for editor picker)
   - `/api/trips` (`GET` trip records for editor picker)
   - `/api/upload` (`POST` multipart image upload to Cloudinary)
-- `lib/core/network/`: `api_client.dart` (REST client handling dynamic server URL connection, authentication, Microblog CRUD, location/trip pickers, image uploads, and Vercel deployment hook trigger).
+  - `/api/journal/status` (`GET` vault initialization status)
+  - `/api/journal/keys` (`GET`/`POST` encrypted DEK/KEK key record)
+  - `/api/journal/settings` (`GET`/`POST` vault salt & verification payload)
+  - `/api/journal/entries` (`GET`/`POST` encrypted journal entries)
+  - `/api/journal/entries/[id]` (`GET`/`PUT`/`DELETE` single entry)
+  - `/api/journal/pickers` (`GET` locations, trips, people, projects for context sidebar)
+  - `/api/journal/context` (`GET` movies, scrobbles, photos for "On This Day" date query)
+- `lib/core/crypto/`: `journal_crypto.dart` (Argon2id KDF + AES-256-GCM DEK/KEK zero-knowledge engine) and `journal_session_vault.dart` (In-memory RAM DEK retention session manager).
+- `lib/core/network/`: `api_client.dart` (REST client handling dynamic server URL connection, authentication, Microblog CRUD, Journal E2EE CRUD, location/trip/people pickers, image uploads, and Vercel deployment hook trigger).
 - `lib/core/theme/`: `app_theme.dart` (Design system tokens supporting HN Orange `#FF6600`, Dark Mode, Mono, and Teal themes).
 - `lib/core/storage/`: `app_storage.dart` (Encrypted secure storage for JWT tokens, server URL, theme selection, and autosave preferences).
-- `lib/core/models/`: Models for `microblog.dart`, `location.dart`, `trip.dart`, and `social_status.dart`.
+- `lib/core/models/`: Models for `microblog.dart`, `location.dart`, `trip.dart`, `social_status.dart`, `journal_entry.dart`, `journal_key.dart`, and `journal_settings.dart`.
 - `lib/shared/widgets/`: `app_header.dart` (Header bar wrapped in `SafeArea` with `Ctrl+K` Command Palette launcher), `app_sidebar.dart` (Tablet/Desktop 16-module navigation sidebar), `app_drawer.dart` (Mobile navigation drawer), `deploy_widget.dart` (Sidebar footer Vercel deploy trigger widget), `command_palette.dart` (Fuzzy command search modal), and `toast_notification.dart`.
+- `lib/modules/journal/`: `journal_unlock_modal.dart` (Master password unlock & session vault setup dialog), `journal_main_screen.dart` (Flagship vault view with 4 telemetry cards, decrypted fuzzy search, and sub-tabs for Timeline list, Monthly Calendar, and Mood/Streak Stats), `journal_editor_screen.dart` (CRUD entry editor with formatting toolbar, date/type/mood/template inserter, and functional Context & Connections sidebar with Location, Trip, People Present, and On This Day telemetry).
 - `lib/modules/microblog/`: `microblog_list_screen.dart` (Feature-complete list view with search, status filters, per page pagination, batch selection & deletion, inline edit/delete, status badges) and `microblog_editor_screen.dart` (CRUD editor with 4-tab metadata panel, location/trip pickers, date-time pickers, tag chip editor, social cross-posting to Bluesky & Mastodon, native `image_picker` Cloudinary media uploader, RapidLink short URL generator, and live markdown preview).
-- `lib/modules/placeholders/`: `placeholder_module_screen.dart` (Polished "Coming Soon" placeholder views for remaining 15 CMS modules).
+- `lib/modules/placeholders/`: `placeholder_module_screen.dart` (Polished "Coming Soon" placeholder views for remaining 14 CMS modules).
 
 ### 5.3 CircleCI CI/CD Pipeline (`.circleci/config.yml`)
 - Automated build workflow running on `cimg/android:2026.07-ndk`.

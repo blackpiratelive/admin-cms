@@ -5,6 +5,9 @@ import '../models/microblog.dart';
 import '../models/location.dart';
 import '../models/trip.dart';
 import '../models/social_status.dart';
+import '../models/journal_entry.dart';
+import '../models/journal_key.dart';
+import '../models/journal_settings.dart';
 
 class ApiClient {
   static const Duration timeoutDuration = Duration(seconds: 5);
@@ -228,5 +231,118 @@ class ApiClient {
       final errorData = jsonDecode(response.body);
       throw Exception(errorData['error'] ?? 'Upload failed (${response.statusCode})');
     }
+  }
+
+  // --- JOURNAL MODULE API ENDPOINTS ---
+
+  static Future<Map<String, dynamic>> getJournalStatus() async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/journal/status');
+    final headers = await _getHeaders();
+
+    final response = await http.get(uri, headers: headers).timeout(timeoutDuration);
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    throw Exception('Failed to fetch journal status (${response.statusCode})');
+  }
+
+  static Future<JournalKeyRecord> saveJournalKeyRecord(Map<String, dynamic> input) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/journal/keys');
+    final headers = await _getHeaders();
+
+    final response = await http.post(uri, headers: headers, body: jsonEncode(input)).timeout(timeoutDuration);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return JournalKeyRecord.fromJson(jsonDecode(response.body));
+    }
+    throw Exception('Failed to save journal keys (${response.statusCode})');
+  }
+
+  static Future<JournalSettingsRecord> saveJournalSettings(Map<String, dynamic> input) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/journal/settings');
+    final headers = await _getHeaders();
+
+    final response = await http.post(uri, headers: headers, body: jsonEncode(input)).timeout(timeoutDuration);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return JournalSettingsRecord.fromJson(jsonDecode(response.body));
+    }
+    throw Exception('Failed to save journal settings (${response.statusCode})');
+  }
+
+  static Future<List<JournalEntryRecord>> getJournalEntries() async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/journal/entries');
+    final headers = await _getHeaders();
+
+    final response = await http.get(uri, headers: headers).timeout(timeoutDuration);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final list = (data['entries'] as List? ?? []);
+      return list.map((e) => JournalEntryRecord.fromJson(e)).toList();
+    }
+    throw Exception('Failed to fetch journal entries (${response.statusCode})');
+  }
+
+  static Future<JournalEntryRecord> createJournalEntry(Map<String, dynamic> input) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/journal/entries');
+    final headers = await _getHeaders();
+
+    final response = await http.post(uri, headers: headers, body: jsonEncode(input)).timeout(timeoutDuration);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return JournalEntryRecord.fromJson(jsonDecode(response.body));
+    }
+    throw Exception('Failed to create journal entry (${response.statusCode})');
+  }
+
+  static Future<JournalEntryRecord> updateJournalEntry(String id, Map<String, dynamic> input) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/journal/entries/$id');
+    final headers = await _getHeaders();
+
+    final response = await http.put(uri, headers: headers, body: jsonEncode(input)).timeout(timeoutDuration);
+    if (response.statusCode == 200) {
+      return JournalEntryRecord.fromJson(jsonDecode(response.body));
+    }
+    throw Exception('Failed to update journal entry (${response.statusCode})');
+  }
+
+  static Future<bool> deleteJournalEntry(String id) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/journal/entries/$id');
+    final headers = await _getHeaders();
+
+    final response = await http.delete(uri, headers: headers).timeout(timeoutDuration);
+    return response.statusCode == 200;
+  }
+
+  static Future<Map<String, dynamic>> getJournalPickersData() async {
+    try {
+      final baseUrl = await _getBaseUrl();
+      final uri = Uri.parse('$baseUrl/api/journal/pickers');
+      final headers = await _getHeaders();
+
+      final response = await http.get(uri, headers: headers).timeout(timeoutDuration);
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+    } catch (_) {}
+    return {'locations': [], 'trips': [], 'people': [], 'projects': []};
+  }
+
+  static Future<Map<String, dynamic>> getJournalContextData(String dateStr) async {
+    try {
+      final baseUrl = await _getBaseUrl();
+      final uri = Uri.parse('$baseUrl/api/journal/context?date=$dateStr');
+      final headers = await _getHeaders();
+
+      final response = await http.get(uri, headers: headers).timeout(timeoutDuration);
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+    } catch (_) {}
+    return {'moviesCount': 0, 'scrobblesCount': 0, 'photosCount': 0, 'microblogsCount': 0};
   }
 }

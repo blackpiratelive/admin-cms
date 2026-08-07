@@ -1,21 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getJournalSettings, saveJournalSettings } from "@/features/journal/actions";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
     const settings = await getJournalSettings();
-    return NextResponse.json({ settings });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Failed to fetch journal settings" }, { status: 500 });
+    return NextResponse.json(settings || {});
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || "Failed to fetch settings" }, { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const settings = await saveJournalSettings(body);
-    return NextResponse.json({ settings });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Failed to save journal settings" }, { status: 500 });
+    const updated = await saveJournalSettings(body);
+    return NextResponse.json(updated);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || "Failed to save settings" }, { status: 500 });
   }
 }
