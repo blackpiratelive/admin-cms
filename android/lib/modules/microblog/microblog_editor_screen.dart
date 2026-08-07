@@ -7,6 +7,7 @@ import '../../core/models/social_status.dart';
 import '../../core/network/api_client.dart';
 import '../../shared/widgets/toast_notification.dart';
 import 'widgets/metadata_settings_panel.dart';
+import '../../core/storage/offline_store.dart';
 import 'widgets/live_markdown_preview.dart';
 
 class MicroblogEditorScreen extends StatefulWidget {
@@ -145,26 +146,49 @@ class _MicroblogEditorScreenState extends State<MicroblogEditorScreen> with Sing
       'locationId': _selectedLocationId,
       'tripId': _selectedTripId,
       'images': _images,
-      'postToBluesky': _postToBluesky,
-      'postToMastodon': _postToMastodon,
     };
 
+    final id = widget.editId ?? 'temp_${DateTime.now().millisecondsSinceEpoch}';
+    final publishedAtStr = targetStatus == 'published' ? (_publishedAt?.toIso8601String() ?? DateTime.now().toIso8601String()) : _publishedAt?.toIso8601String();
+    final createdAtStr = _createdAt?.toIso8601String() ?? DateTime.now().toIso8601String();
+
+    final localMicroblog = Microblog(
+      id: id,
+      slug: _slugController.text.trim().isEmpty ? 'post-$id' : _slugController.text.trim(),
+      contentMarkdown: _contentController.text,
+      status: targetStatus,
+      createdAt: createdAtStr,
+      publishedAt: publishedAtStr,
+      updatedAt: DateTime.now().toIso8601String(),
+      tags: tagsList,
+      coverImageUrl: _coverUrlController.text.trim().isEmpty ? null : _coverUrlController.text.trim(),
+      shortUrl: _shortUrlController.text.trim().isEmpty ? null : _shortUrlController.text.trim(),
+      locationId: _selectedLocationId,
+      tripId: _selectedTripId,
+      images: _images,
+    );
+
+    // 1. Save locally immediately
+    await OfflineStore.saveMicroblogLocally(localMicroblog, isPendingSync: true);
+
+    if (mounted) {
+      ToastNotification.show(
+        context,
+        title: 'Saved Locally',
+        message: targetStatus == 'published' ? 'Post saved locally. Syncing...' : 'Draft saved locally. Syncing...',
+      );
+      widget.onBackToList();
+    }
+
+    // 2. Background Sync with API
     try {
-      await ApiClient.saveMicroblog(payload);
-      if (mounted) {
-        ToastNotification.show(
-          context,
-          title: 'Success',
-          message: targetStatus == 'published' ? 'Microblog post published!' : 'Draft saved successfully.',
-        );
-        widget.onBackToList();
+      final savedServerMicroblog = await ApiClient.saveMicroblog(payload);
+      if (id.startsWith('temp_')) {
+        await OfflineStore.deleteMicroblogLocally(id);
       }
-    } catch (e) {
-      if (mounted) {
-        ToastNotification.show(context, title: 'Save Failed', message: e.toString(), isError: true);
-      }
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
+      await OfflineStore.saveMicroblogLocally(Microblog.fromJson(savedServerMicroblog), isPendingSync: false);
+    } catch (_) {
+      // Retained in OfflineStore sync queue
     }
   }
 

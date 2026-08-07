@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'dart:async';
 import '../../core/theme/app_theme.dart';
 import '../../core/storage/app_storage.dart';
+import '../../core/storage/offline_store.dart';
 import 'command_palette.dart';
+import 'toast_notification.dart';
 
-class AppHeader extends StatelessWidget implements PreferredSizeWidget {
+class AppHeader extends StatefulWidget implements PreferredSizeWidget {
   final String activeThemeKey;
   final Function(String themeKey) onThemeChanged;
   final Function(String moduleKey) onSelectModule;
@@ -22,8 +25,51 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
   Size get preferredSize => const Size.fromHeight(56);
 
   @override
+  State<AppHeader> createState() => _AppHeaderState();
+}
+
+class _AppHeaderState extends State<AppHeader> {
+  int _unsavedCount = 0;
+  bool _isSyncing = false;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkUnsavedCount();
+    _timer = Timer.periodic(const Duration(seconds: 3), (_) => _checkUnsavedCount());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _checkUnsavedCount() async {
+    final count = await OfflineStore.getUnsavedCount();
+    if (mounted && count != _unsavedCount) {
+      setState(() => _unsavedCount = count);
+    }
+  }
+
+  Future<void> _handleSync() async {
+    setState(() => _isSyncing = true);
+    final success = await OfflineStore.syncPendingChanges();
+    await _checkUnsavedCount();
+    if (mounted) {
+      setState(() => _isSyncing = false);
+      if (success) {
+        ToastNotification.show(context, title: 'Sync Complete', message: 'All local changes synced with cloud.');
+      } else {
+        ToastNotification.show(context, title: 'Sync Partial', message: 'Some changes remain offline.', isError: true);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final colors = AppTheme.colorsForTheme(activeThemeKey);
+    final colors = AppTheme.colorsForTheme(widget.activeThemeKey);
     final isMobile = MediaQuery.of(context).size.width < 700;
 
     return Container(
@@ -31,7 +77,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
       child: SafeArea(
         bottom: false,
         child: SizedBox(
-          height: preferredSize.height,
+          height: widget.preferredSize.height,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
@@ -80,13 +126,56 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
 
                 const Spacer(),
 
+                // Unsaved Changes Indicator Pill
+                InkWell(
+                  onTap: _unsavedCount > 0 && !_isSyncing ? _handleSync : null,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _unsavedCount > 0 ? Colors.orange.withValues(alpha: 0.25) : Colors.green.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: _unsavedCount > 0 ? Colors.orange : Colors.green.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_isSyncing)
+                          const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange),
+                          )
+                        else
+                          Icon(
+                            _unsavedCount > 0 ? LucideIcons.cloudUpload : LucideIcons.cloudCheck,
+                            size: 13,
+                            color: _unsavedCount > 0 ? Colors.orange : Colors.green,
+                          ),
+                        const SizedBox(width: 5),
+                        Text(
+                          _unsavedCount > 0 ? '$_unsavedCount Unsaved' : 'Synced',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: _unsavedCount > 0 ? Colors.orange : Colors.green,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+
                 // Search Everything Button (Ctrl+K)
                 if (!isMobile)
                   InkWell(
                     onTap: () {
                       showDialog(
                         context: context,
-                        builder: (ctx) => CommandPaletteModal(onSelectModule: onSelectModule),
+                        builder: (ctx) => CommandPaletteModal(onSelectModule: widget.onSelectModule),
                       );
                     },
                     borderRadius: BorderRadius.circular(6),
@@ -128,7 +217,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
                     onPressed: () {
                       showDialog(
                         context: context,
-                        builder: (ctx) => CommandPaletteModal(onSelectModule: onSelectModule),
+                        builder: (ctx) => CommandPaletteModal(onSelectModule: widget.onSelectModule),
                       );
                     },
                   ),
@@ -138,7 +227,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
                 // Theme Switcher Dropdown
                 DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
-                    value: activeThemeKey,
+                    value: widget.activeThemeKey,
                     dropdownColor: colors.cardBg,
                     icon: Icon(LucideIcons.palette, color: colors.headerText, size: 16),
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: colors.headerText),
@@ -150,7 +239,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
                     ],
                     onChanged: (newTheme) {
                       if (newTheme != null) {
-                        onThemeChanged(newTheme);
+                        widget.onThemeChanged(newTheme);
                         AppStorage.setActiveTheme(newTheme);
                       }
                     },
@@ -161,7 +250,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
 
                 // Logout Button
                 OutlinedButton.icon(
-                  onPressed: onLogout,
+                  onPressed: widget.onLogout,
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     side: BorderSide(color: colors.headerText.withValues(alpha: 0.4)),

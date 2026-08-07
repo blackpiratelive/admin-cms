@@ -155,6 +155,7 @@ class _PersonalCmsAppState extends State<PersonalCmsApp> {
             );
           } else {
             contentWidget = JournalMainScreen(
+              onLockVault: () => setState(() {}),
               activeThemeKey: _activeTheme,
               onOpenEditor: _handleOpenJournalEditor,
             );

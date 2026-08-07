@@ -2,21 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
+import 'package:cryptography/cryptography.dart';
 import '../../core/crypto/journal_crypto.dart';
 import '../../core/crypto/journal_session_vault.dart';
 import '../../core/models/journal_entry.dart';
 import '../../core/network/api_client.dart';
+import '../../core/storage/offline_store.dart';
 import '../../shared/widgets/toast_notification.dart';
 import 'journal_unlock_modal.dart';
 
 class JournalMainScreen extends StatefulWidget {
-  final String activeThemeKey;
+  final VoidCallback onLockVault;
   final Function(String? editId) onOpenEditor;
+  final String activeThemeKey;
 
   const JournalMainScreen({
     super.key,
-    required this.activeThemeKey,
+    required this.onLockVault,
     required this.onOpenEditor,
+    required this.activeThemeKey,
   });
 
   @override
@@ -61,65 +65,83 @@ class _JournalMainScreenState extends State<JournalMainScreen> {
     final dek = JournalSessionVault.activeDek;
     if (dek == null) return;
 
-    setState(() => _isDecrypting = true);
+    // 1. Load local cached entries first for instant offline view
+    final localEntries = await OfflineStore.getLocalJournalEntries();
+    if (localEntries.isNotEmpty) {
+      await _decryptEntryList(localEntries, dek);
+      if (mounted) {
+        setState(() => _entries = localEntries);
+      }
+    }
 
+    setState(() => _isDecrypting = _entries.isEmpty);
+
+    // 2. Fetch fresh entries from server and sync offline queue
     try {
-      final rawEntries = await ApiClient.getJournalEntries();
+      final remoteEntries = await ApiClient.getJournalEntries();
+      await _decryptEntryList(remoteEntries, dek);
+      await OfflineStore.saveLocalJournalEntries(remoteEntries);
 
-      for (final entry in rawEntries) {
-        if (entry.encryptedContent.isNotEmpty) {
-          try {
-            final plaintext = await JournalCryptoEngine.decryptText(
-              entry.encryptedContent,
-              entry.iv,
-              dek,
-            );
-
-            // Attempt Lexical JSON payload decryption
-            if (plaintext.trim().startsWith('{')) {
-              try {
-                final Map<String, dynamic> json = jsonDecode(plaintext);
-                final title = (json['title'] as String?) ?? 'Untitled Journal Entry';
-                final lexicalState = (json['lexicalState'] as String?) ?? '';
-                final markdown = (json['markdown'] as String?) ?? JournalCryptoEngine.extractPlaintextFromLexicalState(lexicalState);
-
-                entry.decryptedTitle = title;
-                entry.decryptedMarkdown = markdown;
-                entry.decryptedLexicalState = lexicalState;
-                continue;
-              } catch (_) {}
-            }
-
-            // Legacy Plaintext Markdown Fallback
-            final lines = plaintext.split('\n');
-            var title = 'Untitled Entry';
-            var body = plaintext;
-
-            if (lines.isNotEmpty && lines[0].trim().startsWith('#')) {
-              title = lines[0].replaceAll(RegExp(r'^#+\s*'), '').trim();
-              body = lines.sublist(1).join('\n').trim();
-            } else if (lines.isNotEmpty && lines[0].trim().isNotEmpty) {
-              title = lines[0].trim();
-              body = lines.sublist(1).join('\n').trim();
-            }
-
-            entry.decryptedTitle = title;
-            entry.decryptedMarkdown = body;
-          } catch (_) {
-            entry.decryptedTitle = '[Decryption Failed]';
-            entry.decryptedMarkdown = '[Unable to decrypt with active key]';
-          }
-        }
+      if (mounted) {
+        setState(() {
+          _entries = remoteEntries;
+          _isDecrypting = false;
+        });
       }
 
-      setState(() {
-        _entries = rawEntries;
-        _isDecrypting = false;
-      });
+      OfflineStore.syncPendingChanges();
     } catch (e) {
-      setState(() => _isDecrypting = false);
       if (mounted) {
-        ToastNotification.show(context, title: 'Load Failed', message: e.toString(), isError: true);
+        setState(() => _isDecrypting = false);
+        if (_entries.isEmpty) {
+          ToastNotification.show(context, title: 'Offline Mode', message: 'Loaded local cached entries.');
+        }
+      }
+    }
+  }
+
+  Future<void> _decryptEntryList(List<JournalEntryRecord> rawEntries, SecretKey dek) async {
+    for (final entry in rawEntries) {
+      if (entry.encryptedContent.isNotEmpty) {
+        try {
+          final plaintext = await JournalCryptoEngine.decryptText(
+            entry.encryptedContent,
+            entry.iv,
+            dek,
+          );
+
+          if (plaintext.trim().startsWith('{')) {
+            try {
+              final Map<String, dynamic> json = jsonDecode(plaintext);
+              final title = (json['title'] as String?) ?? 'Untitled Journal Entry';
+              final lexicalState = (json['lexicalState'] as String?) ?? '';
+              final markdown = (json['markdown'] as String?) ?? JournalCryptoEngine.extractPlaintextFromLexicalState(lexicalState);
+
+              entry.decryptedTitle = title;
+              entry.decryptedMarkdown = markdown;
+              entry.decryptedLexicalState = lexicalState;
+              continue;
+            } catch (_) {}
+          }
+
+          final lines = plaintext.split('\n');
+          var title = 'Untitled Entry';
+          var body = plaintext;
+
+          if (lines.isNotEmpty && lines[0].trim().startsWith('#')) {
+            title = lines[0].replaceAll(RegExp(r'^#+\s*'), '').trim();
+            body = lines.sublist(1).join('\n').trim();
+          } else if (lines.isNotEmpty && lines[0].trim().isNotEmpty) {
+            title = lines[0].trim();
+            body = lines.sublist(1).join('\n').trim();
+          }
+
+          entry.decryptedTitle = title;
+          entry.decryptedMarkdown = body;
+        } catch (_) {
+          entry.decryptedTitle = '[Decryption Failed]';
+          entry.decryptedMarkdown = '[Unable to decrypt with active key]';
+        }
       }
     }
   }

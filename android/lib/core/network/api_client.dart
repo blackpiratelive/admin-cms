@@ -11,7 +11,8 @@ import '../models/journal_settings.dart';
 import '../models/journal_asset.dart';
 
 class ApiClient {
-  static const Duration timeoutDuration = Duration(seconds: 5);
+  static const Duration timeoutDuration = Duration(seconds: 30);
+  static const Duration uploadTimeoutDuration = Duration(seconds: 120);
 
   static Future<Map<String, String>> _getHeaders() async {
     final token = await AppStorage.getAuthToken();
@@ -222,7 +223,7 @@ class ApiClient {
       filename: fileName,
     ));
 
-    final streamedResponse = await request.send().timeout(const Duration(seconds: 30));
+    final streamedResponse = await request.send().timeout(uploadTimeoutDuration);
     final response = await http.Response.fromStream(streamedResponse);
 
     if (response.statusCode == 200 || response.statusCode == 201) {
@@ -380,7 +381,7 @@ class ApiClient {
     ));
     request.fields['fileName'] = fileName;
 
-    final streamedResponse = await request.send().timeout(const Duration(seconds: 45));
+    final streamedResponse = await request.send().timeout(uploadTimeoutDuration);
     final response = await http.Response.fromStream(streamedResponse);
 
     if (response.statusCode == 200 || response.statusCode == 201) {

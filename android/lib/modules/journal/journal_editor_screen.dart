@@ -7,6 +7,8 @@ import '../../core/crypto/journal_crypto.dart';
 import '../../core/crypto/journal_session_vault.dart';
 import '../../core/network/api_client.dart';
 import '../../shared/widgets/toast_notification.dart';
+import '../../core/storage/offline_store.dart';
+import '../../core/models/journal_entry.dart';
 import 'widgets/journal_attachments_widget.dart';
 
 class JournalEditorScreen extends StatefulWidget {
@@ -154,7 +156,42 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
       final dateStr = DateFormat('yyyy-MM-dd').format(_entryDate);
       final wordCount = body.trim().isEmpty ? 0 : body.trim().split(RegExp(r'\s+')).length;
       final readingTime = (wordCount / 200).ceil();
+      final entryId = widget.editId ?? 'temp_${DateTime.now().millisecondsSinceEpoch}';
+      final saltStr = _existingSalt ?? JournalCryptoEngine.generateSalt();
 
+      // 1. Local-First Save immediately
+      final localRecord = JournalEntryRecord(
+        id: entryId,
+        slug: title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-'),
+        entryDate: dateStr,
+        entryType: _entryType,
+        mood: _mood,
+        favorite: 0,
+        visibility: 'private',
+        locationId: _selectedLocationId,
+        tripId: _selectedTripId,
+        encryptedContent: encrypted['ciphertext']!,
+        encryptionVersion: 1,
+        iv: encrypted['iv']!,
+        salt: saltStr,
+        wordCount: wordCount,
+        readingTime: readingTime,
+        tags: [],
+        createdAt: DateTime.now().toIso8601String(),
+        updatedAt: DateTime.now().toIso8601String(),
+        decryptedTitle: title.isEmpty ? 'Untitled Journal Entry' : title,
+        decryptedMarkdown: body,
+        decryptedLexicalState: lexicalState,
+      );
+
+      await OfflineStore.saveJournalEntryLocally(localRecord, isPendingSync: true);
+
+      if (mounted) {
+        ToastNotification.show(context, title: 'Saved Locally', message: 'Saved to local storage. Syncing with cloud...');
+        widget.onBackToList();
+      }
+
+      // 2. Background Sync with Server
       final payload = {
         'entryDate': dateStr,
         'entryType': _entryType,
@@ -163,20 +200,25 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
         'tripId': _selectedTripId,
         'encryptedContent': encrypted['ciphertext'],
         'iv': encrypted['iv'],
-        'salt': _existingSalt ?? JournalCryptoEngine.generateSalt(),
+        'salt': saltStr,
         'wordCount': wordCount,
         'readingTime': readingTime,
       };
 
-      if (widget.editId != null) {
-        await ApiClient.updateJournalEntry(widget.editId!, payload);
-      } else {
-        await ApiClient.createJournalEntry(payload);
-      }
-
-      if (mounted) {
-        ToastNotification.show(context, title: 'Saved', message: 'Journal entry saved securely.');
-        widget.onBackToList();
+      try {
+        JournalEntryRecord serverRecord;
+        if (widget.editId != null) {
+          serverRecord = await ApiClient.updateJournalEntry(widget.editId!, payload);
+        } else {
+          serverRecord = await ApiClient.createJournalEntry(payload);
+          await OfflineStore.deleteJournalEntryLocally(entryId);
+        }
+        serverRecord.decryptedTitle = localRecord.decryptedTitle;
+        serverRecord.decryptedMarkdown = localRecord.decryptedMarkdown;
+        serverRecord.decryptedLexicalState = localRecord.decryptedLexicalState;
+        await OfflineStore.saveJournalEntryLocally(serverRecord, isPendingSync: false);
+      } catch (_) {
+        // Network sync failed -> Remains safely queued in OfflineStore!
       }
     } catch (e) {
       if (mounted) {

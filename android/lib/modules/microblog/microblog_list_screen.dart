@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/microblog.dart';
 import '../../core/network/api_client.dart';
 import '../../shared/widgets/toast_notification.dart';
+import '../../core/storage/offline_store.dart';
 import 'widgets/status_badge.dart';
 
 class MicroblogListScreen extends StatefulWidget {
@@ -46,8 +47,19 @@ class _MicroblogListScreenState extends State<MicroblogListScreen> {
   }
 
   Future<void> _fetchData() async {
+    // 1. Load local cached microblogs first for instant display
+    final localItems = await OfflineStore.getLocalMicroblogs();
+    if (localItems.isNotEmpty && _items.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _items = localItems;
+          _totalItems = localItems.length;
+        });
+      }
+    }
+
     if (_isFetching) return;
-    setState(() => _isFetching = true);
+    setState(() => _isFetching = _items.isEmpty);
 
     try {
       final res = await ApiClient.getMicroblogs(
@@ -57,24 +69,29 @@ class _MicroblogListScreenState extends State<MicroblogListScreen> {
         limit: _pageSize,
       );
 
+      await OfflineStore.saveLocalMicroblogs(res.items);
+
       if (mounted) {
         setState(() {
           _items = res.items;
           _totalItems = res.total;
           _totalPages = res.totalPages;
+          _isFetching = false;
         });
       }
+
+      OfflineStore.syncPendingChanges();
     } catch (e) {
       if (mounted) {
-        ToastNotification.show(
-          context,
-          title: 'Error Fetching Microblogs',
-          message: e.toString(),
-          isError: true,
-        );
+        setState(() => _isFetching = false);
+        if (_items.isEmpty) {
+          ToastNotification.show(
+            context,
+            title: 'Offline Mode',
+            message: 'Loaded local microblogs.',
+          );
+        }
       }
-    } finally {
-      if (mounted) setState(() => _isFetching = false);
     }
   }
 
