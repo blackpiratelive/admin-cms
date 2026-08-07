@@ -190,8 +190,15 @@ class _JournalAttachmentsWidgetState extends State<JournalAttachmentsWidget> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,16 +214,16 @@ class _JournalAttachmentsWidgetState extends State<JournalAttachmentsWidget> {
               ),
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: Colors.amber.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: const [
-                    Icon(LucideIcons.lock, size: 10, color: Colors.amber),
+                    Icon(LucideIcons.lock, size: 11, color: Colors.amber),
                     SizedBox(width: 4),
                     Text(
                       'E2EE Blobs',
@@ -231,7 +238,9 @@ class _JournalAttachmentsWidgetState extends State<JournalAttachmentsWidget> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: colorScheme.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  elevation: 1,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
                 icon: _isUploading
                     ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -240,7 +249,7 @@ class _JournalAttachmentsWidgetState extends State<JournalAttachmentsWidget> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
 
           // Content Box
           if (_isLoading)

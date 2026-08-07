@@ -273,226 +273,260 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // Action Header
-          Row(
-            children: [
-              OutlinedButton.icon(
-                onPressed: widget.onBackToList,
-                icon: const Icon(LucideIcons.arrowLeft, size: 14),
-                label: const Text('Back to Vault', style: TextStyle(fontSize: 12)),
-              ),
-              const Spacer(),
-              ElevatedButton.icon(
-                onPressed: _isSaving ? null : _handleSave,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-                icon: _isSaving
-                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(LucideIcons.save, size: 14),
-                label: const Text('Save Entry', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Metadata Form Controls Bar
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
-            ),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
+    return Scaffold(
+      resizeToAvoidBottomInset: true,
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Action Header Bar
+            Row(
               children: [
-                // Date Picker
-                InkWell(
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: _entryDate,
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime(2100),
-                    );
-                    if (picked != null) {
-                      setState(() => _entryDate = picked);
-                      _fetchContextData();
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(border: Border.all(color: colorScheme.outline.withValues(alpha: 0.3)), borderRadius: BorderRadius.circular(6)),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(LucideIcons.calendar, size: 14),
-                        const SizedBox(width: 8),
-                        Text(DateFormat('MM / dd / yyyy').format(_entryDate), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
+                OutlinedButton.icon(
+                  onPressed: widget.onBackToList,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.3)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   ),
+                  icon: const Icon(LucideIcons.arrowLeft, size: 14),
+                  label: const Text('Back to Vault', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 ),
-
-                // Entry Type
-                DropdownButton<String>(
-                  value: _entryType,
-                  isDense: true,
-                  style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
-                  items: const [
-                    DropdownMenuItem(value: 'daily', child: Text('📖 Daily Journal')),
-                    DropdownMenuItem(value: 'reflection', child: Text('🧠 Reflection')),
-                    DropdownMenuItem(value: 'travel', child: Text('✈️ Travel Journal')),
-                    DropdownMenuItem(value: 'dream', child: Text('🌙 Dream')),
-                    DropdownMenuItem(value: 'meeting', child: Text('🤝 Meeting Notes')),
-                    DropdownMenuItem(value: 'ideas', child: Text('💡 Ideas')),
-                    DropdownMenuItem(value: 'gratitude', child: Text('🙏 Gratitude')),
-                    DropdownMenuItem(value: 'life_event', child: Text('🎉 Life Event')),
-                    DropdownMenuItem(value: 'health', child: Text('🏋️ Health & Fitness')),
-                    DropdownMenuItem(value: 'thoughts', child: Text('💬 Random Thoughts')),
-                    DropdownMenuItem(value: 'project', child: Text('📁 Project Journal')),
-                    DropdownMenuItem(value: 'learning', child: Text('📚 Learning Journal')),
-                    DropdownMenuItem(value: 'custom', child: Text('✍️ Custom')),
-                  ],
-                  onChanged: (val) => setState(() => _entryType = val ?? 'daily'),
-                ),
-
-                // Mood Dropdown
-                DropdownButton<String>(
-                  value: _mood,
-                  isDense: true,
-                  style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
-                  items: const [
-                    DropdownMenuItem(value: 'good', child: Text('😊 Good')),
-                    DropdownMenuItem(value: 'neutral', child: Text('😐 Neutral')),
-                    DropdownMenuItem(value: 'sad', child: Text('😔 Sad')),
-                    DropdownMenuItem(value: 'excited', child: Text('🤩 Excited')),
-                    DropdownMenuItem(value: 'frustrated', child: Text('😤 Frustrated')),
-                  ],
-                  onChanged: (val) => setState(() => _mood = val ?? 'good'),
-                ),
-
-                // Template Inserter
-                DropdownButton<String>(
-                  hint: const Text('-- Select Template --', style: TextStyle(fontSize: 12)),
-                  isDense: true,
-                  style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
-                  items: const [
-                    DropdownMenuItem(value: 'daily', child: Text('Daily Reflection')),
-                    DropdownMenuItem(value: 'weekly', child: Text('Weekly Review')),
-                    DropdownMenuItem(value: 'gratitude', child: Text('Gratitude Log')),
-                  ],
-                  onChanged: (val) {
-                    if (val != null) _insertTemplate(val);
-                  },
+                const Spacer(),
+                ElevatedButton.icon(
+                  onPressed: _isSaving ? null : _handleSave,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 2,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  ),
+                  icon: _isSaving
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(LucideIcons.save, size: 15),
+                  label: const Text('Save Entry', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
-          // Main Editor Body + Context Sidebar
-          Expanded(
-            child: LayoutBuilder(
+            // Metadata Form Controls Bar
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  // Date Picker Pill
+                  InkWell(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _entryDate,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime(2100),
+                      );
+                      if (picked != null) {
+                        setState(() => _entryDate = picked);
+                        _fetchContextData();
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: colorScheme.onSurface.withValues(alpha: 0.05),
+                        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(LucideIcons.calendar, size: 14, color: colorScheme.primary),
+                          const SizedBox(width: 6),
+                          Text(
+                            DateFormat('MM / dd / yyyy').format(_entryDate),
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Entry Type Pill Dropdown
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: colorScheme.onSurface.withValues(alpha: 0.05),
+                      border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _entryType,
+                        isDense: true,
+                        icon: const Icon(LucideIcons.chevronDown, size: 14),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+                        items: const [
+                          DropdownMenuItem(value: 'daily', child: Text('📖 Daily Journal')),
+                          DropdownMenuItem(value: 'reflection', child: Text('🧠 Reflection')),
+                          DropdownMenuItem(value: 'travel', child: Text('✈️ Travel Journal')),
+                          DropdownMenuItem(value: 'dream', child: Text('🌙 Dream')),
+                          DropdownMenuItem(value: 'meeting', child: Text('🤝 Meeting Notes')),
+                          DropdownMenuItem(value: 'ideas', child: Text('💡 Ideas')),
+                          DropdownMenuItem(value: 'gratitude', child: Text('🙏 Gratitude')),
+                          DropdownMenuItem(value: 'life_event', child: Text('🎉 Life Event')),
+                          DropdownMenuItem(value: 'health', child: Text('🏋️ Health & Fitness')),
+                          DropdownMenuItem(value: 'thoughts', child: Text('💬 Random Thoughts')),
+                          DropdownMenuItem(value: 'project', child: Text('📁 Project Journal')),
+                          DropdownMenuItem(value: 'learning', child: Text('📚 Learning Journal')),
+                          DropdownMenuItem(value: 'custom', child: Text('✍️ Custom')),
+                        ],
+                        onChanged: (val) => setState(() => _entryType = val ?? 'daily'),
+                      ),
+                    ),
+                  ),
+
+                  // Mood Dropdown Pill
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: colorScheme.onSurface.withValues(alpha: 0.05),
+                      border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _mood,
+                        isDense: true,
+                        icon: const Icon(LucideIcons.chevronDown, size: 14),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+                        items: const [
+                          DropdownMenuItem(value: 'good', child: Text('😊 Good')),
+                          DropdownMenuItem(value: 'neutral', child: Text('😐 Neutral')),
+                          DropdownMenuItem(value: 'sad', child: Text('😔 Sad')),
+                          DropdownMenuItem(value: 'excited', child: Text('🤩 Excited')),
+                          DropdownMenuItem(value: 'frustrated', child: Text('😤 Frustrated')),
+                        ],
+                        onChanged: (val) => setState(() => _mood = val ?? 'good'),
+                      ),
+                    ),
+                  ),
+
+                  // Template Inserter Dropdown Pill
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: colorScheme.onSurface.withValues(alpha: 0.05),
+                      border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        hint: Text('⚡ Select Template', style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withValues(alpha: 0.7))),
+                        isDense: true,
+                        icon: const Icon(LucideIcons.chevronDown, size: 14),
+                        style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
+                        items: const [
+                          DropdownMenuItem(value: 'daily', child: Text('Daily Reflection')),
+                          DropdownMenuItem(value: 'weekly', child: Text('Weekly Review')),
+                          DropdownMenuItem(value: 'gratitude', child: Text('Gratitude Log')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) _insertTemplate(val);
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // Main Responsive Editor + Context Sidebar
+            LayoutBuilder(
               builder: (context, constraints) {
                 final isMobile = constraints.maxWidth < 750;
 
                 final editorSection = Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Title Input Box
+                    // Unified Main Card (Title + Formatting Bar + Body Textarea)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
                         color: colorScheme.surface,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
                       ),
-                      child: TextField(
-                        controller: _titleController,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        decoration: const InputDecoration(
-                          hintText: 'Title of your journal entry...',
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Textarea & Formatting Bar
-                    if (isMobile)
-                      Container(
-                        decoration: BoxDecoration(
-                          color: colorScheme.surface,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
-                        ),
-                        child: Column(
-                          children: [
-                            _buildFormattingToolbar(context),
-                            Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: TextField(
-                                controller: _contentController,
-                                minLines: 8,
-                                maxLines: null,
-                                style: const TextStyle(fontSize: 14, height: 1.5),
-                                decoration: const InputDecoration(
-                                  hintText: 'Write your journal entry... Type \'/\' for commands or \'@\' to mention entities.',
-                                  border: InputBorder.none,
-                                  enabledBorder: InputBorder.none,
-                                  focusedBorder: InputBorder.none,
-                                ),
-                                onChanged: (_) => setState(() {}),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Title Input Box
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            child: TextField(
+                              controller: _titleController,
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              decoration: InputDecoration(
+                                hintText: 'Title of your journal entry...',
+                                hintStyle: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.4)),
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
                               ),
                             ),
-                          ],
-                        ),
-                      )
-                    else
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: colorScheme.surface,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
                           ),
-                          child: Column(
-                            children: [
-                              _buildFormattingToolbar(context),
-                              Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: TextField(
-                                    controller: _contentController,
-                                    maxLines: null,
-                                    expands: true,
-                                    style: const TextStyle(fontSize: 14, height: 1.5),
-                                    decoration: const InputDecoration(
-                                      hintText: 'Write your journal entry... Type \'/\' for commands or \'@\' to mention entities.',
-                                      border: InputBorder.none,
-                                      enabledBorder: InputBorder.none,
-                                      focusedBorder: InputBorder.none,
-                                    ),
-                                    onChanged: (_) => setState(() {}),
-                                  ),
-                                ),
+                          Divider(height: 1, color: colorScheme.outline.withValues(alpha: 0.15)),
+
+                          // Formatting Toolbar
+                          _buildFormattingToolbar(context),
+
+                          // Flexible Main Textarea
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: TextField(
+                              controller: _contentController,
+                              minLines: 12,
+                              maxLines: null,
+                              style: const TextStyle(fontSize: 15, height: 1.6),
+                              decoration: InputDecoration(
+                                hintText: 'Write your journal entry... Type \'/\' for formatting or \'@\' to mention entities.',
+                                hintStyle: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.4)),
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
                               ),
-                            ],
+                              onChanged: (_) => setState(() {}),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
-                    const SizedBox(height: 12),
+                    ),
+                    const SizedBox(height: 14),
 
                     // Encrypted Attachments Section
                     JournalAttachmentsWidget(entryId: widget.editId),
@@ -500,15 +534,13 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
                 );
 
                 if (isMobile) {
-                  return SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        editorSection,
-                        const SizedBox(height: 16),
-                        _buildContextSidebar(context),
-                      ],
-                    ),
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      editorSection,
+                      const SizedBox(height: 16),
+                      _buildContextSidebar(context),
+                    ],
                   );
                 }
 
@@ -516,14 +548,14 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(flex: 3, child: editorSection),
-                    const SizedBox(width: 12),
-                    Expanded(flex: 1, child: SingleChildScrollView(child: _buildContextSidebar(context))),
+                    const SizedBox(width: 14),
+                    Expanded(flex: 1, child: _buildContextSidebar(context)),
                   ],
                 );
               },
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -533,49 +565,56 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
     final colorScheme = theme.colorScheme;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: colorScheme.onSurface.withValues(alpha: 0.03),
-        border: Border(bottom: BorderSide(color: colorScheme.outline.withValues(alpha: 0.15))),
+        color: colorScheme.onSurface.withValues(alpha: 0.025),
+        border: Border(bottom: BorderSide(color: colorScheme.outline.withValues(alpha: 0.12))),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
             IconButton(
-              icon: const Icon(LucideIcons.bold, size: 14),
+              icon: const Icon(LucideIcons.bold, size: 15),
               onPressed: () => setState(() => _contentController.text += '**bold text**'),
               tooltip: 'Bold',
             ),
             IconButton(
-              icon: const Icon(LucideIcons.italic, size: 14),
+              icon: const Icon(LucideIcons.italic, size: 15),
               onPressed: () => setState(() => _contentController.text += '*italic text*'),
               tooltip: 'Italic',
             ),
             IconButton(
-              icon: const Icon(LucideIcons.heading1, size: 14),
+              icon: const Icon(LucideIcons.heading1, size: 15),
               onPressed: () => setState(() => _contentController.text += '\n# Heading 1\n'),
               tooltip: 'H1',
             ),
             IconButton(
-              icon: const Icon(LucideIcons.heading2, size: 14),
+              icon: const Icon(LucideIcons.heading2, size: 15),
               onPressed: () => setState(() => _contentController.text += '\n## Heading 2\n'),
               tooltip: 'H2',
             ),
             IconButton(
-              icon: const Icon(LucideIcons.list, size: 14),
+              icon: const Icon(LucideIcons.list, size: 15),
               onPressed: () => setState(() => _contentController.text += '\n- List item\n'),
               tooltip: 'Bullet List',
             ),
             IconButton(
-              icon: const Icon(LucideIcons.image, size: 14),
+              icon: const Icon(LucideIcons.image, size: 15),
               onPressed: _pickAndInsertImage,
               tooltip: 'Insert Image',
             ),
-            const SizedBox(width: 12),
-            Text(
-              '$_wordCount words  $_charCount chars  $_readTime min read',
-              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: colorScheme.onSurface.withValues(alpha: 0.6)),
+            const SizedBox(width: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: colorScheme.onSurface.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                '$_wordCount words  |  $_charCount chars  |  $_readTime min read',
+                style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: colorScheme.onSurface.withValues(alpha: 0.6)),
+              ),
             ),
           ],
         ),
@@ -588,33 +627,51 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
     final colorScheme = theme.colorScheme;
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Context & Connections',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          Row(
+            children: const [
+              Icon(LucideIcons.link2, size: 14, color: Colors.orange),
+              SizedBox(width: 8),
+              Text(
+                'Context & Connections',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+            ],
           ),
-          const Divider(height: 16),
+          const Divider(height: 20),
 
           // Location Picker
           Row(
             children: const [
               Icon(LucideIcons.mapPin, size: 13, color: Colors.orange),
               SizedBox(width: 6),
-              Text('Location', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+              Text('Location', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           DropdownButtonFormField<String?>(
             initialValue: _selectedLocationId,
             isDense: true,
+            decoration: InputDecoration(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.3))),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.2))),
+            ),
             style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
             items: [
               const DropdownMenuItem(value: null, child: Text('No location linked')),
@@ -625,20 +682,25 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
             ],
             onChanged: (val) => setState(() => _selectedLocationId = val),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
 
           // Trip Picker
           Row(
             children: const [
               Icon(LucideIcons.navigation, size: 13, color: Colors.orange),
               SizedBox(width: 6),
-              Text('Trip', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+              Text('Trip', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           DropdownButtonFormField<String?>(
             initialValue: _selectedTripId,
             isDense: true,
+            decoration: InputDecoration(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.3))),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.2))),
+            ),
             style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
             items: [
               const DropdownMenuItem(value: null, child: Text('No trip linked')),
@@ -649,20 +711,25 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
             ],
             onChanged: (val) => setState(() => _selectedTripId = val),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
 
           // People Present Picker
           Row(
             children: const [
               Icon(LucideIcons.users, size: 13, color: Colors.orange),
               SizedBox(width: 6),
-              Text('People Present', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+              Text('People Present', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           DropdownButtonFormField<String?>(
             initialValue: _selectedPersonId,
             isDense: true,
+            decoration: InputDecoration(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.3))),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.2))),
+            ),
             style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
             items: [
               const DropdownMenuItem(value: null, child: Text('+ Tag Person')),
@@ -677,10 +744,10 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
 
           // On This Day Box
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: colorScheme.onSurface.withValues(alpha: 0.04),
-              borderRadius: BorderRadius.circular(6),
+              color: colorScheme.onSurface.withValues(alpha: 0.035),
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(color: colorScheme.outline.withValues(alpha: 0.15)),
             ),
             child: Column(
@@ -688,30 +755,30 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
               children: [
                 Text(
                   'ON THIS DAY (${DateFormat('yyyy-MM-dd').format(_entryDate)})',
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: colorScheme.onSurface.withValues(alpha: 0.6)),
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: colorScheme.onSurface.withValues(alpha: 0.6)),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Row(
                   children: [
-                    const Icon(LucideIcons.film, size: 12),
-                    const SizedBox(width: 6),
-                    Text('Movies Watched (${_contextData['moviesCount'] ?? 0})', style: const TextStyle(fontSize: 11)),
+                    const Icon(LucideIcons.film, size: 13, color: Colors.purple),
+                    const SizedBox(width: 8),
+                    Text('Movies Watched (${_contextData['moviesCount'] ?? 0})', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(LucideIcons.music, size: 12),
-                    const SizedBox(width: 6),
-                    Text('Music Listen Count (${_contextData['scrobblesCount'] ?? 0})', style: const TextStyle(fontSize: 11)),
+                    const Icon(LucideIcons.music, size: 13, color: Colors.blue),
+                    const SizedBox(width: 8),
+                    Text('Music Listen Count (${_contextData['scrobblesCount'] ?? 0})', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(LucideIcons.camera, size: 12),
-                    const SizedBox(width: 6),
-                    Text('Photos Captured (${_contextData['photosCount'] ?? 0})', style: const TextStyle(fontSize: 11)),
+                    const Icon(LucideIcons.camera, size: 13, color: Colors.green),
+                    const SizedBox(width: 8),
+                    Text('Photos Captured (${_contextData['photosCount'] ?? 0})', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
                   ],
                 ),
               ],

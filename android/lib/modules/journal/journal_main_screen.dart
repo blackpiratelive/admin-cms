@@ -280,53 +280,70 @@ class _JournalMainScreenState extends State<JournalMainScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Icon(LucideIcons.bookOpen, color: colorScheme.primary, size: 24),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Text(
-                        'Personal Memory Vault',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          children: const [
-                            Icon(LucideIcons.shieldCheck, size: 11, color: Colors.green),
-                            SizedBox(width: 4),
-                            Text(
-                              'DEK/KEK E2EE Active',
-                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    'Zero-knowledge encrypted life journal, reflections, & contextual memories.',
-                    style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withValues(alpha: 0.6)),
-                  ),
-                ],
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(LucideIcons.bookOpen, color: colorScheme.primary, size: 22),
               ),
-              const Spacer(),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: const Text(
+                            'Personal Memory Vault',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(LucideIcons.shieldCheck, size: 11, color: Colors.green),
+                              SizedBox(width: 4),
+                              Text(
+                                'DEK/KEK E2EE Active',
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Zero-knowledge encrypted life journal, reflections, & contextual memories.',
+                      style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withValues(alpha: 0.6)),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
               ElevatedButton.icon(
                 onPressed: () => widget.onOpenEditor(null),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: colorScheme.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  elevation: 2,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
-                icon: const Icon(LucideIcons.plus, size: 14),
+                icon: const Icon(LucideIcons.plus, size: 15),
                 label: const Text('New Entry', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
               ),
               const SizedBox(width: 8),
@@ -338,8 +355,9 @@ class _JournalMainScreenState extends State<JournalMainScreen> {
                 },
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.red,
-                  side: const BorderSide(color: Colors.red),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  side: BorderSide(color: Colors.red.withValues(alpha: 0.5)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
                 icon: const Icon(LucideIcons.lock, size: 14),
                 label: const Text('Lock', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
@@ -350,11 +368,18 @@ class _JournalMainScreenState extends State<JournalMainScreen> {
 
           // Navigation Tabs & Search Input
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
             child: Wrap(
               spacing: 12,
@@ -362,26 +387,36 @@ class _JournalMainScreenState extends State<JournalMainScreen> {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 // Sub Tabs
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildSubTabButton('timeline', 'Timeline', LucideIcons.layers),
-                    const SizedBox(width: 4),
-                    _buildSubTabButton('calendar', 'Calendar', LucideIcons.calendar),
-                    const SizedBox(width: 4),
-                    _buildSubTabButton('stats', 'Stats', LucideIcons.barChart2),
-                  ],
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: colorScheme.onSurface.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildSubTabButton('timeline', 'Timeline', LucideIcons.layers),
+                      _buildSubTabButton('calendar', 'Calendar', LucideIcons.calendar),
+                      _buildSubTabButton('stats', 'Stats', LucideIcons.barChart2),
+                    ],
+                  ),
                 ),
 
                 // Search Input
                 ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 400),
+                  constraints: const BoxConstraints(maxWidth: 360),
                   child: TextField(
                     controller: _searchController,
-                    decoration: const InputDecoration(
-                      hintText: 'Search decrypted entries (title, body, tags)...',
-                      prefixIcon: Icon(LucideIcons.search, size: 16),
+                    decoration: InputDecoration(
+                      hintText: 'Search decrypted entries...',
+                      hintStyle: TextStyle(fontSize: 12, color: colorScheme.onSurface.withValues(alpha: 0.5)),
+                      prefixIcon: const Icon(LucideIcons.search, size: 15),
                       isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.2))),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.2))),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: colorScheme.primary)),
                     ),
                     onChanged: (val) => setState(() => _searchQuery = val),
                   ),
@@ -409,24 +444,34 @@ class _JournalMainScreenState extends State<JournalMainScreen> {
 
     return InkWell(
       onTap: () => setState(() => _activeTab = key),
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      borderRadius: BorderRadius.circular(18),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected ? colorScheme.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: colorScheme.primary.withValues(alpha: 0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: isSelected ? Colors.white : colorScheme.onSurface),
+            Icon(icon, size: 14, color: isSelected ? Colors.white : colorScheme.onSurface.withValues(alpha: 0.7)),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected ? Colors.white : colorScheme.onSurface,
+                color: isSelected ? Colors.white : colorScheme.onSurface.withValues(alpha: 0.7),
               ),
             ),
           ],
@@ -515,17 +560,24 @@ class _JournalMainScreenState extends State<JournalMainScreen> {
 
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colorScheme.outline.withValues(alpha: 0.18)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle),
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
               child: Icon(icon, size: 20, color: color),
             ),
             const SizedBox(width: 12),
@@ -533,7 +585,8 @@ class _JournalMainScreenState extends State<JournalMainScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: colorScheme.onSurface.withValues(alpha: 0.6))),
+                  Text(title, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: colorScheme.onSurface.withValues(alpha: 0.5))),
+                  const SizedBox(height: 2),
                   Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   Text(sub, style: TextStyle(fontSize: 11, color: colorScheme.onSurface.withValues(alpha: 0.5))),
                 ],
@@ -559,8 +612,15 @@ class _JournalMainScreenState extends State<JournalMainScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.18)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -569,18 +629,18 @@ class _JournalMainScreenState extends State<JournalMainScreen> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: colorScheme.primary.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
-                child: Text(typeLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: colorScheme.primary)),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: colorScheme.primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)),
+                child: Text(typeLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.primary)),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: Colors.amber.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
-                child: Text('😊 $moodLabel', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber)),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: Colors.amber.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)),
+                child: Text('😊 $moodLabel', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.amber)),
               ),
               const SizedBox(width: 10),
-              Text(entry.entryDate, style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withValues(alpha: 0.5))),
+              Text(entry.entryDate, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: colorScheme.onSurface.withValues(alpha: 0.5))),
 
               const Spacer(),
 
