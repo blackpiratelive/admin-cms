@@ -2,11 +2,29 @@ import { NextResponse } from "next/server";
 import { db, ensureDbInitialized } from "@/db";
 import { microblogs, relatedMicroblogs, locations, trips } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { saveMicroblog, getMicroblogs } from "@/features/microblog/actions";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get("search");
+    const status = searchParams.get("status");
+    const page = searchParams.get("page");
+    const limit = searchParams.get("limit");
+
+    // If paginated query parameters are passed by the admin app, use getMicroblogs action
+    if (page || search || status) {
+      const result = await getMicroblogs({
+        search: search || "",
+        status: status || "all",
+        page: page ? parseInt(page, 10) : 1,
+        limit: limit ? parseInt(limit, 10) : 50,
+      });
+      return NextResponse.json(result);
+    }
+
     await ensureDbInitialized();
 
     const rawPosts = await db
@@ -25,7 +43,6 @@ export async function GET() {
       .where(eq(microblogs.status, "published"))
       .orderBy(desc(microblogs.publishedAt));
 
-    // Pre-fetch locations and trips map for fast resolution
     const [allLocations, allTrips] = await Promise.all([
       db.select().from(locations),
       db.select().from(trips),
@@ -34,7 +51,6 @@ export async function GET() {
     const locationMap = new Map(allLocations.map((loc) => [loc.id, loc]));
     const tripMap = new Map(allTrips.map((trip) => [trip.id, trip]));
 
-    // Fetch all related posts mapping
     const relations = await db
       .select({
         microblogId: relatedMicroblogs.microblogId,
@@ -43,7 +59,6 @@ export async function GET() {
       .from(relatedMicroblogs)
       .innerJoin(microblogs, eq(relatedMicroblogs.relatedMicroblogId, microblogs.id));
 
-    // Map relations by microblogId
     const relationsMap: Record<string, string[]> = {};
     for (const rel of relations) {
       if (!relationsMap[rel.microblogId]) {
@@ -99,11 +114,25 @@ export async function GET() {
     });
 
     return NextResponse.json({ posts });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to fetch microblogs:", error);
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      { error: error.message || "Internal Server Error" },
       { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const result = await saveMicroblog(body);
+    return NextResponse.json(result, { status: 200 });
+  } catch (error: any) {
+    console.error("Failed to save microblog:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to save microblog" },
+      { status: 400 }
     );
   }
 }

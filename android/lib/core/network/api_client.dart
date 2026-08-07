@@ -200,4 +200,33 @@ class ApiClient {
       return false;
     }
   }
+
+  // Upload image file to server / Cloudinary
+  static Future<String> uploadImage(String filePath, String fileName, List<int> bytes) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/upload');
+    final token = await AppStorage.getAuthToken();
+
+    final request = http.MultipartRequest('POST', uri);
+    if (token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+
+    request.files.add(http.MultipartFile.fromBytes(
+      'file',
+      bytes,
+      filename: fileName,
+    ));
+
+    final streamedResponse = await request.send().timeout(const Duration(seconds: 30));
+    final response = await http.Response.fromStream(streamedResponse);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = jsonDecode(response.body);
+      return data['url'] as String;
+    } else {
+      final errorData = jsonDecode(response.body);
+      throw Exception(errorData['error'] ?? 'Upload failed (${response.statusCode})');
+    }
+  }
 }

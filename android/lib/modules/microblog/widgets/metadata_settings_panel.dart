@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/models/location.dart';
 import '../../../core/models/trip.dart';
 import '../../../core/models/social_status.dart';
+import '../../../core/network/api_client.dart';
+import '../../../shared/widgets/toast_notification.dart';
 
 class MetadataSettingsPanel extends StatefulWidget {
   final TextEditingController slugController;
@@ -65,7 +68,37 @@ class MetadataSettingsPanel extends StatefulWidget {
 
 class _MetadataSettingsPanelState extends State<MetadataSettingsPanel> {
   bool _isCollapsed = true;
-  String _activeTab = 'general'; // 'general', 'media', 'shortlink', 'related'
+  String _activeTab = 'general';
+  bool _isUploadingImage = false;
+
+  Future<void> _pickAndUploadImage() async {
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+      if (file == null) return;
+
+      setState(() => _isUploadingImage = true);
+      final bytes = await file.readAsBytes();
+      final url = await ApiClient.uploadImage(file.path, file.name, bytes);
+
+      final updatedImages = List<String>.from(widget.images)..add(url);
+      widget.onImagesChanged(updatedImages);
+
+      if (widget.coverUrlController.text.trim().isEmpty) {
+        widget.coverUrlController.text = url;
+      }
+
+      if (mounted) {
+        ToastNotification.show(context, title: 'Uploaded', message: 'Image uploaded successfully!');
+      }
+    } catch (e) {
+      if (mounted) {
+        ToastNotification.show(context, title: 'Upload Failed', message: e.toString(), isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingImage = false);
+    }
+  } // 'general', 'media', 'shortlink', 'related'
 
   final DateFormat _dateFormat = DateFormat('MM / dd / yyyy,  hh : mm  a');
 
@@ -472,9 +505,31 @@ class _MetadataSettingsPanelState extends State<MetadataSettingsPanel> {
   }
 
   Widget _buildMediaTab(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Upload Media / Cover', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            ElevatedButton.icon(
+              onPressed: _isUploadingImage ? null : _pickAndUploadImage,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              icon: _isUploadingImage
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(LucideIcons.upload, size: 14),
+              label: Text(_isUploadingImage ? 'Uploading...' : 'Upload Image', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
         const Text('Cover Image URL', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
         TextField(
