@@ -7,7 +7,16 @@ import { Download, FileText, Code, ShieldCheck, X, FileArchive, Loader2 } from "
 import {
   extractPlaintextFromLexicalState,
   formatJournalEntryToMarkdownFile,
+  extractAssetIdsFromLexicalState,
+  getAssetFileExtension,
+  JournalExportAttachment,
 } from "../lib/journal-helpers";
+import { useJournalAuth } from "../context/JournalAuthContext";
+import {
+  getJournalAssetsForEntriesAction,
+  getJournalAssetsByIdsAction,
+} from "../actions";
+import { downloadAndDecryptJournalAssetBuffer } from "../lib/crypto-assets";
 import { notify } from "@/lib/notifications";
 
 interface JournalExportModalProps {
@@ -17,8 +26,10 @@ interface JournalExportModalProps {
 }
 
 export function JournalExportModal({ items, isOpen, onClose }: JournalExportModalProps) {
+  const { cryptoKey } = useJournalAuth();
   const [exportFormat, setExportFormat] = useState<"markdown" | "json" | "html" | "encrypted_backup">("markdown");
   const [isExporting, setIsExporting] = useState(false);
+  const [exportStatusText, setExportStatusText] = useState<string>("");
 
   if (!isOpen) return null;
 
@@ -46,14 +57,93 @@ export function JournalExportModal({ items, isOpen, onClose }: JournalExportModa
 
     const dateStr = new Date().toISOString().split("T")[0];
     setIsExporting(true);
+    setExportStatusText("Initializing export bundle...");
 
     try {
       if (exportFormat === "markdown") {
         const zip = new JSZip();
+
+        // 1. Gather all entry IDs and inline AST asset IDs
+        const entryIds = items.map((i) => i.record.id);
+        const allAstAssetIds = items.flatMap((i) =>
+          extractAssetIdsFromLexicalState(i.content?.lexicalState || "")
+        );
+
+        setExportStatusText("Fetching attachments and image metadata...");
+        const [entryAssets, astAssets] = await Promise.all([
+          getJournalAssetsForEntriesAction(entryIds).catch(() => []),
+          getJournalAssetsByIdsAction(allAstAssetIds).catch(() => []),
+        ]);
+
+        // Deduplicate all assets
+        const allAssetsMap = new Map<string, any>();
+        for (const a of entryAssets) {
+          if (a && a.id) allAssetsMap.set(a.id, a);
+        }
+        for (const a of astAssets) {
+          if (a && a.id && !allAssetsMap.has(a.id)) allAssetsMap.set(a.id, a);
+        }
+        const allAssets = Array.from(allAssetsMap.values());
+
+        // Map asset IDs to relative zip paths: images/jasset_123.webp
+        const assetFilenameMap = new Map<string, string>();
+        for (const asset of allAssets) {
+          const ext = getAssetFileExtension(asset.mimeType);
+          const relativePath = `images/${asset.id}.${ext}`;
+          assetFilenameMap.set(asset.id, relativePath);
+        }
+
+        // 2. Download and decrypt images
+        if (cryptoKey && allAssets.length > 0) {
+          let successCount = 0;
+          for (let i = 0; i < allAssets.length; i++) {
+            const asset = allAssets[i];
+            const relativePath = assetFilenameMap.get(asset.id)!;
+            setExportStatusText(`Decrypting asset ${i + 1} of ${allAssets.length} (${asset.id})...`);
+
+            try {
+              const pubId = asset.cloudinaryOriginalPublicId || asset.cloudinaryThumbnailPublicId;
+              const iv = asset.originalIv || asset.thumbnailIv;
+              if (pubId && iv) {
+                const decryptedBuffer = await downloadAndDecryptJournalAssetBuffer({
+                  cloudinaryPublicId: pubId,
+                  iv,
+                  dekKey: cryptoKey,
+                });
+                zip.file(relativePath, decryptedBuffer);
+                successCount++;
+              }
+            } catch (imgErr) {
+              console.warn(`Failed to export image "${asset.id}":`, imgErr);
+            }
+          }
+        }
+
+        // 3. Map attached assets per entry
+        const entryAttachmentsMap = new Map<string, JournalExportAttachment[]>();
+        for (const link of entryAssets) {
+          if (!link || !link.entryId) continue;
+          const list = entryAttachmentsMap.get(link.entryId) || [];
+          const imagePath = assetFilenameMap.get(link.id) || `images/${link.id}.webp`;
+          list.push({
+            id: link.id,
+            imagePath,
+            assetRole: link.assetRole,
+            caption: (link as any).caption,
+          });
+          entryAttachmentsMap.set(link.entryId, list);
+        }
+
+        // 4. Generate markdown files with frontmatter and local image references
+        setExportStatusText("Formatting markdown files with YAML frontmatter...");
         const usedFilenames = new Set<string>();
 
         for (const item of items) {
-          const { filename: baseFilename, content } = formatJournalEntryToMarkdownFile(item);
+          const entryAtts = entryAttachmentsMap.get(item.record.id) || [];
+          const { filename: baseFilename, content } = formatJournalEntryToMarkdownFile(item, {
+            attachments: entryAtts,
+            assetFilenameMap,
+          });
 
           let finalFilename = baseFilename;
           let counter = 1;
@@ -68,11 +158,13 @@ export function JournalExportModal({ items, isOpen, onClose }: JournalExportModa
           zip.file(finalFilename, content);
         }
 
+        // 5. Generate and download zip
+        setExportStatusText("Compiling zip archive...");
         const zipBlob = await zip.generateAsync({ type: "blob" });
         downloadBlob(zipBlob, `journal_markdown_bundle_${dateStr}.zip`);
         notify.show({
           type: "success",
-          message: `Exported ${items.length} markdown entries as .zip bundle!`,
+          message: `Exported ${items.length} entries & ${allAssets.length} images/attachments as .zip bundle!`,
         });
       } else if (exportFormat === "json") {
         const jsonContent = JSON.stringify(
@@ -129,6 +221,7 @@ export function JournalExportModal({ items, isOpen, onClose }: JournalExportModa
       notify.show({ type: "error", message: `Export failed: ${err?.message || "Unknown error"}` });
     } finally {
       setIsExporting(false);
+      setExportStatusText("");
     }
   };
 
@@ -282,7 +375,7 @@ export function JournalExportModal({ items, isOpen, onClose }: JournalExportModa
           {isExporting ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
           <span>
             {isExporting
-              ? "Generating Bundle..."
+              ? exportStatusText || "Generating Bundle..."
               : `Export ${exportFormat === "markdown" ? "MARKDOWN BUNDLE (.ZIP)" : exportFormat.replace("_", " ").toUpperCase()}`}
           </span>
         </button>

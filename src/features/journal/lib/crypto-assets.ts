@@ -265,3 +265,27 @@ export async function downloadAndDecryptJournalAssetBlob({
   const decryptedBlob = new Blob([decryptedBuffer], { type: mimeType });
   return URL.createObjectURL(decryptedBlob);
 }
+
+/**
+ * Downloads encrypted blob from Cloudinary raw URL, decrypts with DEK, and returns raw decrypted ArrayBuffer.
+ */
+export async function downloadAndDecryptJournalAssetBuffer({
+  cloudinaryPublicId,
+  iv,
+  dekKey,
+}: {
+  cloudinaryPublicId: string;
+  iv: string;
+  dekKey: CryptoKey;
+}): Promise<ArrayBuffer> {
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const rawUrl = `https://res.cloudinary.com/${cloudName}/raw/upload/${cloudinaryPublicId}`;
+
+  const res = await fetch(rawUrl);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch encrypted asset (HTTP ${res.status})`);
+  }
+
+  const encryptedBuffer = await res.arrayBuffer();
+  return decryptArrayBuffer(encryptedBuffer, iv, dekKey);
+}

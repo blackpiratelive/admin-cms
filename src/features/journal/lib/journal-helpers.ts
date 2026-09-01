@@ -196,7 +196,42 @@ export function sanitizeLexicalStateJson(lexicalJsonStr: string): string {
   }
 }
 
-function formatInlineNode(node: any): string {
+export function getAssetFileExtension(mimeType?: string): string {
+  if (!mimeType) return "webp";
+  const lower = mimeType.toLowerCase();
+  if (lower.includes("png")) return "png";
+  if (lower.includes("jpeg") || lower.includes("jpg")) return "jpg";
+  if (lower.includes("gif")) return "gif";
+  if (lower.includes("svg")) return "svg";
+  if (lower.includes("webp")) return "webp";
+  return "webp";
+}
+
+export function extractAssetIdsFromLexicalState(lexicalJsonStr: string): string[] {
+  if (!lexicalJsonStr) return [];
+  try {
+    const state = typeof lexicalJsonStr === "string" ? JSON.parse(lexicalJsonStr) : lexicalJsonStr;
+    const assetIds: string[] = [];
+    function traverse(node: any) {
+      if (node && typeof node === "object") {
+        if ((node.type === "journal-image" || node.type === "image") && node.assetId) {
+          assetIds.push(node.assetId);
+        }
+        if (Array.isArray(node.children)) {
+          for (const child of node.children) {
+            traverse(child);
+          }
+        }
+      }
+    }
+    if (state && state.root) traverse(state.root);
+    return Array.from(new Set(assetIds));
+  } catch {
+    return [];
+  }
+}
+
+function formatInlineNode(node: any, assetFilenameMap?: Map<string, string>): string {
   if (!node || typeof node !== "object") return "";
 
   if (node.type === "linebreak") {
@@ -208,12 +243,19 @@ function formatInlineNode(node: any): string {
   }
 
   if (node.type === "link" || node.type === "autolink") {
-    const text = (node.children || []).map(formatInlineNode).join("");
+    const text = (node.children || []).map((c: any) => formatInlineNode(c, assetFilenameMap)).join("");
     return `[${text || node.url || ""}](${node.url || ""})`;
   }
 
   if (node.type === "journal-image" || node.type === "image") {
-    return `![Image](${node.assetId || node.src || ""})`;
+    const assetId = node.assetId || "";
+    const imagePath = (assetFilenameMap && assetId && assetFilenameMap.get(assetId))
+      ? assetFilenameMap.get(assetId)
+      : assetId
+      ? `images/${assetId}.webp`
+      : node.src || "";
+    const caption = node.caption || "Image";
+    return `![${caption}](${imagePath})`;
   }
 
   if (typeof node.text === "string") {
@@ -243,13 +285,13 @@ function formatInlineNode(node: any): string {
   }
 
   if (Array.isArray(node.children)) {
-    return node.children.map(formatInlineNode).join("");
+    return node.children.map((c: any) => formatInlineNode(c, assetFilenameMap)).join("");
   }
 
   return "";
 }
 
-function formatBlockNode(node: any, indentLevel = 0): string {
+function formatBlockNode(node: any, indentLevel = 0, assetFilenameMap?: Map<string, string>): string {
   if (!node || typeof node !== "object") return "";
 
   const nodeType = String(node.type || "").toLowerCase().trim();
@@ -257,19 +299,19 @@ function formatBlockNode(node: any, indentLevel = 0): string {
   if (nodeType === "heading") {
     const tag = String(node.tag || "h1").toLowerCase();
     const level = tag === "h1" ? "#" : tag === "h2" ? "##" : tag === "h3" ? "###" : tag === "h4" ? "####" : tag === "h5" ? "#####" : "######";
-    const text = (node.children || []).map(formatInlineNode).join("");
+    const text = (node.children || []).map((c: any) => formatInlineNode(c, assetFilenameMap)).join("");
     return `${level} ${text}`;
   }
 
   if (nodeType === "quote") {
-    const text = (node.children || []).map(formatInlineNode).join("");
+    const text = (node.children || []).map((c: any) => formatInlineNode(c, assetFilenameMap)).join("");
     const lines = text.split("\n");
     return lines.map((l: string) => `> ${l}`).join("\n");
   }
 
   if (nodeType === "code") {
     const language = node.language || "";
-    const codeText = (node.children || []).map((c: any) => c.text || formatInlineNode(c)).join("");
+    const codeText = (node.children || []).map((c: any) => c.text || formatInlineNode(c, assetFilenameMap)).join("");
     return `\`\`\`${language}\n${codeText}\n\`\`\``;
   }
 
@@ -293,9 +335,9 @@ function formatBlockNode(node: any, indentLevel = 0): string {
           const subListParts: string[] = [];
           for (const subChild of child.children) {
             if (subChild.type === "list") {
-              subListParts.push(formatBlockNode(subChild, indentLevel + 1));
+              subListParts.push(formatBlockNode(subChild, indentLevel + 1, assetFilenameMap));
             } else {
-              inlineParts.push(formatInlineNode(subChild));
+              inlineParts.push(formatInlineNode(subChild, assetFilenameMap));
             }
           }
           itemText = inlineParts.join("");
@@ -303,13 +345,13 @@ function formatBlockNode(node: any, indentLevel = 0): string {
             itemText += "\n" + subListParts.join("\n");
           }
         } else {
-          itemText = formatInlineNode(child);
+          itemText = formatInlineNode(child, assetFilenameMap);
         }
 
         const indent = "  ".repeat(indentLevel);
         items.push(`${indent}${prefix}${itemText}`);
       } else {
-        items.push(formatBlockNode(child, indentLevel));
+        items.push(formatBlockNode(child, indentLevel, assetFilenameMap));
       }
     });
 
@@ -327,17 +369,21 @@ function formatBlockNode(node: any, indentLevel = 0): string {
   }
 
   if (nodeType === "paragraph") {
-    return (node.children || []).map(formatInlineNode).join("");
+    return (node.children || []).map((c: any) => formatInlineNode(c, assetFilenameMap)).join("");
+  }
+
+  if (nodeType === "journal-image" || nodeType === "image") {
+    return formatInlineNode(node, assetFilenameMap);
   }
 
   if (Array.isArray(node.children)) {
-    return node.children.map((c: any) => formatInlineNode(c)).join("");
+    return node.children.map((c: any) => formatInlineNode(c, assetFilenameMap)).join("");
   }
 
-  return formatInlineNode(node);
+  return formatInlineNode(node, assetFilenameMap);
 }
 
-export function lexicalStateToMarkdown(lexicalJsonStr: string): string {
+export function lexicalStateToMarkdown(lexicalJsonStr: string, assetFilenameMap?: Map<string, string>): string {
   if (!lexicalJsonStr) return "";
   try {
     const state = typeof lexicalJsonStr === "string" ? JSON.parse(lexicalJsonStr) : lexicalJsonStr;
@@ -351,7 +397,7 @@ export function lexicalStateToMarkdown(lexicalJsonStr: string): string {
     }
 
     const blocks = root.children
-      .map((child: any) => formatBlockNode(child, 0))
+      .map((child: any) => formatBlockNode(child, 0, assetFilenameMap))
       .filter((blockText: string) => blockText !== undefined && blockText !== null);
 
     return blocks.join("\n\n").trim();
@@ -383,20 +429,33 @@ export function sanitizeFilename(name: string): string {
     .substring(0, 60);
 }
 
-export function formatJournalEntryToMarkdownFile(item: {
-  record: {
-    id: string;
-    slug?: string;
-    entryDate: string;
-    entryType?: string;
-    mood?: string | null;
-    favorite?: number;
-    tags?: string;
-    createdAt?: string;
-  };
-  content: DecryptedJournalContent | null;
-  plaintextBody?: string;
-}): { filename: string; content: string } {
+export interface JournalExportAttachment {
+  id: string;
+  imagePath: string; // e.g. "images/jasset_123.webp"
+  assetRole?: "inline" | "attachment";
+  caption?: string;
+}
+
+export function formatJournalEntryToMarkdownFile(
+  item: {
+    record: {
+      id: string;
+      slug?: string;
+      entryDate: string;
+      entryType?: string;
+      mood?: string | null;
+      favorite?: number;
+      tags?: string;
+      createdAt?: string;
+    };
+    content: DecryptedJournalContent | null;
+    plaintextBody?: string;
+  },
+  options?: {
+    attachments?: JournalExportAttachment[];
+    assetFilenameMap?: Map<string, string>;
+  }
+): { filename: string; content: string } {
   const dateStr = normalizeEntryDate(item.record.entryDate || item.record.createdAt);
   const title = item.content?.title || "Untitled";
   const entryType = item.record.entryType || "daily";
@@ -417,6 +476,27 @@ export function formatJournalEntryToMarkdownFile(item: {
   }
   tagList = tagList.map(String).filter((t, idx, arr) => t.trim().length > 0 && arr.indexOf(t) === idx);
 
+  // Extract list of all image paths for this entry
+  const entryImages: string[] = [];
+  if (options?.attachments && options.attachments.length > 0) {
+    for (const att of options.attachments) {
+      if (!entryImages.includes(att.imagePath)) {
+        entryImages.push(att.imagePath);
+      }
+    }
+  }
+
+  // Also include any inline image paths from AST
+  if (item.content?.lexicalState) {
+    const inlineAssetIds = extractAssetIdsFromLexicalState(item.content.lexicalState);
+    for (const aId of inlineAssetIds) {
+      const mapped = options?.assetFilenameMap?.get(aId) || `images/${aId}.webp`;
+      if (!entryImages.includes(mapped)) {
+        entryImages.push(mapped);
+      }
+    }
+  }
+
   let frontmatter = `---\n`;
   frontmatter += `journal: true\n`;
   frontmatter += `date: ${dateStr}\n`;
@@ -432,15 +512,34 @@ export function formatJournalEntryToMarkdownFile(item: {
       frontmatter += `  - ${tag}\n`;
     }
   }
+  if (entryImages.length > 0) {
+    frontmatter += `images:\n`;
+    for (const img of entryImages) {
+      frontmatter += `  - ${img}\n`;
+    }
+  }
   frontmatter += `---\n\n`;
 
   let body = "";
   if (item.content?.lexicalState) {
-    body = lexicalStateToMarkdown(item.content.lexicalState);
+    body = lexicalStateToMarkdown(item.content.lexicalState, options?.assetFilenameMap);
   } else if (item.content?.markdown) {
     body = item.content.markdown;
   } else if (item.plaintextBody) {
     body = item.plaintextBody;
+  }
+
+  // If there are standalone attached images not present in the body text, append an attachments gallery section
+  const standaloneAttachments = (options?.attachments || []).filter(
+    (att) => att.assetRole === "attachment" && !body.includes(att.imagePath)
+  );
+
+  if (standaloneAttachments.length > 0) {
+    let attachSection = "\n\n### Attachments\n\n";
+    for (const att of standaloneAttachments) {
+      attachSection += `![${att.caption || "Attachment"}](${att.imagePath})\n\n`;
+    }
+    body = body.trim() + attachSection;
   }
 
   const fullMarkdown = `${frontmatter}${body.trim()}\n`;

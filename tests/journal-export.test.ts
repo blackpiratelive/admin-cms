@@ -5,6 +5,7 @@ import {
   normalizeEntryDate,
   sanitizeFilename,
   formatJournalEntryToMarkdownFile,
+  extractAssetIdsFromLexicalState,
 } from "@/features/journal/lib/journal-helpers";
 
 describe("Journal Markdown Export & AST Serializer", () => {
@@ -271,5 +272,144 @@ describe("Journal Markdown Export & AST Serializer", () => {
       "2026-12-31-daily-reflection-1.md",
       "2026-12-31-daily-reflection-2.md",
     ]);
+  });
+
+  it("extracts asset IDs from Lexical JSON AST containing journal-image and image nodes", () => {
+    const astWithImages = JSON.stringify({
+      root: {
+        children: [
+          {
+            type: "paragraph",
+            children: [{ type: "text", text: "Here is a photo:" }],
+          },
+          {
+            type: "journal-image",
+            assetId: "jasset_abc123",
+            caption: "Kyoto Temple",
+          },
+          {
+            type: "image",
+            assetId: "jasset_def456",
+          },
+        ],
+      },
+    });
+
+    const assetIds = extractAssetIdsFromLexicalState(astWithImages);
+    expect(assetIds).toEqual(["jasset_abc123", "jasset_def456"]);
+  });
+
+  it("formats markdown with local image paths and frontmatter images list for attachments", () => {
+    const entryItem = {
+      record: {
+        id: "jnl_photo_day",
+        slug: "photo-day",
+        entryDate: "2026-08-15",
+        entryType: "travel",
+      },
+      content: {
+        title: "Photography Walk",
+        lexicalState: JSON.stringify({
+          root: {
+            children: [
+              {
+                type: "paragraph",
+                children: [{ type: "text", text: "Great photography walk today." }],
+              },
+              {
+                type: "journal-image",
+                assetId: "jasset_inline_1",
+                caption: "Sunset over river",
+              },
+            ],
+          },
+        }),
+      },
+    };
+
+    const assetFilenameMap = new Map([
+      ["jasset_inline_1", "images/jasset_inline_1.webp"],
+      ["jasset_attach_2", "images/jasset_attach_2.png"],
+    ]);
+
+    const result = formatJournalEntryToMarkdownFile(entryItem, {
+      attachments: [
+        {
+          id: "jasset_attach_2",
+          imagePath: "images/jasset_attach_2.png",
+          assetRole: "attachment",
+          caption: "Camera Gear",
+        },
+      ],
+      assetFilenameMap,
+    });
+
+    // Check frontmatter contains images
+    expect(result.content).toContain("images:\n  - images/jasset_attach_2.png\n  - images/jasset_inline_1.webp\n");
+
+    // Check body contains inline image and standalone attachment section
+    expect(result.content).toContain("![Sunset over river](images/jasset_inline_1.webp)");
+    expect(result.content).toContain("### Attachments");
+    expect(result.content).toContain("![Camera Gear](images/jasset_attach_2.png)");
+  });
+
+  it("bundles images into images/ folder inside .zip archive alongside markdown files", async () => {
+    const zip = new JSZip();
+
+    // 1. Add mock images to images/
+    const dummyImageBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]); // PNG header
+    zip.file("images/jasset_photo_1.png", dummyImageBytes);
+    zip.file("images/jasset_photo_2.webp", new Uint8Array([0x52, 0x49, 0x46, 0x46])); // WEBP header
+
+    // 2. Add entry markdown referencing the images
+    const entry = {
+      record: { id: "jnl_memories", entryDate: "2026-09-01", entryType: "daily" },
+      content: {
+        title: "Memories with Photos",
+        lexicalState: JSON.stringify({
+          root: {
+            children: [
+              {
+                type: "paragraph",
+                children: [{ type: "text", text: "Captured two great moments." }],
+              },
+              {
+                type: "journal-image",
+                assetId: "jasset_photo_1",
+                caption: "Moment 1",
+              },
+            ],
+          },
+        }),
+      },
+    };
+
+    const assetFilenameMap = new Map([
+      ["jasset_photo_1", "images/jasset_photo_1.png"],
+      ["jasset_photo_2", "images/jasset_photo_2.webp"],
+    ]);
+
+    const { filename, content } = formatJournalEntryToMarkdownFile(entry, {
+      attachments: [
+        { id: "jasset_photo_2", imagePath: "images/jasset_photo_2.webp", assetRole: "attachment" },
+      ],
+      assetFilenameMap,
+    });
+
+    zip.file(filename, content);
+
+    const zipBlob = await zip.generateAsync({ type: "blob" });
+    const loadedZip = await JSZip.loadAsync(zipBlob);
+
+    // Verify all expected files exist in zip
+    expect(loadedZip.file("images/jasset_photo_1.png")).not.toBeNull();
+    expect(loadedZip.file("images/jasset_photo_2.webp")).not.toBeNull();
+    expect(loadedZip.file("2026-09-01-memories-with-photos.md")).not.toBeNull();
+
+    const mdText = await loadedZip.file("2026-09-01-memories-with-photos.md")!.async("string");
+    expect(mdText).toContain("journal: true");
+    expect(mdText).toContain("date: 2026-09-01");
+    expect(mdText).toContain("images/jasset_photo_1.png");
+    expect(mdText).toContain("images/jasset_photo_2.webp");
   });
 });

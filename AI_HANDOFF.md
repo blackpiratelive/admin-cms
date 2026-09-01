@@ -187,9 +187,11 @@ The database consists of **52 SQLite tables** managed via Drizzle ORM:
   - Normalizes stringified Lexical JSON, raw Markdown, numeric 1–10 mood scales, and location tags (`📍 location`).
   - Double-guards per-image processing so individual image upload glitches do not abort entry text or remaining image imports.
 - **Markdown Bundle (.zip) Export Engine**:
-  - `JournalExportModal.tsx` and `journal-helpers.ts` package decrypted entries into individual `.md` files bundled inside a single `.zip` archive.
-  - Converts Lexical JSON AST to clean Markdown (`lexicalStateToMarkdown`) preserving headings, checklists, lists, blockquotes, inline code, and formatting bitmasks.
-  - Generates standardized YAML frontmatter for each `.md` file containing `journal: true`, `date: YYYY-MM-DD` (e.g. `2026-12-31`), `title`, `entryType`, `mood`, `favorite`, and `tags`.
+  - `JournalExportModal.tsx`, `crypto-assets.ts`, and `journal-helpers.ts` package decrypted entries into individual `.md` files bundled inside a single `.zip` archive.
+  - Automatically queries, downloads, and decrypts all attached and inline images via `downloadAndDecryptJournalAssetBuffer` into the `images/` directory within the `.zip` archive.
+  - Converts Lexical JSON AST to clean Markdown (`lexicalStateToMarkdown`) preserving headings, checklists, lists, blockquotes, inline code, and formatting bitmasks, mapping inline `journal-image` nodes to local `images/` relative paths.
+  - Generates standardized YAML frontmatter for each `.md` file containing `journal: true`, `date: YYYY-MM-DD` (e.g. `2026-12-31`), `title`, `entryType`, `mood`, `favorite`, `tags`, and `images:` list for all attachments.
+  - Appends standalone attachment images under an `### Attachments` section in the markdown body.
   - Guarantees collision-free sanitized filenames inside the zip (e.g. `YYYY-MM-DD-entry-title.md`).
 - **Mobile Responsiveness & Adaptive UX**:
   - Fully mobile-optimized responsive layout across Journal Hub (`/journal`) and Lexical Editor (`/journal/editor`).

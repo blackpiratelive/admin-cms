@@ -591,12 +591,54 @@ export async function getJournalAssetsForEntryAction(entryId: string) {
       if (!asset) return null;
       return {
         ...asset,
+        entryId: link.entryId,
         linkId: link.id,
         assetRole: link.assetRole as "inline" | "attachment",
         position: link.position,
       };
     })
     .filter(Boolean);
+}
+
+export async function getJournalAssetsForEntriesAction(entryIds: string[]) {
+  await ensureDbInitialized();
+  if (!entryIds || entryIds.length === 0) return [];
+
+  const links = await db
+    .select()
+    .from(journalEntryAssets)
+    .where(inArray(journalEntryAssets.entryId, entryIds))
+    .orderBy(journalEntryAssets.position, journalEntryAssets.createdAt);
+
+  if (links.length === 0) return [];
+
+  const assetIds = Array.from(new Set(links.map((l) => l.assetId)));
+  const assets = await db
+    .select()
+    .from(journalAssets)
+    .where(inArray(journalAssets.id, assetIds));
+
+  const assetMap = new Map(assets.map((a) => [a.id, a]));
+  return links
+    .map((link) => {
+      const asset = assetMap.get(link.assetId);
+      if (!asset) return null;
+      return {
+        ...asset,
+        entryId: link.entryId,
+        linkId: link.id,
+        assetRole: link.assetRole as "inline" | "attachment",
+        position: link.position,
+      };
+    })
+    .filter(Boolean);
+}
+
+export async function getJournalAssetsByIdsAction(assetIds: string[]) {
+  await ensureDbInitialized();
+  if (!assetIds || assetIds.length === 0) return [];
+  const uniqueIds = Array.from(new Set(assetIds));
+  return db.select().from(journalAssets).where(inArray(journalAssets.id, uniqueIds));
 }
 
 export async function deleteJournalAssetAction(assetId: string) {
