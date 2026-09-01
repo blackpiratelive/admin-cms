@@ -1,9 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
+import JSZip from "jszip";
 import { DecryptedEntryItem } from "../lib/journal-search";
-import { Download, FileText, Code, ShieldCheck, X } from "lucide-react";
-import { extractPlaintextFromLexicalState } from "../lib/journal-helpers";
+import { Download, FileText, Code, ShieldCheck, X, FileArchive, Loader2 } from "lucide-react";
+import {
+  extractPlaintextFromLexicalState,
+  formatJournalEntryToMarkdownFile,
+} from "../lib/journal-helpers";
+import { notify } from "@/lib/notifications";
 
 interface JournalExportModalProps {
   items: DecryptedEntryItem[];
@@ -13,11 +18,11 @@ interface JournalExportModalProps {
 
 export function JournalExportModal({ items, isOpen, onClose }: JournalExportModalProps) {
   const [exportFormat, setExportFormat] = useState<"markdown" | "json" | "html" | "encrypted_backup">("markdown");
+  const [isExporting, setIsExporting] = useState(false);
 
   if (!isOpen) return null;
 
-  const downloadFile = (content: string, filename: string, mimeType: string) => {
-    const blob = new Blob([content], { type: mimeType });
+  const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -28,66 +33,103 @@ export function JournalExportModal({ items, isOpen, onClose }: JournalExportModa
     URL.revokeObjectURL(url);
   };
 
-  const handleExport = () => {
-    const dateStr = new Date().toISOString().split("T")[0];
+  const downloadFile = (content: string, filename: string, mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType });
+    downloadBlob(blob, filename);
+  };
 
-    if (exportFormat === "markdown") {
-      let mdContent = `# Encrypted Journal Export - ${dateStr}\n\n`;
-      for (const item of items) {
-        if (!item.content) continue;
-        const body = extractPlaintextFromLexicalState(item.content.lexicalState) || item.content.markdown || "";
-        mdContent += `## ${item.content.title || "Untitled"} (${item.record.entryDate})\n`;
-        mdContent += `**Type**: ${item.record.entryType} | **Mood**: ${item.record.mood || "N/A"}\n\n`;
-        mdContent += `${body}\n\n---\n\n`;
-      }
-      downloadFile(mdContent, `journal_export_${dateStr}.md`, "text/markdown");
-    } else if (exportFormat === "json") {
-      const jsonContent = JSON.stringify(
-        items.map((i) => ({
-          id: i.record.id,
-          entryDate: i.record.entryDate,
-          entryType: i.record.entryType,
-          mood: i.record.mood,
-          favorite: i.record.favorite,
-          title: i.content?.title,
-          content: extractPlaintextFromLexicalState(i.content?.lexicalState || "") || i.content?.markdown,
-          tags: i.content?.tags,
-        })),
-        null,
-        2
-      );
-      downloadFile(jsonContent, `journal_export_${dateStr}.json`, "application/json");
-    } else if (exportFormat === "html") {
-      let htmlContent = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Journal Export ${dateStr}</title><style>body{font-family:sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;line-height:1.6}h2{border-bottom:1px solid #ddd;padding-bottom:.5rem}.entry{margin-bottom:2rem}</style></head><body><h1>Personal Memory Vault Export</h1>`;
-      for (const item of items) {
-        if (!item.content) continue;
-        const body = extractPlaintextFromLexicalState(item.content.lexicalState) || item.content.markdown || "";
-        htmlContent += `<div class="entry"><h2>${item.content.title || "Untitled"} (${item.record.entryDate})</h2><p><em>${item.record.entryType} | ${item.record.mood || ""}</em></p><p>${body.replace(/\n/g, "<br>")}</p></div>`;
-      }
-      htmlContent += `</body></html>`;
-      downloadFile(htmlContent, `journal_export_${dateStr}.html`, "text/html");
-    } else if (exportFormat === "encrypted_backup") {
-      const backupData = JSON.stringify(
-        items.map((i) => ({
-          id: i.record.id,
-          slug: i.record.slug,
-          entryDate: i.record.entryDate,
-          entryType: i.record.entryType,
-          mood: i.record.mood,
-          favorite: i.record.favorite,
-          encryptedContent: i.record.encryptedContent,
-          iv: i.record.iv,
-          salt: i.record.salt,
-          wordCount: i.record.wordCount,
-          createdAt: i.record.createdAt,
-        })),
-        null,
-        2
-      );
-      downloadFile(backupData, `journal_encrypted_backup_${dateStr}.json`, "application/json");
+  const handleExport = async () => {
+    if (items.length === 0) {
+      notify.show({ type: "error", message: "No journal entries found to export." });
+      return;
     }
 
-    onClose();
+    const dateStr = new Date().toISOString().split("T")[0];
+    setIsExporting(true);
+
+    try {
+      if (exportFormat === "markdown") {
+        const zip = new JSZip();
+        const usedFilenames = new Set<string>();
+
+        for (const item of items) {
+          const { filename: baseFilename, content } = formatJournalEntryToMarkdownFile(item);
+
+          let finalFilename = baseFilename;
+          let counter = 1;
+          while (usedFilenames.has(finalFilename)) {
+            const dotIdx = baseFilename.lastIndexOf(".md");
+            const nameWithoutExt = dotIdx !== -1 ? baseFilename.substring(0, dotIdx) : baseFilename;
+            finalFilename = `${nameWithoutExt}-${counter}.md`;
+            counter++;
+          }
+          usedFilenames.add(finalFilename);
+
+          zip.file(finalFilename, content);
+        }
+
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        downloadBlob(zipBlob, `journal_markdown_bundle_${dateStr}.zip`);
+        notify.show({
+          type: "success",
+          message: `Exported ${items.length} markdown entries as .zip bundle!`,
+        });
+      } else if (exportFormat === "json") {
+        const jsonContent = JSON.stringify(
+          items.map((i) => ({
+            id: i.record.id,
+            entryDate: i.record.entryDate,
+            entryType: i.record.entryType,
+            mood: i.record.mood,
+            favorite: i.record.favorite,
+            title: i.content?.title,
+            content: extractPlaintextFromLexicalState(i.content?.lexicalState || "") || i.content?.markdown,
+            tags: i.content?.tags,
+          })),
+          null,
+          2
+        );
+        downloadFile(jsonContent, `journal_export_${dateStr}.json`, "application/json");
+        notify.show({ type: "success", message: `Exported ${items.length} entries as JSON.` });
+      } else if (exportFormat === "html") {
+        let htmlContent = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Journal Export ${dateStr}</title><style>body{font-family:sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;line-height:1.6}h2{border-bottom:1px solid #ddd;padding-bottom:.5rem}.entry{margin-bottom:2rem}</style></head><body><h1>Personal Memory Vault Export</h1>`;
+        for (const item of items) {
+          if (!item.content) continue;
+          const body = extractPlaintextFromLexicalState(item.content.lexicalState) || item.content.markdown || "";
+          htmlContent += `<div class="entry"><h2>${item.content.title || "Untitled"} (${item.record.entryDate})</h2><p><em>${item.record.entryType} | ${item.record.mood || ""}</em></p><p>${body.replace(/\n/g, "<br>")}</p></div>`;
+        }
+        htmlContent += `</body></html>`;
+        downloadFile(htmlContent, `journal_export_${dateStr}.html`, "text/html");
+        notify.show({ type: "success", message: `Exported ${items.length} entries as HTML archive.` });
+      } else if (exportFormat === "encrypted_backup") {
+        const backupData = JSON.stringify(
+          items.map((i) => ({
+            id: i.record.id,
+            slug: i.record.slug,
+            entryDate: i.record.entryDate,
+            entryType: i.record.entryType,
+            mood: i.record.mood,
+            favorite: i.record.favorite,
+            encryptedContent: i.record.encryptedContent,
+            iv: i.record.iv,
+            salt: i.record.salt,
+            wordCount: i.record.wordCount,
+            createdAt: i.record.createdAt,
+          })),
+          null,
+          2
+        );
+        downloadFile(backupData, `journal_encrypted_backup_${dateStr}.json`, "application/json");
+        notify.show({ type: "success", message: `Exported ${items.length} encrypted entries backup.` });
+      }
+
+      onClose();
+    } catch (err: any) {
+      console.error("Export error:", err);
+      notify.show({ type: "error", message: `Export failed: ${err?.message || "Unknown error"}` });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -125,7 +167,11 @@ export function JournalExportModal({ items, isOpen, onClose }: JournalExportModa
             <Download size={18} style={{ color: "var(--accent)" }} />
             <span>Export & Encrypted Backup</span>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>
+          <button
+            onClick={onClose}
+            disabled={isExporting}
+            style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}
+          >
             <X size={18} />
           </button>
         </div>
@@ -149,8 +195,13 @@ export function JournalExportModal({ items, isOpen, onClose }: JournalExportModa
             }}
           >
             <input type="radio" name="format" checked={exportFormat === "markdown"} onChange={() => setExportFormat("markdown")} />
-            <FileText size={16} />
-            <span>Markdown Bundle (.md)</span>
+            <FileArchive size={16} style={{ color: "var(--accent)" }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+              <span style={{ fontWeight: 600 }}>Markdown Bundle (.zip)</span>
+              <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                Separate .md files with YAML frontmatter (journal: true & date)
+              </span>
+            </div>
           </label>
 
           <label
@@ -210,6 +261,7 @@ export function JournalExportModal({ items, isOpen, onClose }: JournalExportModa
 
         <button
           onClick={handleExport}
+          disabled={isExporting}
           style={{
             padding: "12px",
             backgroundColor: "var(--accent)",
@@ -218,16 +270,21 @@ export function JournalExportModal({ items, isOpen, onClose }: JournalExportModa
             borderRadius: "6px",
             fontWeight: 600,
             fontSize: "14px",
-            cursor: "pointer",
+            cursor: isExporting ? "not-allowed" : "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             gap: "8px",
             marginTop: "6px",
+            opacity: isExporting ? 0.7 : 1,
           }}
         >
-          <Download size={16} />
-          <span>Export {exportFormat.replace("_", " ").toUpperCase()}</span>
+          {isExporting ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
+          <span>
+            {isExporting
+              ? "Generating Bundle..."
+              : `Export ${exportFormat === "markdown" ? "MARKDOWN BUNDLE (.ZIP)" : exportFormat.replace("_", " ").toUpperCase()}`}
+          </span>
         </button>
       </div>
     </div>

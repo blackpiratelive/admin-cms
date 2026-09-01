@@ -186,6 +186,11 @@ The database consists of **52 SQLite tables** managed via Drizzle ORM:
   - Scans all nested directories for `journal.json` and image files, resolving zip wrapper parent folders (`my-export/journal.json`, `my-folder/images/1_0.webp`).
   - Normalizes stringified Lexical JSON, raw Markdown, numeric 1–10 mood scales, and location tags (`📍 location`).
   - Double-guards per-image processing so individual image upload glitches do not abort entry text or remaining image imports.
+- **Markdown Bundle (.zip) Export Engine**:
+  - `JournalExportModal.tsx` and `journal-helpers.ts` package decrypted entries into individual `.md` files bundled inside a single `.zip` archive.
+  - Converts Lexical JSON AST to clean Markdown (`lexicalStateToMarkdown`) preserving headings, checklists, lists, blockquotes, inline code, and formatting bitmasks.
+  - Generates standardized YAML frontmatter for each `.md` file containing `journal: true`, `date: YYYY-MM-DD` (e.g. `2026-12-31`), `title`, `entryType`, `mood`, `favorite`, and `tags`.
+  - Guarantees collision-free sanitized filenames inside the zip (e.g. `YYYY-MM-DD-entry-title.md`).
 - **Mobile Responsiveness & Adaptive UX**:
   - Fully mobile-optimized responsive layout across Journal Hub (`/journal`) and Lexical Editor (`/journal/editor`).
   - Stacks two-column editor grid (`1fr 300px`) into 1-column on mobile viewports (<900px) so rich text editor and contextual connection panel do not overflow horizontally.

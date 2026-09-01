@@ -196,3 +196,260 @@ export function sanitizeLexicalStateJson(lexicalJsonStr: string): string {
   }
 }
 
+function formatInlineNode(node: any): string {
+  if (!node || typeof node !== "object") return "";
+
+  if (node.type === "linebreak") {
+    return "\n";
+  }
+
+  if (node.type === "tab") {
+    return "\t";
+  }
+
+  if (node.type === "link" || node.type === "autolink") {
+    const text = (node.children || []).map(formatInlineNode).join("");
+    return `[${text || node.url || ""}](${node.url || ""})`;
+  }
+
+  if (node.type === "journal-image" || node.type === "image") {
+    return `![Image](${node.assetId || node.src || ""})`;
+  }
+
+  if (typeof node.text === "string") {
+    let text = node.text;
+    const format = typeof node.format === "number" ? node.format : 0;
+    if (format === 0 || !text) return text;
+
+    if (format & 16) {
+      text = `\`${text}\``;
+    }
+    if (format & 1) {
+      text = `**${text}**`;
+    }
+    if (format & 2) {
+      text = `*${text}*`;
+    }
+    if (format & 4) {
+      text = `~~${text}~~`;
+    }
+    if (format & 8) {
+      text = `<u>${text}</u>`;
+    }
+    if (format & 128) {
+      text = `==${text}==`;
+    }
+    return text;
+  }
+
+  if (Array.isArray(node.children)) {
+    return node.children.map(formatInlineNode).join("");
+  }
+
+  return "";
+}
+
+function formatBlockNode(node: any, indentLevel = 0): string {
+  if (!node || typeof node !== "object") return "";
+
+  const nodeType = String(node.type || "").toLowerCase().trim();
+
+  if (nodeType === "heading") {
+    const tag = String(node.tag || "h1").toLowerCase();
+    const level = tag === "h1" ? "#" : tag === "h2" ? "##" : tag === "h3" ? "###" : tag === "h4" ? "####" : tag === "h5" ? "#####" : "######";
+    const text = (node.children || []).map(formatInlineNode).join("");
+    return `${level} ${text}`;
+  }
+
+  if (nodeType === "quote") {
+    const text = (node.children || []).map(formatInlineNode).join("");
+    const lines = text.split("\n");
+    return lines.map((l: string) => `> ${l}`).join("\n");
+  }
+
+  if (nodeType === "code") {
+    const language = node.language || "";
+    const codeText = (node.children || []).map((c: any) => c.text || formatInlineNode(c)).join("");
+    return `\`\`\`${language}\n${codeText}\n\`\`\``;
+  }
+
+  if (nodeType === "list") {
+    const listType = node.listType || "bullet";
+    const items: string[] = [];
+    const children = Array.isArray(node.children) ? node.children : [];
+
+    children.forEach((child: any, idx: number) => {
+      if (child.type === "listitem") {
+        let prefix = "- ";
+        if (listType === "number") {
+          prefix = `${child.value !== undefined ? child.value : idx + 1}. `;
+        } else if (listType === "check") {
+          prefix = child.checked ? "- [x] " : "- [ ] ";
+        }
+
+        let itemText = "";
+        if (Array.isArray(child.children)) {
+          const inlineParts: string[] = [];
+          const subListParts: string[] = [];
+          for (const subChild of child.children) {
+            if (subChild.type === "list") {
+              subListParts.push(formatBlockNode(subChild, indentLevel + 1));
+            } else {
+              inlineParts.push(formatInlineNode(subChild));
+            }
+          }
+          itemText = inlineParts.join("");
+          if (subListParts.length > 0) {
+            itemText += "\n" + subListParts.join("\n");
+          }
+        } else {
+          itemText = formatInlineNode(child);
+        }
+
+        const indent = "  ".repeat(indentLevel);
+        items.push(`${indent}${prefix}${itemText}`);
+      } else {
+        items.push(formatBlockNode(child, indentLevel));
+      }
+    });
+
+    return items.join("\n");
+  }
+
+  if (
+    nodeType === "horizontal-rule" ||
+    nodeType === "horizontalrule" ||
+    nodeType === "hr" ||
+    nodeType === "session-divider" ||
+    nodeType === "session_divider"
+  ) {
+    return "***";
+  }
+
+  if (nodeType === "paragraph") {
+    return (node.children || []).map(formatInlineNode).join("");
+  }
+
+  if (Array.isArray(node.children)) {
+    return node.children.map((c: any) => formatInlineNode(c)).join("");
+  }
+
+  return formatInlineNode(node);
+}
+
+export function lexicalStateToMarkdown(lexicalJsonStr: string): string {
+  if (!lexicalJsonStr) return "";
+  try {
+    const state = typeof lexicalJsonStr === "string" ? JSON.parse(lexicalJsonStr) : lexicalJsonStr;
+    if (!state || typeof state !== "object" || !state.root) {
+      return extractPlaintextFromLexicalState(lexicalJsonStr);
+    }
+
+    const root = state.root;
+    if (!Array.isArray(root.children)) {
+      return "";
+    }
+
+    const blocks = root.children
+      .map((child: any) => formatBlockNode(child, 0))
+      .filter((blockText: string) => blockText !== undefined && blockText !== null);
+
+    return blocks.join("\n\n").trim();
+  } catch (err) {
+    return extractPlaintextFromLexicalState(lexicalJsonStr);
+  }
+}
+
+export function normalizeEntryDate(rawDate?: string | null): string {
+  if (!rawDate) return new Date().toISOString().split("T")[0];
+  try {
+    const trimmed = String(rawDate).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    const d = new Date(trimmed);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().split("T")[0];
+    }
+  } catch (e) {}
+  return String(rawDate).split("T")[0] || new Date().toISOString().split("T")[0];
+}
+
+export function sanitizeFilename(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .substring(0, 60);
+}
+
+export function formatJournalEntryToMarkdownFile(item: {
+  record: {
+    id: string;
+    slug?: string;
+    entryDate: string;
+    entryType?: string;
+    mood?: string | null;
+    favorite?: number;
+    tags?: string;
+    createdAt?: string;
+  };
+  content: DecryptedJournalContent | null;
+  plaintextBody?: string;
+}): { filename: string; content: string } {
+  const dateStr = normalizeEntryDate(item.record.entryDate || item.record.createdAt);
+  const title = item.content?.title || "Untitled";
+  const entryType = item.record.entryType || "daily";
+  const mood = item.record.mood || null;
+  const favorite = item.record.favorite === 1;
+
+  let tagList: string[] = [];
+  if (Array.isArray(item.content?.tags)) {
+    tagList.push(...item.content.tags);
+  }
+  if (item.record.tags) {
+    try {
+      const parsed = JSON.parse(item.record.tags);
+      if (Array.isArray(parsed)) {
+        tagList.push(...parsed);
+      }
+    } catch {}
+  }
+  tagList = tagList.map(String).filter((t, idx, arr) => t.trim().length > 0 && arr.indexOf(t) === idx);
+
+  let frontmatter = `---\n`;
+  frontmatter += `journal: true\n`;
+  frontmatter += `date: ${dateStr}\n`;
+  frontmatter += `title: ${JSON.stringify(title)}\n`;
+  frontmatter += `entryType: ${entryType}\n`;
+  if (mood) {
+    frontmatter += `mood: ${mood}\n`;
+  }
+  frontmatter += `favorite: ${favorite}\n`;
+  if (tagList.length > 0) {
+    frontmatter += `tags:\n`;
+    for (const tag of tagList) {
+      frontmatter += `  - ${tag}\n`;
+    }
+  }
+  frontmatter += `---\n\n`;
+
+  let body = "";
+  if (item.content?.lexicalState) {
+    body = lexicalStateToMarkdown(item.content.lexicalState);
+  } else if (item.content?.markdown) {
+    body = item.content.markdown;
+  } else if (item.plaintextBody) {
+    body = item.plaintextBody;
+  }
+
+  const fullMarkdown = `${frontmatter}${body.trim()}\n`;
+
+  const cleanTitle = sanitizeFilename(title !== "Untitled" ? title : item.record.slug || item.record.id);
+  const filename = `${dateStr}-${cleanTitle || item.record.id}.md`;
+
+  return {
+    filename,
+    content: fullMarkdown,
+  };
+}
