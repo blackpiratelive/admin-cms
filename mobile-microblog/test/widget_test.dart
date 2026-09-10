@@ -1,14 +1,53 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_microblog/core/models/microblog_post.dart';
+import 'package:mobile_microblog/core/models/location_item.dart';
+import 'package:mobile_microblog/core/models/trip_item.dart';
 import 'package:mobile_microblog/widgets/microblog_card.dart';
 import 'package:mobile_microblog/screens/compose_modal.dart';
 import 'package:mobile_microblog/screens/settings_screen.dart';
 import 'package:mobile_microblog/main.dart';
 
 void main() {
+  group('LocationItem and TripItem Model Tests', () {
+    test('LocationItem parses from JSON and formats displayName correctly', () {
+      final json = {
+        'id': 'loc_1',
+        'name': 'Tokyo Tower',
+        'slug': 'tokyo-tower',
+        'city': 'Tokyo',
+        'country': 'Japan',
+      };
+
+      final loc = LocationItem.fromJson(json);
+      expect(loc.id, 'loc_1');
+      expect(loc.name, 'Tokyo Tower');
+      expect(loc.slug, 'tokyo-tower');
+      expect(loc.city, 'Tokyo');
+      expect(loc.country, 'Japan');
+      expect(loc.displayName, 'Tokyo Tower, Tokyo, Japan');
+      expect(loc.subtitle, 'Tokyo, Japan');
+    });
+
+    test('TripItem parses from JSON and formats displayStatus correctly', () {
+      final json = {
+        'id': 'trip_1',
+        'title': 'Japan Autumn 2026',
+        'slug': 'japan-autumn-2026',
+        'status': 'planned',
+      };
+
+      final trip = TripItem.fromJson(json);
+      expect(trip.id, 'trip_1');
+      expect(trip.title, 'Japan Autumn 2026');
+      expect(trip.slug, 'japan-autumn-2026');
+      expect(trip.status, 'planned');
+      expect(trip.displayStatus, 'Planned');
+    });
+  });
+
   group('MicroblogPost Model Tests', () {
-    test('parses from standard CMS JSON correctly', () {
+    test('parses from standard CMS JSON correctly with location and trip', () {
       final json = {
         'id': 'mb_123',
         'slug': 'hello-world',
@@ -18,6 +57,11 @@ void main() {
         'images': ['https://example.com/photo.jpg'],
         'coverImageUrl': 'https://example.com/cover.jpg',
         'shortUrl': 'https://s.blackpirate.live/hw',
+        'locationId': 'loc_1',
+        'locationName': 'Tokyo Tower',
+        'locationCity': 'Tokyo',
+        'tripId': 'trip_1',
+        'tripTitle': 'Japan Autumn 2026',
         'createdAt': '2026-09-10T12:00:00.000Z',
         'publishedAt': '2026-09-10T12:05:00.000Z',
         'updatedAt': '2026-09-10T12:10:00.000Z',
@@ -34,6 +78,11 @@ void main() {
       expect(post.images, ['https://example.com/photo.jpg']);
       expect(post.coverImageUrl, 'https://example.com/cover.jpg');
       expect(post.shortUrl, 'https://s.blackpirate.live/hw');
+      expect(post.locationId, 'loc_1');
+      expect(post.locationName, 'Tokyo Tower');
+      expect(post.locationCity, 'Tokyo');
+      expect(post.tripId, 'trip_1');
+      expect(post.tripTitle, 'Japan Autumn 2026');
     });
 
     test('handles stringified tags and images gracefully', () {
@@ -56,7 +105,7 @@ void main() {
       expect(post.images, ['https://example.com/1.png']);
     });
 
-    test('copyWith properly overrides values', () {
+    test('copyWith properly overrides values including location and trip', () {
       final post = MicroblogPost(
         id: 'mb_1',
         slug: 'slug-1',
@@ -71,12 +120,16 @@ void main() {
       final updated = post.copyWith(
         contentMarkdown: 'Updated text',
         status: 'published',
+        locationName: 'Shibuya Crossing',
+        tripTitle: 'Tokyo Trip',
       );
 
       expect(updated.id, 'mb_1');
       expect(updated.contentMarkdown, 'Updated text');
       expect(updated.status, 'published');
       expect(updated.isPublished, isTrue);
+      expect(updated.locationName, 'Shibuya Crossing');
+      expect(updated.tripTitle, 'Tokyo Trip');
     });
 
     test('MicroblogFetchResult parses list payload correctly', () {
@@ -89,6 +142,8 @@ void main() {
             'status': 'published',
             'tags': ['one'],
             'images': [],
+            'locationName': 'Kyoto Temple',
+            'tripTitle': 'Japan 2026',
           },
           {
             'id': '2',
@@ -110,6 +165,8 @@ void main() {
       expect(result.total, 2);
       expect(result.items.length, 2);
       expect(result.items[0].slug, 'post-1');
+      expect(result.items[0].locationName, 'Kyoto Temple');
+      expect(result.items[0].tripTitle, 'Japan 2026');
       expect(result.items[1].slug, 'post-2');
     });
   });
@@ -148,6 +205,43 @@ void main() {
       expect(find.text('#cupertino'), findsOneWidget);
       expect(find.text('Testing Cupertino microblog card UI'), findsOneWidget);
       expect(find.byIcon(CupertinoIcons.ellipsis), findsOneWidget);
+    });
+
+    testWidgets('renders location and trip pills on card', (WidgetTester tester) async {
+      final post = MicroblogPost(
+        id: 'mb_assoc_card',
+        slug: 'assoc-card',
+        contentMarkdown: 'Visiting Tokyo today!',
+        status: 'published',
+        tags: ['travel'],
+        locationName: 'Tokyo Tower',
+        locationCity: 'Tokyo',
+        tripTitle: 'Japan Vacation',
+        images: [],
+        createdAt: DateTime.now(),
+        publishedAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        CupertinoApp(
+          home: CupertinoPageScaffold(
+            child: SingleChildScrollView(
+              child: MicroblogCard(
+                post: post,
+                onEdit: () {},
+                onToggleStatus: () {},
+                onDelete: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Tokyo Tower (Tokyo)'), findsOneWidget);
+      expect(find.text('Japan Vacation'), findsOneWidget);
+      expect(find.byIcon(CupertinoIcons.location_solid), findsOneWidget);
+      expect(find.byIcon(CupertinoIcons.airplane), findsOneWidget);
     });
 
     testWidgets('renders draft post card correctly', (WidgetTester tester) async {
@@ -195,8 +289,9 @@ void main() {
       expect(find.text('Publish Instantly'), findsOneWidget);
       expect(find.text('Draft'), findsOneWidget);
       expect(find.text('0 words · 0 chars'), findsOneWidget);
+      expect(find.text('Advanced Options'), findsOneWidget);
 
-      // Enter text
+      // Enter text in content field
       final textFieldFinder = find.byType(CupertinoTextField).first;
       await tester.enterText(textFieldFinder, 'Hello world microblog');
       await tester.pump();
@@ -204,17 +299,29 @@ void main() {
       expect(find.text('3 words · 21 chars'), findsOneWidget);
     });
 
-    testWidgets('pre-populates compose modal when editPost is provided', (WidgetTester tester) async {
+    testWidgets('pre-populates compose modal with editPost data, slug, and associations', (WidgetTester tester) async {
       final post = MicroblogPost(
         id: 'mb_edit',
-        slug: 'existing-post',
+        slug: 'existing-post-slug',
         contentMarkdown: 'Existing content to edit',
         status: 'draft',
         tags: ['existingtag'],
-        images: [],
+        locationId: 'loc_test',
+        locationName: 'Mount Fuji',
+        tripId: 'trip_test',
+        tripTitle: 'Summer Climbing',
+        images: ['https://example.com/attached.jpg'],
+        coverImageUrl: 'https://example.com/cover.jpg',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
+
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
 
       await tester.pumpWidget(
         CupertinoApp(
@@ -229,6 +336,8 @@ void main() {
       expect(find.text('Existing content to edit'), findsOneWidget);
       expect(find.text('#existingtag'), findsOneWidget);
       expect(find.text('Update'), findsOneWidget);
+      expect(find.text('Advanced Options'), findsOneWidget);
+      expect(find.text('existing-post-slug'), findsOneWidget);
     });
   });
 

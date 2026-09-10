@@ -259,9 +259,9 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 ### 5.4 Standalone Cupertino Microblog Application (`mobile-microblog/`)
 - **Philosophy**: Pure Cupertino (iOS) experience dedicated strictly to microblogging with zero bloat and instant responsive ergonomics.
 - **Cupertino Primitives**: Built using `CupertinoApp`, `CupertinoSliverNavigationBar` with large collapsing title, `CupertinoSliverRefreshControl` for pull-to-refresh, `CupertinoSlidingSegmentedControl` (All, Published, Drafts), `CupertinoSearchTextField`, `CupertinoActionSheet`, and `CupertinoListSection.insetGrouped`.
-- **Card Presentation**: Markdown formatting via `flutter_markdown`, multi-photo preview grid with pinch-to-zoom full-screen `ImageGalleryView`, status badges, relative time labels, and tag pills.
-- **Fast Modal Compose**: Autogrowing editor with real-time character & word counters, direct camera/gallery Cloudinary photo upload, tag manager, and status toggle.
-- **Storage & Sync**: Encrypted credentials in `flutter_secure_storage`, offline feed caching in `shared_preferences`, and direct integration with `/api/microblogs` and `/api/upload`.
+- **Card Presentation**: Markdown formatting via `flutter_markdown`, multi-photo preview grid with pinch-to-zoom full-screen `ImageGalleryView`, status badges, relative time labels, tag pills, and association pills (📍 Location and ✈️ Trip).
+- **Fast Modal Compose**: Autogrowing editor with real-time character & word counters, direct camera/gallery Cloudinary photo upload, tag manager, status toggle, and expandable Advanced Options drawer housing live auto-generating/editable URL slug and searchable Cupertino bottom sheet pickers for associated Locations and Trips.
+- **Storage & Sync**: Encrypted credentials in `flutter_secure_storage`, offline feed caching in `shared_preferences`, and direct integration with `/api/microblogs`, `/api/locations`, `/api/trips`, and `/api/upload`.
 
 ---
 

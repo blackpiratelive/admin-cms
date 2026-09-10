@@ -188,6 +188,73 @@ class MicroblogCard extends StatelessWidget {
               _buildImagesPreview(context, allImages),
             ],
 
+            // Associations Row (Location & Trip)
+            if (post.locationName != null || post.tripTitle != null) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  if (post.locationName != null && post.locationName!.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: CupertinoColors.systemTeal.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            CupertinoIcons.location_solid,
+                            size: 12,
+                            color: CupertinoColors.systemTeal,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            post.locationCity != null && post.locationCity!.isNotEmpty
+                                ? '${post.locationName} (${post.locationCity})'
+                                : post.locationName!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: CupertinoColors.systemTeal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (post.tripTitle != null && post.tripTitle!.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: CupertinoColors.systemPurple.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            CupertinoIcons.airplane,
+                            size: 12,
+                            color: CupertinoColors.systemPurple,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            post.tripTitle!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: CupertinoColors.systemPurple,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ],
+
             // Tags & Meta Row
             if (post.tags.isNotEmpty) ...[
               const SizedBox(height: 12),

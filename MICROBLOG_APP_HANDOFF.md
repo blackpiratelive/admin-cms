@@ -34,24 +34,27 @@ mobile-microblog/
 │   ├── main.dart                          # App bootstrap & session auth gate
 │   ├── core/
 │   │   ├── models/
+│   │   │   ├── location_item.dart         # LocationItem model for associated locations
+│   │   │   ├── trip_item.dart             # TripItem model for associated trips
 │   │   │   └── microblog_post.dart        # MicroblogPost & MicroblogFetchResult models
 │   │   ├── network/
-│   │   │   └── api_service.dart           # HTTP REST client (Auth, Posts, Upload, Deploy)
+│   │   │   └── api_service.dart           # HTTP REST client (Auth, Posts, Locations, Trips, Upload, Deploy)
 │   │   ├── storage/
 │   │   │   └── local_store.dart           # Secure storage & persistent offline cache
 │   │   └── theme/
 │   │       └── cupertino_theme.dart       # Dynamic Light/Dark iOS Cupertino design tokens
 │   ├── screens/
-│   │   ├── compose_modal.dart             # Fast modal thought & image composer
+│   │   ├── compose_modal.dart             # Fast modal thought, image, slug & association composer
 │   │   ├── login_screen.dart              # Cupertino authentication screen with URL presets
 │   │   ├── settings_screen.dart           # Inset-grouped settings, cache & deployment hub
 │   │   └── timeline_screen.dart           # Primary sliver timeline feed, search & filters
 │   └── widgets/
+│       ├── association_picker_sheet.dart  # Searchable bottom sheet modal for locations/trips
 │       ├── image_gallery_view.dart        # Full-screen pinch-to-zoom photo lightbox
-│       ├── microblog_card.dart            # iOS card widget with markdown & thumbnail grid
+│       ├── microblog_card.dart            # iOS card widget with markdown, badges & thumbnail grid
 │       └── post_action_sheet.dart         # Action sheet for status, edit, share, and delete
 └── test/
-    └── widget_test.dart                   # 10 comprehensive unit & widget tests
+    └── widget_test.dart                   # 13 comprehensive unit & widget tests
 ```
 
 ---
@@ -124,7 +127,9 @@ flowchart TD
   - Single image: 16:9 rounded cover image.
   - 2 to 4 images: 2-column square preview grid with `+N` badge if more than 4 images are attached.
   - Tapping any image opens `ImageGalleryView`.
-- **Tags**: Horizontal wrap of `#tag` pills.
+- **Tags & Associations**:
+  - Horizontal wrap of `#tag` pills.
+  - Subtle iOS association pills: 📍 Location pill (`systemTeal`) and ✈️ Trip pill (`systemPurple`).
 
 ### 4.4 Full-Screen Image Lightbox (`lib/widgets/image_gallery_view.dart`)
 - Fullscreen dialog presented with dark translucent navigation bar.
@@ -144,8 +149,14 @@ flowchart TD
 - Presented as an iOS modal sheet with `Cancel` (dismiss) and `Publish` / `Save Draft` actions.
 - Segmented status switch: `Publish Instantly` vs `Draft`.
 - Autogrowing `CupertinoTextField` with multiline support and live word/character counters.
-- **Image Attachments**: Action sheet to pick from Photo Library or Camera (`image_picker`), automatically uploading bytes to `/api/upload` on Cloudinary and displaying horizontal thumbnail strip with deletion buttons.
+- **Image Attachments**: Action sheet to pick from Photo Library or Camera (`image_picker`), automatically uploading bytes to `/api/upload` on Cloudinary and displaying horizontal thumbnail strip with deletion buttons. Robust `errorBuilder` fallback. Existing images reliably preserved and shown on edit.
 - **Tag Manager**: Tag input with Enter submission and tag chip wrap.
+- **Advanced Options Accordion Drawer**:
+  - Keeps composer minimal while housing Slug, Location, and Trip controls.
+  - Header displays active summary badges (`📍 Location`, `✈️ Trip`, `Custom Slug`).
+  - **Editable Slug**: Live auto-generates from content as typed, switches to manual mode on user edits with a "Reset to Auto" button.
+  - **Location Selector**: Searchable modal bottom sheet (`AssociationPickerSheet`) to select from `/api/locations` with instant search and clear ("None") support.
+  - **Trip Selector**: Searchable modal bottom sheet (`AssociationPickerSheet`) to select from `/api/trips` with instant search and clear ("None") support.
 - Validation: Prevents empty posts from being submitted.
 
 ### 4.7 Inset-Grouped Settings (`lib/screens/settings_screen.dart`)
@@ -219,6 +230,14 @@ To enable network communication across Android, iOS, and macOS platforms:
 - Triggers on `push` to `main` (paths: `mobile-microblog/**`), `pull_request`, or manual `workflow_dispatch`.
 - Sets up Java 17 Temurin and Flutter stable channel.
 - Runs `flutter analyze` and `flutter test`.
+- **Custom Keystore Release Signing**:
+  - Automatically checks for repository secrets:
+    - `KEYSTORE_BASE64` (or `ANDROID_KEYSTORE_BASE64`): Base64-encoded release `.jks` file.
+    - `KEYSTORE_PASSWORD`: Password for the keystore.
+    - `KEY_ALIAS`: Alias for the signing key.
+    - `KEY_PASSWORD`: Password for the key (optional, falls back to keystore password).
+  - Decodes keystore to `mobile-microblog/android/app/release.jks` and writes `mobile-microblog/android/key.properties`.
+  - Seamlessly falls back to debug signing if secrets are not configured (ensures PR checks never fail).
 - Builds ARM64 release APK:
   ```bash
   flutter build apk --release --target-platform android-arm64
@@ -229,6 +248,7 @@ To enable network communication across Android, iOS, and macOS platforms:
 - Includes dedicated job `build_microblog_apk_arm64`:
   - Runs on `cimg/android:2026.07-ndk`.
   - Runs `flutter analyze` and `flutter test`.
+  - Supports release keystore signing using the same `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, and `KEY_ALIAS` environment variables.
   - Builds `--release --target-platform android-arm64`.
   - Stores artifact `microblog-arm64-release.apk`.
 
@@ -254,7 +274,7 @@ flutter analyze
 cd mobile-microblog
 flutter test
 ```
-*Current test suite: 10 unit & widget tests covering model serialization, card layout, compose counters, pre-filling, and settings.*
+*Current test suite: 13 unit & widget tests covering model serialization, associations, card layout, compose counters, pre-filling, and settings.*
 
 ### Run Application Locally
 ```bash

@@ -9,7 +9,10 @@ class MicroblogPost {
   final String? coverImageUrl;
   final String? shortUrl;
   final String? locationId;
+  final String? locationName;
+  final String? locationCity;
   final String? tripId;
+  final String? tripTitle;
   final List<String> images;
   final DateTime createdAt;
   final DateTime? publishedAt;
@@ -24,7 +27,10 @@ class MicroblogPost {
     this.coverImageUrl,
     this.shortUrl,
     this.locationId,
+    this.locationName,
+    this.locationCity,
     this.tripId,
+    this.tripTitle,
     required this.images,
     required this.createdAt,
     this.publishedAt,
@@ -66,6 +72,13 @@ class MicroblogPost {
 
     final created = parseDate(json['createdAt']);
 
+    final locName = json['locationName']?.toString() ??
+        (json['location'] is Map ? json['location']['name']?.toString() : null);
+    final locCity = json['locationCity']?.toString() ??
+        (json['location'] is Map ? json['location']['city']?.toString() : null);
+    final tripName = json['tripTitle']?.toString() ??
+        (json['trip'] is Map ? json['trip']['title']?.toString() : null);
+
     return MicroblogPost(
       id: json['id']?.toString() ?? '',
       slug: json['slug']?.toString() ?? '',
@@ -77,7 +90,10 @@ class MicroblogPost {
       coverImageUrl: json['coverImageUrl']?.toString(),
       shortUrl: json['shortUrl']?.toString(),
       locationId: json['locationId']?.toString(),
+      locationName: locName,
+      locationCity: locCity,
       tripId: json['tripId']?.toString(),
+      tripTitle: tripName,
       images: parseList(json['images']),
       createdAt: created,
       publishedAt: json['publishedAt'] != null
@@ -97,7 +113,10 @@ class MicroblogPost {
       'coverImageUrl': coverImageUrl,
       'shortUrl': shortUrl,
       'locationId': locationId,
+      'locationName': locationName,
+      'locationCity': locationCity,
       'tripId': tripId,
+      'tripTitle': tripTitle,
       'images': images,
       'createdAt': createdAt.toIso8601String(),
       'publishedAt': publishedAt?.toIso8601String(),
@@ -114,7 +133,10 @@ class MicroblogPost {
     String? coverImageUrl,
     String? shortUrl,
     String? locationId,
+    String? locationName,
+    String? locationCity,
     String? tripId,
+    String? tripTitle,
     List<String>? images,
     DateTime? createdAt,
     DateTime? publishedAt,
@@ -129,7 +151,10 @@ class MicroblogPost {
       coverImageUrl: coverImageUrl ?? this.coverImageUrl,
       shortUrl: shortUrl ?? this.shortUrl,
       locationId: locationId ?? this.locationId,
+      locationName: locationName ?? this.locationName,
+      locationCity: locationCity ?? this.locationCity,
       tripId: tripId ?? this.tripId,
+      tripTitle: tripTitle ?? this.tripTitle,
       images: images ?? this.images,
       createdAt: createdAt ?? this.createdAt,
       publishedAt: publishedAt ?? this.publishedAt,

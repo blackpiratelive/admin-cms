@@ -49,6 +49,27 @@ jobs:
         working-directory: mobile-microblog
         run: flutter test
 
+      - name: Configure Android Keystore Signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 || secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ]; then
+            echo "Keystore secrets detected. Setting up release signing..."
+            echo "$KEYSTORE_BASE64" | base64 -d > mobile-microblog/android/app/release.jks
+            cat <<EOF > mobile-microblog/android/key.properties
+            storeFile=release.jks
+            storePassword=$KEYSTORE_PASSWORD
+            keyAlias=$KEY_ALIAS
+            keyPassword=${KEY_PASSWORD:-$KEYSTORE_PASSWORD}
+            EOF
+            echo "Keystore successfully configured."
+          else
+            echo "Keystore secrets not set. Building with debug signing fallback."
+          fi
+
       - name: Build Android ARM64 Release APK
         working-directory: mobile-microblog
         run: flutter build apk --release --target-platform android-arm64

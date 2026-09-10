@@ -1,7 +1,7 @@
 "use server";
 
 import { db, ensureDbInitialized } from "@/db";
-import { microblogs, relatedMicroblogs } from "@/db/schema";
+import { microblogs, relatedMicroblogs, locations, trips } from "@/db/schema";
 import { count, eq, like, and, desc, or } from "drizzle-orm";
 import { generateSlug, microblogInputSchema, type MicroblogFormInput } from "./schema";
 import { triggerVercelDeployHook, triggerVercelDeployHookBackground } from "@/lib/deploy-hook";
@@ -17,6 +17,16 @@ export type MicroblogListItem = {
   createdAt: string;
   publishedAt: string | null;
   status: "draft" | "published" | "scheduled" | "archived";
+  tags?: string;
+  coverImageUrl?: string | null;
+  images?: string;
+  locationId?: string | null;
+  tripId?: string | null;
+  shortUrl?: string | null;
+  updatedAt?: string;
+  locationName?: string | null;
+  locationCity?: string | null;
+  tripTitle?: string | null;
 };
 
 export interface MicroblogFetchParams {
@@ -64,6 +74,16 @@ async function fetchMicroblogsFromDb(search: string, status: string, page: numbe
       createdAt: microblogs.createdAt,
       publishedAt: microblogs.publishedAt,
       status: microblogs.status,
+      tags: microblogs.tags,
+      coverImageUrl: microblogs.coverImageUrl,
+      images: microblogs.images,
+      locationId: microblogs.locationId,
+      tripId: microblogs.tripId,
+      shortUrl: microblogs.shortUrl,
+      updatedAt: microblogs.updatedAt,
+      locationName: locations.name,
+      locationCity: locations.city,
+      tripTitle: trips.title,
     };
 
     const [totals, items] = await Promise.all([
@@ -71,6 +91,8 @@ async function fetchMicroblogsFromDb(search: string, status: string, page: numbe
       db
         .select(selectColumns)
         .from(microblogs)
+        .leftJoin(locations, eq(microblogs.locationId, locations.id))
+        .leftJoin(trips, eq(microblogs.tripId, trips.id))
         .where(whereClause)
         .orderBy(desc(microblogs.createdAt))
         .limit(limit)

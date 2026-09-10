@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../storage/local_store.dart';
 import '../models/microblog_post.dart';
+import '../models/location_item.dart';
+import '../models/trip_item.dart';
 
 class ApiService {
   static const Duration timeoutDuration = Duration(seconds: 30);
@@ -121,6 +123,62 @@ class ApiService {
 
     final response = await http.delete(uri, headers: headers).timeout(timeoutDuration);
     return response.statusCode == 200;
+  }
+
+  // Fetch single post by ID (for fresh edit state)
+  static Future<MicroblogPost?> getPostById(String id) async {
+    try {
+      final baseUrl = await _getBaseUrl();
+      final uri = Uri.parse('$baseUrl/api/microblogs/$id');
+      final headers = await _getHeaders();
+
+      final response = await http.get(uri, headers: headers).timeout(timeoutDuration);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return MicroblogPost.fromJson(data);
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Fetch Locations list
+  static Future<List<LocationItem>> getLocations() async {
+    try {
+      final baseUrl = await _getBaseUrl();
+      final uri = Uri.parse('$baseUrl/api/locations');
+      final headers = await _getHeaders();
+
+      final response = await http.get(uri, headers: headers).timeout(timeoutDuration);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final list = data['locations'] as List<dynamic>? ?? [];
+        return list.map((e) => LocationItem.fromJson(e as Map<String, dynamic>)).toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // Fetch Trips list
+  static Future<List<TripItem>> getTrips() async {
+    try {
+      final baseUrl = await _getBaseUrl();
+      final uri = Uri.parse('$baseUrl/api/trips');
+      final headers = await _getHeaders();
+
+      final response = await http.get(uri, headers: headers).timeout(timeoutDuration);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final list = data['trips'] as List<dynamic>? ?? [];
+        return list.map((e) => TripItem.fromJson(e as Map<String, dynamic>)).toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
   }
 
   // Upload image to Cloudinary via server
