@@ -311,3 +311,16 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
  28 | Optimize Payloads            | Implemented — Light DTO projections (`MemoryScoreBreakdown`, `TimelineCacheItem`, `AnalyticsSnapshotDTO`) sending compact payloads.
  29 | Think in Views               | Implemented — Dedicated View Models (`ModuleDeepDiveView`, `GlobalOverviewStats`, `JournalAnalyticsData`).
  30 | Set Performance Budgets      | Implemented — Enforced performance budget latencies (<100ms overview/rankings, <200ms timeline, <300ms full rebuild) in `telemetry.ts`.
+
+---
+
+## 8. Standalone Microblog App & Release Signing Changelog
+
+### September 2026: Mobile Microblog v1.1.0 Updates
+- **Backend Projections**: `fetchMicroblogsFromDb` (`src/features/microblog/actions.ts`) updated to query `images`, `coverImageUrl`, `tags`, `locationId`, and `tripId` with left joins to `locations` and `trips` (`locationName`, `locationCity`, `tripTitle`).
+- **Mobile Models & Selectors**: Created `LocationItem` and `TripItem` models in `mobile-microblog/lib/core/models/` and `AssociationPickerSheet` modal in `mobile-microblog/lib/widgets/`.
+- **Editor Ergonomics**: Added real-time auto-slug generation, manual override, and expandable Advanced Options accordion drawer in `ComposeModal`.
+- **Timeline Presentation**: Added 📍 Location and ✈️ Trip pill rendering to `MicroblogCard`.
+- **Branding & Assets**: Generated modern Cupertino squircle app icon for Android (`mipmap-*`) and iOS (`Assets.xcassets`).
+- **CI/CD Keystore Automation**: Configured release signing in `build.gradle.kts`, `.github/workflows/build-microblog-apk.yml`, and `.circleci/config.yml` using GitHub repository secrets (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`).
+- **Quality Gates**: All 13 Flutter widget/unit tests and all 59 backend Vitest tests pass cleanly. `git status android/` remained untouched.

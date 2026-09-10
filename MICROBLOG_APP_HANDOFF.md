@@ -305,3 +305,42 @@ When making future changes to `mobile-microblog/`, verify:
 3. **Tests Pass**: `flutter test` must pass 100% of tests.
 4. **Backend Tests Pass**: Run `npm test` from root to guarantee no regressions on the Next.js API endpoints.
 5. **Update Documentation**: Keep this file (`MICROBLOG_APP_HANDOFF.md`) and `AI_HANDOFF.md` updated with any new models, endpoints, or UI screens.
+
+---
+
+## 10. Recent Updates & Architectural Changelog
+
+### Version 1.1.0 — Post Associations, Real-Time Slugs, App Icon & Keystore CI/CD (September 2026)
+
+1. **Associated Location & Associated Trip Support**:
+   - Added models `LocationItem` (`location_item.dart`) and `TripItem` (`trip_item.dart`).
+   - Extended `MicroblogPost` with `locationId`, `locationName`, `locationCity`, `tripId`, and `tripTitle`.
+   - Added `ApiService.getLocations()` (`GET /api/locations`) and `ApiService.getTrips()` (`GET /api/trips`).
+   - Implemented `AssociationPickerSheet`: a dedicated Cupertino modal bottom sheet featuring live search filtering, clear ("None") capability, and checkmark indicators.
+   - Updated `MicroblogCard` to render distinct association pills (📍 Location in `systemTeal` and ✈️ Trip in `systemPurple`) directly beneath markdown content.
+
+2. **Live Auto-Generating & Editable URL Slug**:
+   - In `ComposeModal`, added real-time slug auto-generation as post markdown is composed.
+   - Allows instant manual override to custom slug with a "Reset to Auto" action.
+   - Pre-fills and preserves slug when editing existing microblogs.
+
+3. **Resolved Edit Image Display Bug**:
+   - **Backend Fix**: Updated `fetchMicroblogsFromDb` in `src/features/microblog/actions.ts` to query all columns (`images`, `coverImageUrl`, `tags`, `locationId`, `tripId`, `shortUrl`, `updatedAt`) and left-join `locations` and `trips`.
+   - **Client Resilience**: Added single-post fresh fetch fallback (`ApiService.getPostById`) in `ComposeModal` and `errorBuilder` handling for network images.
+
+4. **Expandable "Advanced Options" Accordion Drawer**:
+   - Placed Slug, Location, and Trip controls inside a collapsible iOS accordion drawer in `ComposeModal` to preserve distraction-free composition.
+   - Header provides dynamic summary pills (`📍 Location`, `✈️ Trip`, `Custom Slug`) when collapsed.
+
+5. **Custom App Icon Generated & Installed**:
+   - High-resolution master icon created at `mobile-microblog/assets/icon/app_icon.png` (1024x1024).
+   - Generated all Android launcher icons (`mipmap-mdpi` to `mipmap-xxxhdpi`).
+   - Generated full iOS app icon set in `ios/Runner/Assets.xcassets/AppIcon.appiconset/`.
+
+6. **Release Keystore Signing CI/CD Automation**:
+   - Configured `mobile-microblog/android/app/build.gradle.kts` to load release signing from `key.properties` or environment variables, with debug fallback.
+   - Added base64 keystore decoding step in `.github/workflows/build-microblog-apk.yml` and `.circleci/config.yml` using repository secrets (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`).
+   - Protected keystore and key properties files in `mobile-microblog/.gitignore`.
+
+7. **Test Suite Expansion**:
+   - Expanded unit and widget test suite from 10 to 13 tests in `mobile-microblog/test/widget_test.dart` (100% passing, 0 lint issues).
