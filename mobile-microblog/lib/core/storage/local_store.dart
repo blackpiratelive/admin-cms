@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/microblog_post.dart';
@@ -10,7 +11,12 @@ class LocalStore {
   static const String _keyAuthToken = 'secure_auth_token';
   static const String _keyCachedPosts = 'pref_cached_microblogs';
 
-  static const String defaultServerUrl = 'http://localhost:3000';
+  static String get defaultServerUrl {
+    try {
+      if (Platform.isAndroid) return 'http://10.0.2.2:3000';
+    } catch (_) {}
+    return 'http://localhost:3000';
+  }
 
   // Server URL
   static Future<String> getServerUrl() async {

@@ -197,6 +197,32 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      CupertinoButton(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        minimumSize: Size.zero,
+                        onPressed: () {
+                          setState(() => _urlController.text = 'http://localhost:3000');
+                          HapticFeedback.lightImpact();
+                        },
+                        child: const Text('localhost:3000', style: TextStyle(fontSize: 12)),
+                      ),
+                      CupertinoButton(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        minimumSize: Size.zero,
+                        onPressed: () {
+                          setState(() => _urlController.text = 'http://10.0.2.2:3000');
+                          HapticFeedback.lightImpact();
+                        },
+                        child: const Text('10.0.2.2:3000 (Emulator)', style: TextStyle(fontSize: 12)),
+                      ),
+                    ],
+                  ),
 
                   // Error Message
                   if (_errorMessage != null) ...[
