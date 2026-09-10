@@ -32,7 +32,40 @@ jobs:
           path: android/build/app/outputs/flutter-apk/app-release.apk
           destination: app-release.apk
 
+  build_microblog_apk_arm64:
+    docker:
+      - image: cimg/android:2026.07-ndk
+    steps:
+      - checkout
+      - run:
+          name: Install Flutter SDK
+          command: |
+            git clone https://github.com/flutter/flutter.git -b stable $HOME/flutter
+            echo 'export PATH="$HOME/flutter/bin:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
+            flutter doctor
+      - run:
+          name: Fetch Dependencies & Analyze
+          command: |
+            cd mobile-microblog
+            flutter pub get
+            flutter analyze
+      - run:
+          name: Run Unit & Widget Tests
+          command: |
+            cd mobile-microblog
+            flutter test
+      - run:
+          name: Build ARM64 Android APK
+          command: |
+            cd mobile-microblog
+            flutter build apk --release --target-platform android-arm64
+      - store_artifacts:
+          path: mobile-microblog/build/app/outputs/flutter-apk/app-release.apk
+          destination: microblog-arm64-release.apk
+
 workflows:
   build_and_test:
     jobs:
       - build_android_apk
+      - build_microblog_apk_arm64

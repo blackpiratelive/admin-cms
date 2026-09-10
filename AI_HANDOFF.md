@@ -22,7 +22,8 @@ This repository is **`admin-cms`**, a private, single-user **Personal Knowledge 
 
 ```text
 admin-cms/
-├── android/                     # Flutter Cross-Platform Mobile & Tablet Application (Dart, Clean Architecture, Responsive Shell, Microblog Module, Multi-Theme)
+├── android/                     # Flutter Cross-Platform Mobile & Tablet Application (Dart, Clean Architecture, Responsive Shell, Multi-Module, Multi-Theme)
+├── mobile-microblog/            # Standalone Cupertino iOS Microblog Application (Pure CupertinoApp, Dynamic Light/Dark, Fast Modal Composer, Offline-First)
 ├── .circleci/                   # CircleCI CI/CD pipeline configuration for Flutter analyze and APK build
 ├── src/
 │   ├── app/
@@ -253,6 +254,13 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 - Automated build workflow running on `cimg/android:2026.07-ndk`.
 - Clones Flutter stable channel, runs `flutter pub get`, performs `flutter analyze` static analysis check, builds `--release` APK (`flutter build apk --release`), and stores `app-release.apk` artifact.
 
+### 5.4 Standalone Cupertino Microblog Application (`mobile-microblog/`)
+- **Philosophy**: Pure Cupertino (iOS) experience dedicated strictly to microblogging with zero bloat and instant responsive ergonomics.
+- **Cupertino Primitives**: Built using `CupertinoApp`, `CupertinoSliverNavigationBar` with large collapsing title, `CupertinoSliverRefreshControl` for pull-to-refresh, `CupertinoSlidingSegmentedControl` (All, Published, Drafts), `CupertinoSearchTextField`, `CupertinoActionSheet`, and `CupertinoListSection.insetGrouped`.
+- **Card Presentation**: Markdown formatting via `flutter_markdown`, multi-photo preview grid with pinch-to-zoom full-screen `ImageGalleryView`, status badges, relative time labels, and tag pills.
+- **Fast Modal Compose**: Autogrowing editor with real-time character & word counters, direct camera/gallery Cloudinary photo upload, tag manager, and status toggle.
+- **Storage & Sync**: Encrypted credentials in `flutter_secure_storage`, offline feed caching in `shared_preferences`, and direct integration with `/api/microblogs` and `/api/upload`.
+
 ---
 
 ## 6. How to Run Commands & Tests
@@ -262,7 +270,8 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 - **Execute Vitest Suite**: `npm run test`
 - **Type Check**: `npx tsc --noEmit`
 - **Drizzle DB Push**: `npm run db:push`
-- **Flutter App Static Analysis**: `cd android && flutter analyze`
+- **Flutter Main App Static Analysis**: `cd android && flutter analyze`
+- **Flutter Microblog App Analysis & Tests**: `cd mobile-microblog && flutter analyze && flutter test`
 
 ---
 
