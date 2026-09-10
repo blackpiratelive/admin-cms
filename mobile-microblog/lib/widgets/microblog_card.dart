@@ -4,7 +4,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import '../core/models/microblog_post.dart';
 import '../core/theme/cupertino_theme.dart';
+import '../core/theme/liquid_glass_theme.dart';
 import 'image_gallery_view.dart';
+import 'liquid_glass_container.dart';
 import 'post_action_sheet.dart';
 
 class MicroblogCard extends StatelessWidget {
@@ -12,6 +14,7 @@ class MicroblogCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onToggleStatus;
   final VoidCallback onDelete;
+  final bool enableBlur;
 
   const MicroblogCard({
     super.key,
@@ -19,6 +22,7 @@ class MicroblogCard extends StatelessWidget {
     required this.onEdit,
     required this.onToggleStatus,
     required this.onDelete,
+    this.enableBlur = true,
   });
 
   String _formatRelativeTime(DateTime dateTime) {
@@ -54,236 +58,241 @@ class MicroblogCard extends StatelessWidget {
 
     final isPublished = post.isPublished;
     final timeStr = _formatRelativeTime(post.publishedAt ?? post.createdAt);
+    final isDark = LiquidGlassTheme.isDark(context);
 
-    return Container(
+    return LiquidGlassContainer(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppCupertinoTheme.cardBackground.resolveFrom(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppCupertinoTheme.cardBorder.resolveFrom(context),
-          width: 0.8,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: CupertinoColors.systemGrey5.resolveFrom(context).withValues(alpha: 0.4),
-            offset: const Offset(0, 2),
-            blurRadius: 8,
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top Row: Time, Status Badge & Action Menu
-            Row(
-              children: [
-                // Status Pill
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
+      padding: const EdgeInsets.all(16),
+      borderRadius: LiquidGlassTheme.cardRadius,
+      enableBlur: enableBlur,
+      elevation: 1.0,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top Row: Time, Status Badge & Action Menu
+          Row(
+            children: [
+              // Liquid Status Pill with glowing Jewel LED
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                decoration: BoxDecoration(
+                  color: isPublished
+                      ? CupertinoColors.systemGreen.withValues(alpha: isDark ? 0.18 : 0.12)
+                      : CupertinoColors.systemOrange.withValues(alpha: isDark ? 0.18 : 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
                     color: isPublished
-                        ? CupertinoColors.systemGreen.withValues(alpha: 0.15)
-                        : CupertinoColors.systemOrange.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isPublished
-                              ? CupertinoColors.systemGreen
-                              : CupertinoColors.systemOrange,
-                        ),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        isPublished ? 'Published' : 'Draft',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: isPublished
-                              ? CupertinoColors.systemGreen.resolveFrom(context)
-                              : CupertinoColors.systemOrange.resolveFrom(context),
-                        ),
-                      ),
-                    ],
+                        ? CupertinoColors.systemGreen.withValues(alpha: isDark ? 0.45 : 0.35)
+                        : CupertinoColors.systemOrange.withValues(alpha: isDark ? 0.45 : 0.35),
+                    width: 0.8,
                   ),
                 ),
-                const SizedBox(width: 8),
-
-                // Relative Time
-                Text(
-                  timeStr,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: CupertinoColors.secondaryLabel.resolveFrom(context),
-                  ),
-                ),
-
-                const Spacer(),
-
-                // Actions Ellipsis Button
-                CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  minimumSize: const Size(28, 28),
-                  onPressed: () {
-                    PostActionSheet.show(
-                      context: context,
-                      post: post,
-                      onEdit: onEdit,
-                      onToggleStatus: onToggleStatus,
-                      onDelete: onDelete,
-                    );
-                  },
-                  child: Icon(
-                    CupertinoIcons.ellipsis,
-                    size: 20,
-                    color: CupertinoColors.secondaryLabel.resolveFrom(context),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 10),
-
-            // Content Markdown
-            if (post.contentMarkdown.isNotEmpty)
-              MarkdownBody(
-                data: post.contentMarkdown,
-                selectable: false,
-                styleSheet: MarkdownStyleSheet(
-                  p: TextStyle(
-                    fontSize: 15.5,
-                    height: 1.45,
-                    letterSpacing: -0.2,
-                    color: CupertinoColors.label.resolveFrom(context),
-                  ),
-                  strong: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: CupertinoColors.label.resolveFrom(context),
-                  ),
-                  a: const TextStyle(
-                    color: CupertinoColors.systemBlue,
-                    decoration: TextDecoration.underline,
-                  ),
-                  code: TextStyle(
-                    backgroundColor:
-                        AppCupertinoTheme.subtleFill.resolveFrom(context),
-                    fontFamily: 'monospace',
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-
-            // Images Grid / Thumbnail Preview
-            if (allImages.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              _buildImagesPreview(context, allImages),
-            ],
-
-            // Associations Row (Location & Trip)
-            if (post.locationName != null || post.tripTitle != null) ...[
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  if (post.locationName != null && post.locationName!.isNotEmpty)
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Glowing Jewel LED Dot
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: CupertinoColors.systemTeal.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            CupertinoIcons.location_solid,
-                            size: 12,
-                            color: CupertinoColors.systemTeal,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            post.locationCity != null && post.locationCity!.isNotEmpty
-                                ? '${post.locationName} (${post.locationCity})'
-                                : post.locationName!,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: CupertinoColors.systemTeal,
-                            ),
-                          ),
-                        ],
-                      ),
+                      width: 6.5,
+                      height: 6.5,
+                      decoration: LiquidGlassTheme.jewelLed(isPublished: isPublished),
                     ),
-                  if (post.tripTitle != null && post.tripTitle!.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: CupertinoColors.systemPurple.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            CupertinoIcons.airplane,
-                            size: 12,
-                            color: CupertinoColors.systemPurple,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            post.tripTitle!,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: CupertinoColors.systemPurple,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ],
-
-            // Tags & Meta Row
-            if (post.tags.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: post.tags.map((tag) {
-                  return Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppCupertinoTheme.subtleFill.resolveFrom(context),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '#$tag',
+                    const SizedBox(width: 5.5),
+                    Text(
+                      isPublished ? 'Published' : 'Draft',
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color:
-                            CupertinoColors.secondaryLabel.resolveFrom(context),
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
+                        color: isPublished
+                            ? CupertinoColors.systemGreen.resolveFrom(context)
+                            : CupertinoColors.systemOrange.resolveFrom(context),
                       ),
                     ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Relative Time
+              Text(
+                timeStr,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                ),
+              ),
+
+              const Spacer(),
+
+              // Actions Ellipsis Button
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(28, 28),
+                onPressed: () {
+                  PostActionSheet.show(
+                    context: context,
+                    post: post,
+                    onEdit: onEdit,
+                    onToggleStatus: onToggleStatus,
+                    onDelete: onDelete,
                   );
-                }).toList(),
+                },
+                child: Icon(
+                  CupertinoIcons.ellipsis,
+                  size: 20,
+                  color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                ),
               ),
             ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // Content Markdown
+          if (post.contentMarkdown.isNotEmpty)
+            MarkdownBody(
+              data: post.contentMarkdown,
+              selectable: false,
+              styleSheet: MarkdownStyleSheet(
+                p: TextStyle(
+                  fontSize: 15.5,
+                  height: 1.45,
+                  letterSpacing: -0.2,
+                  color: CupertinoColors.label.resolveFrom(context),
+                ),
+                strong: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: CupertinoColors.label.resolveFrom(context),
+                ),
+                a: const TextStyle(
+                  color: CupertinoColors.systemBlue,
+                  decoration: TextDecoration.underline,
+                ),
+                code: TextStyle(
+                  backgroundColor: isDark
+                      ? const Color(0x33FFFFFF)
+                      : const Color(0x14000000),
+                  fontFamily: 'monospace',
+                  fontSize: 14,
+                ),
+              ),
+            ),
+
+          // Images Grid / Thumbnail Preview
+          if (allImages.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildImagesPreview(context, allImages),
           ],
-        ),
+
+          // Associations Row (Location & Trip)
+          if (post.locationName != null || post.tripTitle != null) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                if (post.locationName != null && post.locationName!.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.systemTeal.withValues(alpha: isDark ? 0.20 : 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: CupertinoColors.systemTeal.withValues(alpha: isDark ? 0.45 : 0.3),
+                        width: 0.7,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          CupertinoIcons.location_solid,
+                          size: 12,
+                          color: CupertinoColors.systemTeal,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          post.locationCity != null && post.locationCity!.isNotEmpty
+                              ? '${post.locationName} (${post.locationCity})'
+                              : post.locationName!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: CupertinoColors.systemTeal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (post.tripTitle != null && post.tripTitle!.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.systemPurple.withValues(alpha: isDark ? 0.20 : 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: CupertinoColors.systemPurple.withValues(alpha: isDark ? 0.45 : 0.3),
+                        width: 0.7,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          CupertinoIcons.airplane,
+                          size: 12,
+                          color: CupertinoColors.systemPurple,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          post.tripTitle!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: CupertinoColors.systemPurple,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ],
+
+          // Tags & Meta Row
+          if (post.tags.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: post.tags.map((tag) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0x28FFFFFF)
+                        : const Color(0x14000000),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isDark
+                          ? const Color(0x33FFFFFF)
+                          : const Color(0x1A000000),
+                      width: 0.6,
+                    ),
+                  ),
+                  child: Text(
+                    '#$tag',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ],
       ),
     );
   }

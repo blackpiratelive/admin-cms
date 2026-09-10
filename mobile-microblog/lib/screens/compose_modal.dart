@@ -7,21 +7,26 @@ import '../core/models/trip_item.dart';
 import '../core/network/api_service.dart';
 import '../core/theme/cupertino_theme.dart';
 import '../widgets/association_picker_sheet.dart';
+import '../widgets/ambient_mesh_background.dart';
+import '../widgets/liquid_glass_container.dart';
 
 class ComposeModal extends StatefulWidget {
   final MicroblogPost? editPost;
   final VoidCallback onSaved;
+  final bool enableBlur;
 
   const ComposeModal({
     super.key,
     this.editPost,
     required this.onSaved,
+    this.enableBlur = true,
   });
 
   static Future<void> show(
     BuildContext context, {
     MicroblogPost? editPost,
     required VoidCallback onSaved,
+    bool enableBlur = true,
   }) async {
     await Navigator.of(context).push(
       CupertinoPageRoute(
@@ -29,6 +34,7 @@ class ComposeModal extends StatefulWidget {
         builder: (_) => ComposeModal(
           editPost: editPost,
           onSaved: onSaved,
+          enableBlur: enableBlur,
         ),
       ),
     );
@@ -436,14 +442,9 @@ class _ComposeModalState extends State<ComposeModal> {
         _selectedTrip != null ||
         (_isCustomSlug && _slugController.text.trim().isNotEmpty);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppCupertinoTheme.cardBackground.resolveFrom(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppCupertinoTheme.cardBorder.resolveFrom(context),
-        ),
-      ),
+    return LiquidGlassContainer(
+      borderRadius: 16,
+      enableBlur: widget.enableBlur,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -766,48 +767,44 @@ class _ComposeModalState extends State<ComposeModal> {
                 ),
         ),
       ),
-      child: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                children: [
-                  // Status Segmented Control
-                  CupertinoSlidingSegmentedControl<String>(
-                    groupValue: _status,
-                    children: const {
-                      'published': Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                        child: Text('Publish Instantly', style: TextStyle(fontSize: 14)),
-                      ),
-                      'draft': Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                        child: Text('Draft', style: TextStyle(fontSize: 14)),
-                      ),
-                    },
-                    onValueChanged: (val) {
-                      if (val != null) {
-                        setState(() => _status = val);
-                        HapticFeedback.selectionClick();
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Main Text Content Input
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppCupertinoTheme.cardBackground.resolveFrom(context),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppCupertinoTheme.cardBorder.resolveFrom(context),
-                      ),
+      child: AmbientMeshBackground(
+        child: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  children: [
+                    // Status Segmented Control
+                    CupertinoSlidingSegmentedControl<String>(
+                      groupValue: _status,
+                      children: const {
+                        'published': Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          child: Text('Publish Instantly', style: TextStyle(fontSize: 14)),
+                        ),
+                        'draft': Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          child: Text('Draft', style: TextStyle(fontSize: 14)),
+                        ),
+                      },
+                      onValueChanged: (val) {
+                        if (val != null) {
+                          setState(() => _status = val);
+                          HapticFeedback.selectionClick();
+                        }
+                      },
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
+                    const SizedBox(height: 16),
+
+                    // Main Text Content Input
+                    LiquidGlassContainer(
+                      borderRadius: 16,
+                      enableBlur: widget.enableBlur,
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
                         CupertinoTextField(
                           controller: _contentController,
                           focusNode: _contentFocusNode,
@@ -921,15 +918,10 @@ class _ComposeModalState extends State<ComposeModal> {
                   const SizedBox(height: 16),
 
                   // Tags Section
-                  Container(
+                  LiquidGlassContainer(
+                    borderRadius: 16,
+                    enableBlur: widget.enableBlur,
                     padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppCupertinoTheme.cardBackground.resolveFrom(context),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppCupertinoTheme.cardBorder.resolveFrom(context),
-                      ),
-                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -993,17 +985,11 @@ class _ComposeModalState extends State<ComposeModal> {
             ),
 
             // Bottom Quick Action Bar
-            Container(
+            LiquidGlassContainer(
+              borderRadius: 0,
+              enableBlur: widget.enableBlur,
+              elevation: 0.5,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppCupertinoTheme.cardBackground.resolveFrom(context),
-                border: Border(
-                  top: BorderSide(
-                    color: AppCupertinoTheme.cardBorder.resolveFrom(context),
-                    width: 0.5,
-                  ),
-                ),
-              ),
               child: Row(
                 children: [
                   CupertinoButton(
@@ -1031,6 +1017,7 @@ class _ComposeModalState extends State<ComposeModal> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

@@ -42,19 +42,23 @@ mobile-microblog/
 │   │   ├── storage/
 │   │   │   └── local_store.dart           # Secure storage & persistent offline cache
 │   │   └── theme/
-│   │       └── cupertino_theme.dart       # Dynamic Light/Dark iOS Cupertino design tokens
+│   │       ├── cupertino_theme.dart       # Dynamic Light/Dark iOS Cupertino design tokens
+│   │       └── liquid_glass_theme.dart    # Apple Liquid Glass tokens, specular gradients & glow effects
 │   ├── screens/
 │   │   ├── compose_modal.dart             # Fast modal thought, image, slug & association composer
 │   │   ├── login_screen.dart              # Cupertino authentication screen with URL presets
-│   │   ├── settings_screen.dart           # Inset-grouped settings, cache & deployment hub
+│   │   ├── settings_screen.dart           # Inset-grouped settings, effects toggle, cache & deployment
 │   │   └── timeline_screen.dart           # Primary sliver timeline feed, search & filters
 │   └── widgets/
+│       ├── ambient_mesh_background.dart   # Dynamic living aurora canvas with scroll parallax
 │       ├── association_picker_sheet.dart  # Searchable bottom sheet modal for locations/trips
+│       ├── floating_glass_header.dart     # Floating frosted glass island navigation capsule
 │       ├── image_gallery_view.dart        # Full-screen pinch-to-zoom photo lightbox
-│       ├── microblog_card.dart            # iOS card widget with markdown, badges & thumbnail grid
+│       ├── liquid_glass_container.dart    # 5-layer optical glass container with blur, specular bevel & bounce
+│       ├── microblog_card.dart            # Liquid glass post card with jewel LED dots & association pills
 │       └── post_action_sheet.dart         # Action sheet for status, edit, share, and delete
 └── test/
-    └── widget_test.dart                   # 13 comprehensive unit & widget tests
+    └── widget_test.dart                   # 17 comprehensive unit & widget tests
 ```
 
 ---
@@ -309,6 +313,34 @@ When making future changes to `mobile-microblog/`, verify:
 ---
 
 ## 10. Recent Updates & Architectural Changelog
+
+### Version 1.2.0 — Apple Liquid Glass Design System (September 2026)
+
+1. **Living Aurora Mesh Canvas (`ambient_mesh_background.dart`)**:
+   - Replaced flat grouped background with dynamic, multi-orb radial gradient auroras.
+   - Distinct vibrant palettes: Electric Indigo, Cyan & Royal Violet in Dark Mode; Soft Sky, Lavender, Peach & Fresh Mint in Light Mode.
+   - Smooth scroll parallax tracking via `ScrollController` offset.
+
+2. **Liquid Glass Material Architecture (`liquid_glass_container.dart` & `liquid_glass_theme.dart`)**:
+   - Implemented full 5-layer optical stack: `RepaintBoundary` performance isolation, `ClipRRect`, `BackdropFilter` (sigma 18-20), dynamic translucent fill (`0x99FFFFFF` / `0x99181820`), and directional specular highlight gradient strokes.
+   - Directional light physics: top-left specular highlight fading to subtle ambient shadow rim on bottom-right.
+   - Multi-tiered elevation shadows for physical depth.
+   - Interactive springy scale bounce (`0.982x`) on press.
+
+3. **Floating Glass Island Navigation Chrome (`floating_glass_header.dart`)**:
+   - Modern floating capsule navigation bar hovering over the timeline content with pill geometry (`borderRadius: 26`).
+   - Integrated Settings icon button, title, live total count badge capsule, and glowing compose action button.
+
+4. **Jewel LED Status Indicators & Frosted Association Pills**:
+   - Refactored status badges with multi-stop radial glow (`jewelLed`) for Published and Draft states.
+   - Location (📍) and Trip (✈️) pills upgraded with frosted glass backgrounds and specular hairline borders.
+
+5. **Adaptive Performance Mode & Settings Toggle (`settings_screen.dart` & `local_store.dart`)**:
+   - Added persistent "Liquid Glass Effects" switch in `SettingsScreen` and `LocalStore`.
+   - Allows instant switching between Full GPU blur and lightweight pre-blended translucency for battery preservation on budget Android hardware.
+
+6. **Expanded Test Suite (17 Tests, 100% Passing)**:
+   - Added unit and widget tests for `LiquidGlassTheme`, `LiquidGlassContainer`, `AmbientMeshBackground`, `FloatingGlassHeader`, and settings toggle interactions.
 
 ### Version 1.1.0 — Post Associations, Real-Time Slugs, App Icon & Keystore CI/CD (September 2026)
 

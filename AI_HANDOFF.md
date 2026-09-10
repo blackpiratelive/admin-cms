@@ -25,7 +25,7 @@ This repository is **`admin-cms`**, a private, single-user **Personal Knowledge 
 ```text
 admin-cms/
 ├── android/                     # Flutter Cross-Platform Mobile & Tablet Application (Dart, Clean Architecture, Responsive Shell, Multi-Module, Multi-Theme)
-├── mobile-microblog/            # Standalone Cupertino iOS Microblog Application (Pure CupertinoApp, Dynamic Light/Dark, Fast Modal Composer, Offline-First)
+├── mobile-microblog/            # Standalone Cupertino iOS Microblog Application (Apple Liquid Glass Design System, Living Aurora Canvas, Specular Bevels, Fast Modal Composer, Offline-First)
 ├── .circleci/                   # CircleCI CI/CD pipeline configuration for Flutter analyze and APK build
 ├── src/
 │   ├── app/
@@ -316,6 +316,14 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 
 ## 8. Standalone Microblog App & Release Signing Changelog
 
+### September 2026: Mobile Microblog v1.2.0 (Apple Liquid Glass Design System)
+- **Living Aurora Canvas**: Replaced static backgrounds with `AmbientMeshBackground`, rendering soft, dynamic glowing radial gradient auroras (Electric Indigo, Royal Violet, and Cyan in Dark Mode; Sky Blue, Lavender, Peach, and Mint in Light Mode) with real-time scroll parallax tracking.
+- **5-Layer Liquid Glass Architecture**: Created `LiquidGlassContainer` and `LiquidGlassTheme` featuring `RepaintBoundary` GPU scroll isolation, optical blur (`sigma: 18-20`), continuous directional specular gradient highlights (simulating directional light striking top-left edges), multi-tiered elevation shadows, and spring scale bounce (`0.982x`) on press.
+- **Floating Glass Island Header**: Implemented `FloatingGlassHeader` with pill geometry (`borderRadius: 26`), hovering over content with integrated Settings button, title, real-time count capsule, and radiant compose action button.
+- **Illuminated Status Gems & Frosted Badges**: Upgraded `MicroblogCard` with glowing jewel LED dots (`jewelLed`) and frosted association pills (`systemTeal` Location and `systemPurple` Trip).
+- **Adaptive Performance Mode**: Added persistent "Liquid Glass Effects" toggle in `SettingsScreen` and `LocalStore` to allow seamless switching between Full GPU blur and lightweight pre-blended translucency for low-spec Android devices.
+- **Quality Gates**: All 17 Flutter unit and widget tests pass (100%), 0 linter issues in `flutter analyze`, and all 59 backend Vitest tests pass cleanly. `android/` legacy client remained untouched.
+
 ### September 2026: Mobile Microblog v1.1.0 Updates
 - **Backend Projections**: `fetchMicroblogsFromDb` (`src/features/microblog/actions.ts`) updated to query `images`, `coverImageUrl`, `tags`, `locationId`, and `tripId` with left joins to `locations` and `trips` (`locationName`, `locationCity`, `tripTitle`).
 - **Mobile Models & Selectors**: Created `LocationItem` and `TripItem` models in `mobile-microblog/lib/core/models/` and `AssociationPickerSheet` modal in `mobile-microblog/lib/widgets/`.
@@ -324,3 +332,22 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 - **Branding & Assets**: Generated modern Cupertino squircle app icon for Android (`mipmap-*`) and iOS (`Assets.xcassets`).
 - **CI/CD Keystore Automation**: Configured release signing in `build.gradle.kts`, `.github/workflows/build-microblog-apk.yml`, and `.circleci/config.yml` using GitHub repository secrets (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`).
 - **Quality Gates**: All 13 Flutter widget/unit tests and all 59 backend Vitest tests pass cleanly. `git status android/` remained untouched.
+
+---
+
+## 9. Workflow Guidelines for AI Assistants
+
+> [!IMPORTANT]
+> **Mandatory Workflow Standards for Every Task**:
+> 1. **Update AI Handoff Documents**:
+>    - Always update [`AI_HANDOFF.md`](./AI_HANDOFF.md) after making architectural, schema, or system modifications.
+>    - Always update [`MICROBLOG_APP_HANDOFF.md`](./MICROBLOG_APP_HANDOFF.md) whenever touching `mobile-microblog/`.
+> 2. **Run Quality & Verification Gates**:
+>    - Mobile Flutter app: Run `flutter analyze` (must be 0 issues) and `flutter test` (must pass 100%).
+>    - Web & Backend CMS: Run `npm test` (must pass 100%).
+> 3. **Automatic Git Commit & Push**:
+>    - Always commit changes with clear, descriptive semantic commit messages.
+>    - Always push commits to `origin main` automatically upon task completion.
+> 4. **Preserve Legacy App Isolation**:
+>    - The legacy multi-module app in `android/` must remain untouched when developing features for `mobile-microblog/`. Verify with `git status android/`.
+

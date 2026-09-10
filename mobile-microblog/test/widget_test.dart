@@ -6,6 +6,10 @@ import 'package:mobile_microblog/core/models/trip_item.dart';
 import 'package:mobile_microblog/widgets/microblog_card.dart';
 import 'package:mobile_microblog/screens/compose_modal.dart';
 import 'package:mobile_microblog/screens/settings_screen.dart';
+import 'package:mobile_microblog/core/theme/liquid_glass_theme.dart';
+import 'package:mobile_microblog/widgets/liquid_glass_container.dart';
+import 'package:mobile_microblog/widgets/ambient_mesh_background.dart';
+import 'package:mobile_microblog/widgets/floating_glass_header.dart';
 import 'package:mobile_microblog/main.dart';
 
 void main() {
@@ -355,11 +359,94 @@ void main() {
       expect(find.text('SERVER CONNECTION'), findsOneWidget);
       expect(find.text('Server URL'), findsOneWidget);
       expect(find.text('Rebuild Hugo Site'), findsOneWidget);
+      expect(find.text('APPEARANCE & EFFECTS'), findsOneWidget);
+      expect(find.text('Liquid Glass Effects'), findsOneWidget);
       expect(find.text('STORAGE & CACHE'), findsOneWidget);
       expect(find.text('Cached Microblogs'), findsOneWidget);
       expect(find.text('ABOUT'), findsOneWidget);
       expect(find.text('App Version'), findsOneWidget);
       expect(find.text('Sign Out'), findsOneWidget);
+    });
+  });
+
+  group('Liquid Glass System Tests', () {
+    test('LiquidGlassTheme tokens and jewel LED decorations', () {
+      final pubLed = LiquidGlassTheme.jewelLed(isPublished: true);
+      expect(pubLed.color, CupertinoColors.systemGreen);
+      expect(pubLed.boxShadow, isNotEmpty);
+
+      final draftLed = LiquidGlassTheme.jewelLed(isPublished: false);
+      expect(draftLed.color, CupertinoColors.systemOrange);
+      expect(draftLed.boxShadow, isNotEmpty);
+    });
+
+    testWidgets('LiquidGlassContainer renders child and responds to tap', (WidgetTester tester) async {
+      bool tapped = false;
+
+      await tester.pumpWidget(
+        CupertinoApp(
+          home: CupertinoPageScaffold(
+            child: Center(
+              child: LiquidGlassContainer(
+                interactive: true,
+                onTap: () => tapped = true,
+                child: const Text('Glass Content'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Glass Content'), findsOneWidget);
+      await tester.tap(find.text('Glass Content'));
+      await tester.pumpAndSettle();
+      expect(tapped, isTrue);
+    });
+
+    testWidgets('AmbientMeshBackground renders canvas with child', (WidgetTester tester) async {
+      final scrollController = ScrollController();
+
+      await tester.pumpWidget(
+        CupertinoApp(
+          home: CupertinoPageScaffold(
+            child: AmbientMeshBackground(
+              scrollController: scrollController,
+              child: const Text('Foreground Content'),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Foreground Content'), findsOneWidget);
+      scrollController.dispose();
+    });
+
+    testWidgets('FloatingGlassHeader renders title, count badge, and actions', (WidgetTester tester) async {
+      bool settingsOpened = false;
+      bool composerOpened = false;
+
+      await tester.pumpWidget(
+        CupertinoApp(
+          home: CupertinoPageScaffold(
+            child: FloatingGlassHeader(
+              totalCount: 42,
+              onOpenSettings: () => settingsOpened = true,
+              onOpenComposer: () => composerOpened = true,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Microblog'), findsOneWidget);
+      expect(find.text('42'), findsOneWidget);
+
+      await tester.tap(find.byIcon(CupertinoIcons.gear_alt_fill));
+      await tester.pumpAndSettle();
+      expect(settingsOpened, isTrue);
+
+      await tester.tap(find.byIcon(CupertinoIcons.add));
+      await tester.pumpAndSettle();
+      expect(composerOpened, isTrue);
     });
   });
 

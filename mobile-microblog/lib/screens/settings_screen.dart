@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import '../core/storage/local_store.dart';
 import '../core/network/api_service.dart';
+import '../widgets/ambient_mesh_background.dart';
 
 class SettingsScreen extends StatefulWidget {
   final VoidCallback onLogout;
@@ -19,6 +20,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _serverUrl = '';
   int _cachedCount = 0;
   bool _isDeploying = false;
+  bool _liquidGlassEnabled = true;
 
   @override
   void initState() {
@@ -29,10 +31,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadSettings() async {
     final url = await LocalStore.getServerUrl();
     final cached = await LocalStore.getCachedPosts();
+    final lgEnabled = await LocalStore.getLiquidGlassEnabled();
     if (mounted) {
       setState(() {
         _serverUrl = url;
         _cachedCount = cached.length;
+        _liquidGlassEnabled = lgEnabled;
       });
     }
   }
@@ -153,84 +157,110 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemGroupedBackground,
       navigationBar: const CupertinoNavigationBar(
         middle: Text('Settings'),
       ),
-      child: SafeArea(
-        child: ListView(
-          children: [
-            // Server Section
-            CupertinoListSection.insetGrouped(
-              header: const Text('SERVER CONNECTION'),
-              children: [
-                CupertinoListTile.notched(
-                  leading: const Icon(CupertinoIcons.globe, color: CupertinoColors.systemBlue),
-                  title: const Text('Server URL'),
-                  subtitle: Text(
-                    _serverUrl.isNotEmpty ? _serverUrl : 'Not set',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+      child: AmbientMeshBackground(
+        child: SafeArea(
+          child: ListView(
+            children: [
+              // Server Section
+              CupertinoListSection.insetGrouped(
+                header: const Text('SERVER CONNECTION'),
+                children: [
+                  CupertinoListTile.notched(
+                    leading: const Icon(CupertinoIcons.globe, color: CupertinoColors.systemBlue),
+                    title: const Text('Server URL'),
+                    subtitle: Text(
+                      _serverUrl.isNotEmpty ? _serverUrl : 'Not set',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: const CupertinoListTileChevron(),
+                    onTap: _handleChangeServerUrl,
                   ),
-                  trailing: const CupertinoListTileChevron(),
-                  onTap: _handleChangeServerUrl,
-                ),
-                CupertinoListTile.notched(
-                  leading: const Icon(CupertinoIcons.cloud_upload, color: CupertinoColors.systemIndigo),
-                  title: const Text('Rebuild Hugo Site'),
-                  trailing: _isDeploying
-                      ? const CupertinoActivityIndicator()
-                      : const CupertinoListTileChevron(),
-                  onTap: _isDeploying ? null : _handleDeploy,
-                ),
-              ],
-            ),
-
-            // Storage Section
-            CupertinoListSection.insetGrouped(
-              header: const Text('STORAGE & CACHE'),
-              children: [
-                CupertinoListTile.notched(
-                  leading: const Icon(CupertinoIcons.archivebox, color: CupertinoColors.systemTeal),
-                  title: const Text('Cached Microblogs'),
-                  additionalInfo: Text('$_cachedCount items'),
-                  trailing: const CupertinoListTileChevron(),
-                  onTap: _handleClearCache,
-                ),
-              ],
-            ),
-
-            // Info Section
-            CupertinoListSection.insetGrouped(
-              header: const Text('ABOUT'),
-              children: const [
-                CupertinoListTile.notched(
-                  leading: Icon(CupertinoIcons.info_circle, color: CupertinoColors.systemGrey),
-                  title: Text('App Version'),
-                  additionalInfo: Text('1.0.0 (Cupertino)'),
-                ),
-                CupertinoListTile.notched(
-                  leading: Icon(CupertinoIcons.heart, color: CupertinoColors.systemPink),
-                  title: Text('Designed For'),
-                  additionalInfo: Text('admin-cms Microblog'),
-                ),
-              ],
-            ),
-
-            // Logout Section
-            CupertinoListSection.insetGrouped(
-              children: [
-                CupertinoListTile.notched(
-                  leading: const Icon(CupertinoIcons.square_arrow_right, color: CupertinoColors.destructiveRed),
-                  title: const Text(
-                    'Sign Out',
-                    style: TextStyle(color: CupertinoColors.destructiveRed),
+                  CupertinoListTile.notched(
+                    leading: const Icon(CupertinoIcons.cloud_upload, color: CupertinoColors.systemIndigo),
+                    title: const Text('Rebuild Hugo Site'),
+                    trailing: _isDeploying
+                        ? const CupertinoActivityIndicator()
+                        : const CupertinoListTileChevron(),
+                    onTap: _isDeploying ? null : _handleDeploy,
                   ),
-                  onTap: _confirmLogout,
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+
+              // Appearance & Effects Section
+              CupertinoListSection.insetGrouped(
+                header: const Text('APPEARANCE & EFFECTS'),
+                children: [
+                  CupertinoListTile.notched(
+                    leading: const Icon(CupertinoIcons.sparkles, color: CupertinoColors.systemPurple),
+                    title: const Text('Liquid Glass Effects'),
+                    subtitle: Text(
+                      _liquidGlassEnabled
+                          ? 'Full GPU blur & specular highlights'
+                          : 'Performance mode (lightweight translucency)',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    trailing: CupertinoSwitch(
+                      value: _liquidGlassEnabled,
+                      onChanged: (val) async {
+                        setState(() => _liquidGlassEnabled = val);
+                        await LocalStore.setLiquidGlassEnabled(val);
+                        HapticFeedback.selectionClick();
+                      },
+                    ),
+                  ),
+                ],
+              ),
+
+              // Storage Section
+              CupertinoListSection.insetGrouped(
+                header: const Text('STORAGE & CACHE'),
+                children: [
+                  CupertinoListTile.notched(
+                    leading: const Icon(CupertinoIcons.archivebox, color: CupertinoColors.systemTeal),
+                    title: const Text('Cached Microblogs'),
+                    additionalInfo: Text('$_cachedCount items'),
+                    trailing: const CupertinoListTileChevron(),
+                    onTap: _handleClearCache,
+                  ),
+                ],
+              ),
+
+              // Info Section
+              CupertinoListSection.insetGrouped(
+                header: const Text('ABOUT'),
+                children: const [
+                  CupertinoListTile.notched(
+                    leading: Icon(CupertinoIcons.info_circle, color: CupertinoColors.systemGrey),
+                    title: Text('App Version'),
+                    additionalInfo: Text('1.2.0 (Liquid Glass)'),
+                  ),
+                  CupertinoListTile.notched(
+                    leading: Icon(CupertinoIcons.heart, color: CupertinoColors.systemPink),
+                    title: Text('Designed For'),
+                    additionalInfo: Text('admin-cms Microblog'),
+                  ),
+                ],
+              ),
+
+              // Logout Section
+              CupertinoListSection.insetGrouped(
+                children: [
+                  CupertinoListTile.notched(
+                    leading: const Icon(CupertinoIcons.square_arrow_right, color: CupertinoColors.destructiveRed),
+                    title: const Text(
+                      'Sign Out',
+                      style: TextStyle(color: CupertinoColors.destructiveRed),
+                    ),
+                    onTap: _confirmLogout,
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -4,6 +4,9 @@ import 'package:flutter/services.dart';
 import '../core/models/microblog_post.dart';
 import '../core/network/api_service.dart';
 import '../core/storage/local_store.dart';
+import '../widgets/ambient_mesh_background.dart';
+import '../widgets/floating_glass_header.dart';
+import '../widgets/liquid_glass_container.dart';
 import '../widgets/microblog_card.dart';
 import 'compose_modal.dart';
 import 'settings_screen.dart';
@@ -34,11 +37,13 @@ class _TimelineScreenState extends State<TimelineScreen> {
 
   bool _isLoading = false;
   bool _isLoadingMore = false;
+  bool _enableLiquidGlass = true;
   Timer? _debounceTimer;
 
   @override
   void initState() {
     super.initState();
+    _loadLiquidGlassPref();
     _loadCachedDataFirst();
     _scrollController.addListener(_onScroll);
   }
@@ -49,6 +54,13 @@ class _TimelineScreenState extends State<TimelineScreen> {
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadLiquidGlassPref() async {
+    final enabled = await LocalStore.getLiquidGlassEnabled();
+    if (mounted && enabled != _enableLiquidGlass) {
+      setState(() => _enableLiquidGlass = enabled);
+    }
   }
 
   Future<void> _loadCachedDataFirst() async {
@@ -201,17 +213,19 @@ class _TimelineScreenState extends State<TimelineScreen> {
     ComposeModal.show(
       context,
       editPost: editPost,
+      enableBlur: _enableLiquidGlass,
       onSaved: () => _fetchData(refresh: true),
     );
   }
 
-  void _openSettings() {
+  void _openSettings() async {
     HapticFeedback.lightImpact();
-    Navigator.of(context).push(
+    await Navigator.of(context).push(
       CupertinoPageRoute(
         builder: (_) => SettingsScreen(onLogout: widget.onLogout),
       ),
     );
+    _loadLiquidGlassPref();
   }
 
   void _showErrorAlert(String title, String message) {
@@ -233,146 +247,164 @@ class _TimelineScreenState extends State<TimelineScreen> {
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemGroupedBackground,
-      child: CustomScrollView(
-        controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(
-          parent: BouncingScrollPhysics(),
-        ),
-        slivers: [
-          // Cupertino Collapsing Navigation Bar
-          CupertinoSliverNavigationBar(
-            largeTitle: Text(
-              _totalCount > 0 ? 'Microblog ($_totalCount)' : 'Microblog',
-            ),
-            leading: CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: _openSettings,
-              child: const Icon(CupertinoIcons.gear, size: 22),
-            ),
-            trailing: CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () => _openComposer(),
-              child: const Icon(CupertinoIcons.add, size: 26),
-            ),
-          ),
+      child: Stack(
+        children: [
+          // 1. Living Aurora Mesh Background Canvas with Scroll Parallax
+          AmbientMeshBackground(scrollController: _scrollController),
 
-          // Pull to Refresh
-          CupertinoSliverRefreshControl(
-            onRefresh: () => _fetchData(refresh: true),
-          ),
-
-          // Search & Segmented Filter Toolbar
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Column(
-                children: [
-                  // Search Bar
-                  CupertinoSearchTextField(
-                    controller: _searchController,
-                    placeholder: 'Search microblogs...',
-                    onChanged: _onSearchChanged,
-                    onSuffixTap: () {
-                      _searchController.clear();
-                      _onSearchChanged('');
-                    },
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Segmented Status Filter
-                  SizedBox(
-                    width: double.infinity,
-                    child: CupertinoSlidingSegmentedControl<String>(
-                      groupValue: _statusFilter,
-                      children: const {
-                        'all': Padding(
-                          padding: EdgeInsets.symmetric(vertical: 6),
-                          child: Text('All'),
-                        ),
-                        'published': Padding(
-                          padding: EdgeInsets.symmetric(vertical: 6),
-                          child: Text('Published'),
-                        ),
-                        'draft': Padding(
-                          padding: EdgeInsets.symmetric(vertical: 6),
-                          child: Text('Drafts'),
-                        ),
-                      },
-                      onValueChanged: _onFilterChanged,
-                    ),
-                  ),
-                ],
-              ),
+          // 2. Scrollable Timeline Content
+          CustomScrollView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
             ),
-          ),
-
-          // Content List
-          if (_isLoading && _posts.isEmpty)
-            const SliverFillRemaining(
-              child: Center(
-                child: CupertinoActivityIndicator(radius: 14),
-              ),
-            )
-          else if (_posts.isEmpty)
-            SliverFillRemaining(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      CupertinoIcons.chat_bubble_text,
-                      size: 56,
-                      color: CupertinoColors.secondaryLabel.resolveFrom(context),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _searchQuery.isNotEmpty
-                          ? 'No posts match "$_searchQuery"'
-                          : 'No microblog posts found',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: CupertinoColors.secondaryLabel.resolveFrom(context),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    CupertinoButton(
-                      onPressed: () => _openComposer(),
-                      child: const Text('Write Your First Post'),
-                    ),
-                  ],
+            slivers: [
+              // Spacer for Floating Glass Island Header
+              const SliverToBoxAdapter(
+                child: SafeArea(
+                  bottom: false,
+                  child: SizedBox(height: 58),
                 ),
               ),
-            )
-          else
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final post = _posts[index];
-                  return MicroblogCard(
-                    post: post,
-                    onEdit: () => _openComposer(editPost: post),
-                    onToggleStatus: () => _togglePostStatus(post),
-                    onDelete: () => _deletePost(post),
-                  );
-                },
-                childCount: _posts.length,
-              ),
-            ),
 
-          // Bottom Loading Indicator for Pagination
-          if (_isLoadingMore)
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: CupertinoActivityIndicator()),
+              // Pull to Refresh
+              CupertinoSliverRefreshControl(
+                onRefresh: () => _fetchData(refresh: true),
               ),
-            )
-          else
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 32),
+
+              // Search & Segmented Filter Glass Capsule
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: LiquidGlassContainer(
+                    borderRadius: 18,
+                    enableBlur: _enableLiquidGlass,
+                    elevation: 0.8,
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      children: [
+                        // Search Bar
+                        CupertinoSearchTextField(
+                          controller: _searchController,
+                          placeholder: 'Search microblogs...',
+                          onChanged: _onSearchChanged,
+                          onSuffixTap: () {
+                            _searchController.clear();
+                            _onSearchChanged('');
+                          },
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Segmented Status Filter
+                        SizedBox(
+                          width: double.infinity,
+                          child: CupertinoSlidingSegmentedControl<String>(
+                            groupValue: _statusFilter,
+                            children: const {
+                              'all': Padding(
+                                padding: EdgeInsets.symmetric(vertical: 6),
+                                child: Text('All'),
+                              ),
+                              'published': Padding(
+                                padding: EdgeInsets.symmetric(vertical: 6),
+                                child: Text('Published'),
+                              ),
+                              'draft': Padding(
+                                padding: EdgeInsets.symmetric(vertical: 6),
+                                child: Text('Drafts'),
+                              ),
+                            },
+                            onValueChanged: _onFilterChanged,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Content List / Empty / Loading States
+              if (_isLoading && _posts.isEmpty)
+                const SliverFillRemaining(
+                  child: Center(
+                    child: CupertinoActivityIndicator(radius: 14),
+                  ),
+                )
+              else if (_posts.isEmpty)
+                SliverFillRemaining(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          CupertinoIcons.chat_bubble_text,
+                          size: 56,
+                          color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          _searchQuery.isNotEmpty
+                              ? 'No posts match "$_searchQuery"'
+                              : 'No microblog posts found',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                            color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        CupertinoButton(
+                          onPressed: () => _openComposer(),
+                          child: const Text('Write Your First Post'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final post = _posts[index];
+                      return MicroblogCard(
+                        post: post,
+                        enableBlur: _enableLiquidGlass,
+                        onEdit: () => _openComposer(editPost: post),
+                        onToggleStatus: () => _togglePostStatus(post),
+                        onDelete: () => _deletePost(post),
+                      );
+                    },
+                    childCount: _posts.length,
+                  ),
+                ),
+
+              // Bottom Loading Indicator for Pagination
+              if (_isLoadingMore)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: CupertinoActivityIndicator()),
+                  ),
+                )
+              else
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 48),
+                ),
+            ],
+          ),
+
+          // 3. Floating Frosted Glass Island Header
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: FloatingGlassHeader(
+              totalCount: _totalCount,
+              onOpenSettings: _openSettings,
+              onOpenComposer: () => _openComposer(),
+              enableBlur: _enableLiquidGlass,
             ),
+          ),
         ],
       ),
     );
