@@ -4,6 +4,8 @@
 > Always update this document (`AI_HANDOFF.md`) before committing and pushing changes to GitHub!
 >
 > 📖 **Hugo Integration**: For instructions on plugging Hugo Content Adapters to this CMS, read [HUGO_CONTENT_ADAPTER.md](file:///home/dog/git/admin-cms/HUGO_CONTENT_ADAPTER.md).
+>
+> 📱 **Microblog Flutter App**: For architecture blueprint and developer handoff for the standalone Cupertino Microblog client, read [MICROBLOG_APP_HANDOFF.md](file:///home/dog/git/admin-cms/MICROBLOG_APP_HANDOFF.md).
 
 ---
 
