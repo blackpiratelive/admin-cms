@@ -178,11 +178,11 @@ class _ConnectEntityModalState extends State<ConnectEntityModal> {
                     const SizedBox(width: 8),
                     Text(
                       'Connect to ${widget.person.displayName}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.3,
-                        color: CupertinoColors.label,
+                        color: AppCupertinoTheme.label(context),
                       ),
                     ),
                   ],
@@ -215,9 +215,9 @@ class _ConnectEntityModalState extends State<ConnectEntityModal> {
             const SizedBox(height: 16),
 
             // Item Selector List
-            const Text(
+            Text(
               'SELECT ITEM',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: CupertinoColors.secondaryLabel),
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppCupertinoTheme.secondary(context)),
             ),
             const SizedBox(height: 6),
 
@@ -275,7 +275,7 @@ class _ConnectEntityModalState extends State<ConnectEntityModal> {
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                      color: CupertinoColors.label,
+                                      color: AppCupertinoTheme.label(context),
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -309,9 +309,9 @@ class _ConnectEntityModalState extends State<ConnectEntityModal> {
 
             // Relationship Verb Field
             if (_targetType != 'collection') ...[
-              const Text(
+              Text(
                 'RELATIONSHIP VERB / LABEL',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: CupertinoColors.secondaryLabel),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppCupertinoTheme.secondary(context)),
               ),
               const SizedBox(height: 6),
               CupertinoTextField(

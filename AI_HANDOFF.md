@@ -361,6 +361,11 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 - **CI/CD Automation**: Configured dual GitHub Actions (`.github/workflows/build-people-apk.yml`) and CircleCI (`.circleci/config.yml`) workflows for automated analyze, test, release keystore signing, and ARM64 APK build artifacts.
 - **Quality Gates**: All 24 Flutter unit/widget tests pass (100%), 0 linter issues in `flutter analyze`, and all 67 Vitest backend tests pass cleanly. `android/` legacy client remained 100% clean and untouched.
 
+### September 2026: Mobile People v1.3.1 (Brand Color Restoration & Dark Mode Text Legibility Fix)
+- **Brand Blue Restoration**: Restored `AppCupertinoTheme.brandAccent` from purple back to Apple iOS Blue (`#007AFF`) and `brandGradient` to Apple iOS Blue to Indigo (`[Color(0xFF007AFF), Color(0xFF6366F1)]`).
+- **Complete Dark Mode Text Legibility Fix**: Fixed pitch-black text rendering in dark mode across headers, subtitles, search input, filter controls, person cards, date countdown badges, and empty states. Added `AppCupertinoTheme.label(context)`, `secondary(context)`, and `tertiary(context)` dynamic resolution helpers, and enhanced `isDark(context)` to check both `CupertinoTheme.maybeBrightnessOf` and `MediaQuery.maybePlatformBrightnessOf`.
+- **Quality Gates**: All 24 Flutter unit and widget tests pass (100%), 0 issues in `flutter analyze`. `android/` legacy client remained 100% clean and untouched.
+
 ### September 2026: Mobile People v1.3.0 (Native Personal Relationship Manager UI Redesign)
 - **Brand Accent & Restrained Personality**: Re-anchored to purple (`#8B5CF6`) and pink (`#EC4899`) signature palette with `brandGradient`; selected navigation tab and filter states use the purple brand accent without excessive full-screen washes or glowing shadows.
 - **Profile-Oriented Edit Contact Redesign**: Transformed `PersonFormModal` from a database form into a profile editor featuring dynamic initials/photo header, clean inset-grouped Basic Information, dedicated Relationship section with disclosure picker, visually separated Privacy section with segmented control, human "Things to remember" section with notebook notes and interactive chips for Interests/Tags, compact Social Profiles, and low-priority Advanced section with URL slug and timestamps.

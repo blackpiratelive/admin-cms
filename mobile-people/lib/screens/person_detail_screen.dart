@@ -373,11 +373,11 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                           Flexible(
                             child: Text(
                               p.displayName,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: -0.4,
-                                color: CupertinoColors.label,
+                                color: AppCupertinoTheme.label(context),
                               ),
                             ),
                           ),
@@ -548,7 +548,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
             const SizedBox(width: 5),
             Text(
               label,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CupertinoColors.label),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppCupertinoTheme.label(context)),
             ),
           ],
         ),
@@ -568,13 +568,13 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
-                    Icon(CupertinoIcons.doc_text, size: 16, color: Color(0xFF8B5CF6)),
-                    SizedBox(width: 6),
+                    const Icon(CupertinoIcons.doc_text, size: 16, color: Color(0xFF8B5CF6)),
+                    const SizedBox(width: 6),
                     Text(
                       'Personal Notes & Memories',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: CupertinoColors.label),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppCupertinoTheme.label(context)),
                     ),
                   ],
                 ),
@@ -604,13 +604,13 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
-                    Icon(CupertinoIcons.tag, size: 16, color: Color(0xFFEC4899)),
-                    SizedBox(width: 6),
+                    const Icon(CupertinoIcons.tag, size: 16, color: Color(0xFFEC4899)),
+                    const SizedBox(width: 6),
                     Text(
                       'Interests & Shared Topics',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: CupertinoColors.label),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppCupertinoTheme.label(context)),
                     ),
                   ],
                 ),
@@ -650,13 +650,13 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
-                    Icon(CupertinoIcons.calendar, size: 16, color: Color(0xFFF59E0B)),
-                    SizedBox(width: 6),
+                    const Icon(CupertinoIcons.calendar, size: 16, color: Color(0xFFF59E0B)),
+                    const SizedBox(width: 6),
                     Text(
                       'Important Dates',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: CupertinoColors.label),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppCupertinoTheme.label(context)),
                     ),
                   ],
                 ),
@@ -688,7 +688,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                                 children: [
                                   Text(
                                     d.title,
-                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: CupertinoColors.label),
+                                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppCupertinoTheme.label(context)),
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
@@ -758,7 +758,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
             children: [
               Text(
                 'Connections (${_connections.totalCount})',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: CupertinoColors.label),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppCupertinoTheme.label(context)),
               ),
               CupertinoButton(
                 padding: EdgeInsets.zero,
@@ -861,7 +861,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                           children: [
                             Text(
                               loc.name,
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: CupertinoColors.label),
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppCupertinoTheme.label(context)),
                             ),
                             if (loc.subtitle.isNotEmpty) ...[
                               const SizedBox(width: 4),
@@ -907,7 +907,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                           children: [
                             Text(
                               t.title,
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: CupertinoColors.label),
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppCupertinoTheme.label(context)),
                             ),
                             GestureDetector(
                               onTap: () => _handleRemoveConnection(t.relationshipId),
@@ -944,7 +944,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                                 mb.contentMarkdown,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 12, color: CupertinoColors.label),
+                                style: TextStyle(fontSize: 12, color: AppCupertinoTheme.label(context)),
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -1051,7 +1051,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                           const SizedBox(height: 4),
                           Text(
                             item.title,
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: CupertinoColors.label),
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppCupertinoTheme.label(context)),
                           ),
                           if (item.description != null && item.description!.isNotEmpty) ...[
                             const SizedBox(height: 2),
@@ -1105,7 +1105,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
               const SizedBox(width: 6),
               Text(
                 title,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: CupertinoColors.label),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppCupertinoTheme.label(context)),
               ),
             ],
           ),
@@ -1119,7 +1119,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
   Widget _emptyNotice(String message) {
     return Text(
       message,
-      style: const TextStyle(fontSize: 12, color: CupertinoColors.secondaryLabel),
+      style: TextStyle(fontSize: 12, color: AppCupertinoTheme.secondary(context)),
     );
   }
 

@@ -211,7 +211,8 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
-            final isDark = AppCupertinoTheme.isDark(context);
+            final labelColor = AppCupertinoTheme.label(context);
+            final secondaryColor = AppCupertinoTheme.secondary(context);
             return Container(
               height: MediaQuery.of(context).size.height * 0.82,
               decoration: BoxDecoration(
@@ -257,12 +258,12 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                               ),
                             ),
                           ),
-                          const Text(
+                          Text(
                             'Filters',
                             style: TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w700,
-                              color: CupertinoColors.label,
+                              color: labelColor,
                             ),
                           ),
                           CupertinoButton(
@@ -341,7 +342,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
+                                color: secondaryColor,
                               ),
                             ),
                           ),
@@ -378,7 +379,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                                         fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                                         color: isSelected
                                             ? CupertinoColors.white
-                                            : CupertinoColors.label,
+                                            : labelColor,
                                       ),
                                     ),
                                   ),
@@ -395,7 +396,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
+                                color: secondaryColor,
                               ),
                             ),
                           ),
@@ -437,7 +438,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                                         fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                                         color: isSelected
                                             ? CupertinoColors.white
-                                            : CupertinoColors.label,
+                                            : labelColor,
                                       ),
                                     ),
                                   ),
@@ -454,7 +455,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
+                                color: secondaryColor,
                               ),
                             ),
                           ),
@@ -510,7 +511,8 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = AppCupertinoTheme.isDark(context);
+    final labelColor = AppCupertinoTheme.label(context);
+    final secondaryColor = AppCupertinoTheme.secondary(context);
 
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground,
@@ -541,13 +543,13 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'People',
                             style: TextStyle(
                               fontSize: 34,
                               fontWeight: FontWeight.w800,
                               letterSpacing: -1.0,
-                              color: CupertinoColors.label,
+                              color: labelColor,
                               height: 1.15,
                             ),
                           ),
@@ -560,7 +562,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                               fontSize: 15,
                               fontWeight: FontWeight.w400,
                               letterSpacing: -0.2,
-                              color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
+                              color: secondaryColor,
                             ),
                           ),
                         ],
@@ -628,11 +630,11 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                                 placeholder: 'Search people, notes, interests...',
                                 placeholderStyle: TextStyle(
                                   fontSize: 15,
-                                  color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
+                                  color: secondaryColor,
                                 ),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 15,
-                                  color: CupertinoColors.label,
+                                  color: labelColor,
                                 ),
                                 clearButtonMode: OverlayVisibilityMode.editing,
                                 onChanged: _onSearchChanged,
@@ -665,7 +667,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                           size: 20,
                           color: _hasActiveFilters
                               ? AppCupertinoTheme.brandAccent
-                              : CupertinoColors.label,
+                              : labelColor,
                         ),
                       ),
                     ),
@@ -691,13 +693,13 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const Text(
+                    Text(
                       'Your people',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.5,
-                        color: CupertinoColors.label,
+                        color: labelColor,
                       ),
                     ),
                     GestureDetector(
@@ -724,7 +726,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                               size: 13,
                               color: _hasActiveFilters
                                   ? AppCupertinoTheme.brandAccent
-                                  : CupertinoColors.label,
+                                  : labelColor,
                             ),
                             const SizedBox(width: 4),
                             Text(
@@ -734,7 +736,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                                 fontWeight: FontWeight.w600,
                                 color: _hasActiveFilters
                                     ? AppCupertinoTheme.brandAccent
-                                    : CupertinoColors.label,
+                                    : labelColor,
                               ),
                             ),
                           ],
@@ -769,12 +771,12 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                           color: CupertinoColors.systemGrey,
                         ),
                         const SizedBox(height: 12),
-                        const Text(
+                        Text(
                           'No Contacts Found',
                           style: TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.bold,
-                            color: CupertinoColors.label,
+                            color: labelColor,
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -785,7 +787,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 13,
-                            color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
+                            color: secondaryColor,
                           ),
                         ),
                         const SizedBox(height: 16),

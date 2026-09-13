@@ -245,11 +245,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               onPressed: _handleProcessSyncQueue,
                               child: const Text('Sync Now', style: TextStyle(fontSize: 14)),
                             )
-                          : const Text(
+                          : Text(
                               'Up to date',
                               style: TextStyle(
                                 fontSize: 14,
-                                color: CupertinoColors.secondaryLabel,
+                                color: AppCupertinoTheme.secondary(context),
                               ),
                             )),
                 ),
@@ -300,10 +300,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             CupertinoListSection.insetGrouped(
               header: const Text('ACCOUNT & ABOUT'),
               children: [
-                const CupertinoListTile(
-                  leading: Icon(CupertinoIcons.info, color: CupertinoColors.systemGrey),
-                  title: Text('App Version'),
-                  trailing: Text('1.2.0', style: TextStyle(color: CupertinoColors.secondaryLabel)),
+                CupertinoListTile(
+                  leading: const Icon(CupertinoIcons.info, color: CupertinoColors.systemGrey),
+                  title: const Text('App Version'),
+                  trailing: Text('1.2.0', style: TextStyle(color: AppCupertinoTheme.secondary(context))),
                 ),
                 CupertinoListTile(
                   leading: const Icon(CupertinoIcons.square_arrow_right, color: CupertinoColors.systemRed),

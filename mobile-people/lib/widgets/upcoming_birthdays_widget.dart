@@ -73,6 +73,8 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
           final subtitle = dateInfo.monthName.isNotEmpty
               ? '${item.title} · ${dateInfo.monthName} ${dateInfo.day} (${item.countdownBadge})'
               : '${item.title} (${item.countdownBadge})';
+          final labelColor = AppCupertinoTheme.label(context);
+          final secondaryColor = AppCupertinoTheme.secondary(context);
           return CupertinoActionSheetAction(
             onPressed: () {
               Navigator.pop(ctx);
@@ -90,17 +92,17 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
                     children: [
                       Text(
                         item.displayName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: CupertinoColors.label,
+                          color: labelColor,
                         ),
                       ),
                       Text(
                         subtitle,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
-                          color: CupertinoColors.secondaryLabel,
+                          color: secondaryColor,
                         ),
                       ),
                     ],
@@ -146,6 +148,8 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
     // Show up to 3 upcoming moments on homepage
     final displayedItems = items.take(3).toList();
 
+    final labelColor = AppCupertinoTheme.label(context);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       child: Column(
@@ -156,13 +160,13 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Text(
+              Text(
                 'Coming up',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
                   letterSpacing: -0.5,
-                  color: CupertinoColors.label,
+                  color: labelColor,
                 ),
               ),
               CupertinoButton(
@@ -211,6 +215,8 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
   }
 
   Widget _buildCompactCard(BuildContext context, UpcomingBirthdayItem item) {
+    final labelColor = AppCupertinoTheme.label(context);
+    final secondaryColor = AppCupertinoTheme.secondary(context);
     final dateInfo = parseDate(item.dateStr);
     final subtitle = dateInfo.monthName.isNotEmpty
         ? '${item.title} · ${dateInfo.monthName} ${dateInfo.day}'
@@ -260,21 +266,21 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
                 children: [
                   Text(
                     dateInfo.monthAbbr,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.4,
-                      color: CupertinoColors.secondaryLabel,
+                      color: secondaryColor,
                     ),
                   ),
                   const SizedBox(height: 1),
                   Text(
                     dateInfo.day,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.5,
-                      color: CupertinoColors.label,
+                      color: labelColor,
                     ),
                   ),
                 ],
@@ -295,11 +301,11 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
                 children: [
                   Text(
                     item.displayName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.3,
-                      color: CupertinoColors.label,
+                      color: labelColor,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -307,10 +313,10 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w400,
-                      color: CupertinoColors.secondaryLabel,
+                      color: secondaryColor,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

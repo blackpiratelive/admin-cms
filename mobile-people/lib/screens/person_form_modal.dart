@@ -574,10 +574,10 @@ class _PersonFormModalState extends State<PersonFormModal> {
               children: [
                 Text(
                   item,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
-                    color: CupertinoColors.label,
+                    color: AppCupertinoTheme.label(context),
                   ),
                 ),
                 const SizedBox(width: 4),
@@ -586,10 +586,10 @@ class _PersonFormModalState extends State<PersonFormModal> {
                     HapticFeedback.selectionClick();
                     onRemove(item);
                   },
-                  child: const Icon(
+                  child: Icon(
                     CupertinoIcons.xmark,
                     size: 12,
-                    color: CupertinoColors.secondaryLabel,
+                    color: AppCupertinoTheme.secondary(context),
                   ),
                 ),
               ],
@@ -638,7 +638,9 @@ class _PersonFormModalState extends State<PersonFormModal> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = AppCupertinoTheme.isDark(context);
+    final labelColor = AppCupertinoTheme.label(context);
+    final secondaryColor = AppCupertinoTheme.secondary(context);
+    final tertiaryColor = AppCupertinoTheme.tertiary(context);
 
     final rawName = _displayNameController.text.trim();
     final headerName = rawName.isNotEmpty
@@ -764,11 +766,11 @@ class _PersonFormModalState extends State<PersonFormModal> {
                   const SizedBox(height: 12),
                   Text(
                     headerName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       letterSpacing: -0.4,
-                      color: CupertinoColors.label,
+                      color: labelColor,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -777,7 +779,7 @@ class _PersonFormModalState extends State<PersonFormModal> {
                     headerRelationship,
                     style: TextStyle(
                       fontSize: 14,
-                      color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
+                      color: secondaryColor,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -857,16 +859,16 @@ class _PersonFormModalState extends State<PersonFormModal> {
                       children: [
                         Text(
                           _relationshipType,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 15,
-                            color: CupertinoColors.secondaryLabel,
+                            color: secondaryColor,
                           ),
                         ),
                         const SizedBox(width: 4),
-                        const Icon(
+                        Icon(
                           CupertinoIcons.chevron_right,
                           size: 14,
-                          color: CupertinoColors.tertiaryLabel,
+                          color: tertiaryColor,
                         ),
                       ],
                     ),
@@ -903,11 +905,11 @@ class _PersonFormModalState extends State<PersonFormModal> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Who can see this?',
                         style: TextStyle(
                           fontSize: 13,
-                          color: CupertinoColors.secondaryLabel,
+                          color: secondaryColor,
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -969,9 +971,9 @@ class _PersonFormModalState extends State<PersonFormModal> {
               ),
               children: _importantDates.isEmpty
                   ? [
-                      const CupertinoListTile(
-                        title: Text('No dates added', style: TextStyle(color: CupertinoColors.secondaryLabel, fontSize: 14)),
-                        subtitle: Text('Tap "Add Date" to register birthdays or anniversaries', style: TextStyle(fontSize: 12, color: CupertinoColors.tertiaryLabel)),
+                      CupertinoListTile(
+                        title: Text('No dates added', style: TextStyle(color: secondaryColor, fontSize: 14)),
+                        subtitle: Text('Tap "Add Date" to register birthdays or anniversaries', style: TextStyle(fontSize: 12, color: tertiaryColor)),
                       ),
                     ]
                   : _importantDates.asMap().entries.map((entry) {
@@ -1014,7 +1016,7 @@ class _PersonFormModalState extends State<PersonFormModal> {
                                   onPressed: () => _pickDateForIndex(idx),
                                   child: Text(
                                     _formatDisplayDate(dateItem.date),
-                                    style: const TextStyle(fontSize: 13, color: CupertinoColors.label, fontWeight: FontWeight.w500),
+                                    style: TextStyle(fontSize: 13, color: labelColor, fontWeight: FontWeight.w500),
                                   ),
                                 ),
                                 const SizedBox(width: 4),
@@ -1072,12 +1074,12 @@ class _PersonFormModalState extends State<PersonFormModal> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Personal notes',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: CupertinoColors.label,
+                          color: labelColor,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -1086,9 +1088,9 @@ class _PersonFormModalState extends State<PersonFormModal> {
                         placeholder: "Write something you'll want to remember later...",
                         placeholderStyle: TextStyle(
                           fontSize: 14,
-                          color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
+                          color: secondaryColor,
                         ),
-                        style: const TextStyle(fontSize: 14, color: CupertinoColors.label),
+                        style: TextStyle(fontSize: 14, color: labelColor),
                         maxLines: 4,
                         minLines: 3,
                         padding: const EdgeInsets.all(12),
@@ -1098,12 +1100,12 @@ class _PersonFormModalState extends State<PersonFormModal> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const Text(
+                      Text(
                         'Interests',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: CupertinoColors.label,
+                          color: labelColor,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -1118,12 +1120,12 @@ class _PersonFormModalState extends State<PersonFormModal> {
                         addLabel: 'Add',
                       ),
                       const SizedBox(height: 16),
-                      const Text(
+                      Text(
                         'Tags',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: CupertinoColors.label,
+                          color: labelColor,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -1190,14 +1192,14 @@ class _PersonFormModalState extends State<PersonFormModal> {
                     title: const Text('Created', style: TextStyle(fontSize: 15)),
                     trailing: Text(
                       _formatTimestamp(widget.personToEdit!.createdAt),
-                      style: const TextStyle(fontSize: 14, color: CupertinoColors.secondaryLabel),
+                      style: TextStyle(fontSize: 14, color: secondaryColor),
                     ),
                   ),
                   CupertinoListTile(
                     title: const Text('Last updated', style: TextStyle(fontSize: 15)),
                     trailing: Text(
                       _formatTimestamp(widget.personToEdit!.updatedAt),
-                      style: const TextStyle(fontSize: 14, color: CupertinoColors.secondaryLabel),
+                      style: TextStyle(fontSize: 14, color: secondaryColor),
                     ),
                   ),
                 ],

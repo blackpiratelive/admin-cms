@@ -264,6 +264,40 @@ git status android/ # Must remain completely clean!
 
 ## 9. Recent Updates & Architectural Changelog
 
+### Version 1.3.1 — Brand Color Restoration to Apple iOS Blue & Complete Dark Mode Text Legibility Fix (September 2026)
+
+1. **Restored Brand Blue Identity**:
+   - Reverted brand accent `AppCupertinoTheme.brandAccent` from purple back to Apple iOS Blue (`#007AFF`).
+   - Signature brand gradient `AppCupertinoTheme.brandGradient` restored to Apple iOS Blue to Indigo (`[Color(0xFF007AFF), Color(0xFF6366F1)]`).
+   - Updated all tab selectors, primary add buttons, filter indicators, and initials avatars to consistently use the blue/indigo signature palette.
+
+2. **Complete Dark Mode Text Legibility Overhaul**:
+   - **Root Cause**: Identified that un-resolved `CupertinoColors.label`, `CupertinoColors.secondaryLabel`, and `CupertinoColors.tertiaryLabel` extend `Color` with default raw value `0xFF000000` (black). Without calling `.resolveFrom(context)`, custom `TextStyle` declarations in Flutter render pitch black text even in dark mode. Furthermore, `AppCupertinoTheme.isDark(context)` was relying on `CupertinoTheme.of(context).brightness`, which returned null when using dynamic theme data without explicit brightness.
+   - **Fix**: Added dynamic resolution helpers `AppCupertinoTheme.label(context)`, `AppCupertinoTheme.secondary(context)`, and `AppCupertinoTheme.tertiary(context)` in `AppCupertinoTheme`. Enhanced `AppCupertinoTheme.isDark(context)` to check both `CupertinoTheme.maybeBrightnessOf(context)` and `MediaQuery.maybePlatformBrightnessOf(context)`.
+   - **Directory Screen**:
+     - Large title "People" resolves dynamically (`#FFFFFF` in dark mode).
+     - Subtitle ("X people in your circle") resolves to secondary label (`#99EBEBF5` in dark mode).
+     - Search input text and placeholder resolve dynamically.
+     - "Your people" section heading resolves to white.
+     - Filter trigger icon and text resolve to white when inactive and brand blue when active.
+     - Empty states ("No Contacts Found") and filter bottom sheet titles, chip labels, and section headings resolve dynamically.
+   - **Person Cards (`PersonCard`)**:
+     - Contact display name (`person.displayName`) resolves to dynamic label (`#FFFFFF` in dark mode).
+     - Metadata lines (`Relationship · Privacy`, birthday text, etc.) resolve to dynamic secondary label.
+   - **Upcoming Moments (`UpcomingBirthdaysWidget`)**:
+     - Section heading "Coming up" resolves to white.
+     - Compact card date badges (month abbreviation and day number "21", "22", "30") resolve to secondary and primary white.
+     - Person names and birthday subtitle text resolve cleanly.
+   - **Detail & Modal Screens**:
+     - `PersonDetailScreen`: Contact display name in hero header, section titles, notes markdown, connection badges, and timeline items resolve with dynamic colors.
+     - `PersonFormModal`: Dynamic initials avatar header, section headers, chip rows, and text fields resolve cleanly.
+     - `ConnectEntityModal` & `SettingsScreen`: All labels and version texts resolve cleanly.
+
+3. **Quality Gates & Regression Safety**:
+   - `flutter analyze` reports 0 issues.
+   - 24/24 unit and widget tests pass (100%), including explicit assertions for `brandAccent == primaryBlue` and blue/indigo `brandGradient`.
+   - Strict subsystem isolation maintained: `android/` remains untouched.
+
 ### Version 1.3.0 — Native Personal Relationship Manager UI Redesign & Edit Contact Revamp (September 2026)
 
 1. **Brand Accent & Restrained Personality**:

@@ -41,7 +41,7 @@ class PersonTimelineItem {
       case 'microblog':
         return const Color(0xFF3B82F6); // Blue
       default:
-        return CupertinoColors.secondaryLabel;
+        return CupertinoColors.systemGrey;
     }
   }
 

@@ -4,15 +4,15 @@ class AppCupertinoTheme {
   // Brand / Tint Colors
   static const Color primaryPurple = Color(0xFF8B5CF6);
   static const Color primaryBlue = Color(0xFF007AFF);
-  static const Color brandAccent = Color(0xFF8B5CF6);
+  static const Color brandAccent = Color(0xFF007AFF);
   static const Color accentRose = Color(0xFFEC4899);
   static const Color favoriteGold = Color(0xFFF59E0B);
   static const Color statusGreen = CupertinoColors.systemGreen;
   static const Color statusRed = CupertinoColors.systemRed;
 
-  // Signature Brand Gradient (Purple-to-Pink)
+  // Signature Brand Gradient (Apple iOS Blue to Indigo)
   static const LinearGradient brandGradient = LinearGradient(
-    colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+    colors: [Color(0xFF007AFF), Color(0xFF6366F1)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
@@ -85,7 +85,19 @@ class AppCupertinoTheme {
     darkColor: Color(0xF21C1C1E),
   );
 
-  // Dark Brightness Helper
-  static bool isDark(BuildContext context) =>
-      CupertinoTheme.of(context).brightness == Brightness.dark;
+  // Dynamic Label Helpers
+  static Color label(BuildContext context) =>
+      CupertinoColors.label.resolveFrom(context);
+
+  static Color secondary(BuildContext context) =>
+      CupertinoColors.secondaryLabel.resolveFrom(context);
+
+  static Color tertiary(BuildContext context) =>
+      CupertinoColors.tertiaryLabel.resolveFrom(context);
+
+  // Dark Brightness Helper (checks both CupertinoTheme and MediaQuery)
+  static bool isDark(BuildContext context) {
+    return CupertinoTheme.maybeBrightnessOf(context) == Brightness.dark ||
+        MediaQuery.maybePlatformBrightnessOf(context) == Brightness.dark;
+  }
 }

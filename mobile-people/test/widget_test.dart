@@ -368,6 +368,8 @@ void main() {
       expect(AppCupertinoTheme.primaryPurple, const Color(0xFF8B5CF6));
       expect(AppCupertinoTheme.accentRose, const Color(0xFFEC4899));
       expect(AppCupertinoTheme.favoriteGold, const Color(0xFFF59E0B));
+      expect(AppCupertinoTheme.brandAccent, const Color(0xFF007AFF));
+      expect(AppCupertinoTheme.brandGradient.colors, const [Color(0xFF007AFF), Color(0xFF6366F1)]);
     });
   });
 

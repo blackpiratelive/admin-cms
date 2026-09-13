@@ -62,6 +62,8 @@ class PersonCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = AppCupertinoTheme.isDark(context);
+    final labelColor = AppCupertinoTheme.label(context);
+    final secondaryColor = AppCupertinoTheme.secondary(context);
     final birthday = _primaryBirthday;
     final birthdayDateInfo = birthday != null ? _formatDate(birthday.date) : null;
 
@@ -112,11 +114,11 @@ class PersonCard extends StatelessWidget {
                           Flexible(
                             child: Text(
                               person.displayName,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                                 letterSpacing: -0.3,
-                                color: CupertinoColors.label,
+                                color: labelColor,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -130,7 +132,7 @@ class PersonCard extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontStyle: FontStyle.italic,
-                                  color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
+                                  color: secondaryColor,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -147,16 +149,16 @@ class PersonCard extends StatelessWidget {
                         children: [
                           Text(
                             person.relationshipType,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
-                              color: CupertinoColors.secondaryLabel,
+                              color: secondaryColor,
                             ),
                           ),
-                          const Text(
+                          Text(
                             ' · ',
                             style: TextStyle(
                               fontSize: 13,
-                              color: CupertinoColors.secondaryLabel,
+                              color: secondaryColor,
                             ),
                           ),
                           Icon(
@@ -166,7 +168,7 @@ class PersonCard extends StatelessWidget {
                                     ? CupertinoIcons.eye_slash
                                     : CupertinoIcons.lock,
                             size: 11,
-                            color: CupertinoColors.secondaryLabel,
+                            color: secondaryColor,
                           ),
                           const SizedBox(width: 3),
                           Text(
@@ -175,9 +177,9 @@ class PersonCard extends StatelessWidget {
                                 : person.visibility == 'unlisted'
                                     ? 'Unlisted'
                                     : 'Private',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
-                              color: CupertinoColors.secondaryLabel,
+                              color: secondaryColor,
                             ),
                           ),
                         ],
@@ -197,9 +199,9 @@ class PersonCard extends StatelessWidget {
                             const SizedBox(width: 4),
                             Text(
                               '${birthday.title} · ${birthdayDateInfo.monthName} ${birthdayDateInfo.day}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: CupertinoColors.secondaryLabel,
+                                color: secondaryColor,
                               ),
                             ),
                           ],
