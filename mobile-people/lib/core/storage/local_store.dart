@@ -14,7 +14,6 @@ class LocalStore {
   static const String _keyPeopleCache = 'cached_people_list';
   static const String _keyBirthdaysCache = 'cached_upcoming_birthdays';
   static const String _keyOfflineQueue = 'offline_mutations_queue';
-  static const String _keyLiquidGlassEffects = 'liquid_glass_effects_enabled';
 
   static String get defaultServerUrl {
     if (Platform.isAndroid) {
@@ -91,16 +90,6 @@ class LocalStore {
     } catch (_) {}
   }
 
-  // Liquid Glass Effects Toggle
-  static Future<bool> isLiquidGlassEffectsEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keyLiquidGlassEffects) ?? true;
-  }
-
-  static Future<void> setLiquidGlassEffectsEnabled(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyLiquidGlassEffects, enabled);
-  }
 
   // Cache: People List
   static Future<void> saveCachedPeople(List<PersonRecord> people) async {

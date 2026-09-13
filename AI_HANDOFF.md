@@ -27,8 +27,8 @@ This repository is **`admin-cms`**, a private, single-user **Personal Knowledge 
 ```text
 admin-cms/
 ├── android/                     # Flutter Cross-Platform Mobile & Tablet Application (Dart, Clean Architecture, Responsive Shell, Multi-Module, Multi-Theme)
-├── mobile-microblog/            # Standalone Cupertino iOS Microblog Application (Apple Liquid Glass Design System, Living Aurora Canvas, Specular Bevels, Fast Modal Composer, Offline-First)
-├── mobile-people/               # Standalone Cupertino iOS People & Memory Hub Application (Liquid Glass Design System, Living Aurora Canvas, Important Dates, Push Reminders, Offline-First Sync)
+├── mobile-microblog/            # Standalone Cupertino iOS Microblog Application (Apple Cupertino Design System, Fast Modal Composer, Offline-First)
+├── mobile-people/               # Standalone Cupertino iOS People & Memory Hub Application (Apple Cupertino Design System, Important Dates, Push Reminders, Offline-First Sync)
 ├── .circleci/                   # CircleCI CI/CD pipeline configuration for Flutter analyze and APK build
 ├── src/
 │   ├── app/
@@ -320,6 +320,17 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 ---
 
 ## 8. Standalone Apps & Release Signing Changelog
+
+### September 2026: Mobile Apps Modernization — De-bloat & Clean Cupertino Modernization
+- **Liquid Glass Removal**: Completely removed the Apple Liquid Glass design system (optical blur `BackdropFilter`, specular gradient highlights, living aurora mesh canvas `AmbientMeshBackground`, and floating island navigation `FloatingGlassHeader`) from both `mobile-microblog/` and `mobile-people/`.
+- **Pure Apple Cupertino Experience**:
+  - `mobile-microblog/`: Restored standard `CupertinoPageScaffold` and `CupertinoSliverNavigationBar` with collapsing large titles, search field, sliding segmented control, clean cards (`AppCupertinoTheme.cardBackground`), and removed the redundant settings toggle.
+  - `mobile-people/`: Restored `CupertinoPageScaffold` and `CupertinoSliverNavigationBar` with large collapsing title, contact count capsule, offline pending sync badge, filter drawer toggle, and quick-add action; replaced jewel LED glowing countdowns with clean status indicators.
+- **Quality Gates & Isolation**:
+  - `mobile-microblog`: 0 analyze issues, 13/13 tests passing (100%).
+  - `mobile-people`: 0 analyze issues, 20/20 tests passing (100%).
+  - Root Next.js CMS: 13/13 test files passing, 67/67 unit tests passing (100%).
+  - `git status android/` remained 100% clean and untouched throughout.
 
 ### September 2026: Mobile People v1.0.0 (Apple Liquid Glass Design System & Memory Hub)
 - **Standalone Cupertino Client**: Created `mobile-people/` featuring 1:1 feature parity with webapp People Memory Hub (`/people` and `/people/[slug]`), built strictly with Apple Cupertino widgets (`CupertinoApp`, `CupertinoPageScaffold`, `CupertinoNavigationBar`).

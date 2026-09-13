@@ -7,7 +7,7 @@ import '../core/models/important_date.dart';
 import '../core/network/api_service.dart';
 import '../core/network/sync_service.dart';
 import '../core/services/notification_service.dart';
-import '../core/theme/liquid_glass_theme.dart';
+import '../core/theme/cupertino_theme.dart';
 
 class PersonFormModal extends StatefulWidget {
   final PersonRecord? personToEdit;
@@ -382,7 +382,7 @@ class _PersonFormModalState extends State<PersonFormModal> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = LiquidGlassTheme.isDark(context);
+    final isDark = AppCupertinoTheme.isDark(context);
 
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground,

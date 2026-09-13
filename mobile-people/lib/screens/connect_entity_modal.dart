@@ -4,8 +4,7 @@ import '../core/models/person_record.dart';
 import '../core/models/picker_items.dart';
 import '../core/network/api_service.dart';
 import '../core/network/sync_service.dart';
-import '../core/theme/liquid_glass_theme.dart';
-import '../widgets/liquid_glass_container.dart';
+import '../core/theme/cupertino_theme.dart';
 
 class ConnectEntityModal extends StatefulWidget {
   final PersonRecord person;
@@ -140,17 +139,31 @@ class _ConnectEntityModalState extends State<ConnectEntityModal> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = LiquidGlassTheme.isDark(context);
+    final isDark = AppCupertinoTheme.isDark(context);
     final availableItems = _pickers.getByType(_targetType);
 
     return Container(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom + 16,
       ),
-      child: LiquidGlassContainer(
-        borderRadius: 24,
+      child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 12),
         padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppCupertinoTheme.cardBackground.resolveFrom(context),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: AppCupertinoTheme.cardBorder.resolveFrom(context),
+            width: 0.8,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: CupertinoColors.systemGrey5.resolveFrom(context).withValues(alpha: 0.3),
+              offset: const Offset(0, 2),
+              blurRadius: 8,
+            ),
+          ],
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

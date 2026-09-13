@@ -9,10 +9,7 @@ import 'package:mobile_people/core/models/person_timeline_item.dart';
 import 'package:mobile_people/core/models/upcoming_birthday_item.dart';
 import 'package:mobile_people/core/models/picker_items.dart';
 import 'package:mobile_people/core/models/offline_mutation.dart';
-import 'package:mobile_people/core/theme/liquid_glass_theme.dart';
-import 'package:mobile_people/widgets/liquid_glass_container.dart';
-import 'package:mobile_people/widgets/ambient_mesh_background.dart';
-import 'package:mobile_people/widgets/floating_glass_header.dart';
+import 'package:mobile_people/core/theme/cupertino_theme.dart';
 import 'package:mobile_people/widgets/upcoming_birthdays_widget.dart';
 import 'package:mobile_people/widgets/person_card.dart';
 import 'package:mobile_people/screens/settings_screen.dart';
@@ -355,95 +352,18 @@ void main() {
     });
   });
 
-  group('Liquid Glass Theme System Tests', () {
-    test('returns correct decoration tokens', () {
-      final ledZero = LiquidGlassTheme.jewelCountdown(daysRemaining: 0);
-      expect(ledZero.color, CupertinoColors.systemRed);
-
-      final ledOne = LiquidGlassTheme.jewelCountdown(daysRemaining: 1);
-      expect(ledOne.color, CupertinoColors.systemOrange);
-
-      final ledSeven = LiquidGlassTheme.jewelCountdown(daysRemaining: 5);
-      expect(ledSeven.color, CupertinoColors.systemYellow);
-
-      final ledOther = LiquidGlassTheme.jewelCountdown(daysRemaining: 20);
-      expect(ledOther.color, const Color(0xFF8B5CF6));
+  group('AppCupertinoTheme & Countdown Color Tests', () {
+    test('returns correct countdown color', () {
+      expect(UpcomingBirthdaysWidget.getCountdownColor(0), CupertinoColors.systemRed);
+      expect(UpcomingBirthdaysWidget.getCountdownColor(1), CupertinoColors.systemOrange);
+      expect(UpcomingBirthdaysWidget.getCountdownColor(5), const Color(0xFFF59E0B));
+      expect(UpcomingBirthdaysWidget.getCountdownColor(20), CupertinoColors.systemGreen);
     });
-  });
 
-  group('LiquidGlassContainer Widget Tests', () {
-    testWidgets('renders child and triggers tap callback', (WidgetTester tester) async {
-      bool tapped = false;
-
-      await tester.pumpWidget(
-        CupertinoApp(
-          home: CupertinoPageScaffold(
-            child: Center(
-              child: LiquidGlassContainer(
-                interactive: true,
-                onTap: () => tapped = true,
-                child: const Text('Liquid Glass Content'),
-              ),
-            ),
-          ),
-        ),
-      );
-
-      expect(find.text('Liquid Glass Content'), findsOneWidget);
-      await tester.tap(find.text('Liquid Glass Content'));
-      await tester.pumpAndSettle();
-      expect(tapped, isTrue);
-    });
-  });
-
-  group('AmbientMeshBackground Widget Tests', () {
-    testWidgets('renders background mesh and child widget', (WidgetTester tester) async {
-      final controller = ScrollController();
-
-      await tester.pumpWidget(
-        CupertinoApp(
-          home: CupertinoPageScaffold(
-            child: AmbientMeshBackground(
-              scrollController: controller,
-              child: const Text('Mesh Foreground Child'),
-            ),
-          ),
-        ),
-      );
-
-      expect(find.text('Mesh Foreground Child'), findsOneWidget);
-      controller.dispose();
-    });
-  });
-
-  group('FloatingGlassHeader Widget Tests', () {
-    testWidgets('renders title, count badge, and triggers buttons', (WidgetTester tester) async {
-      bool settingsTapped = false;
-      bool addTapped = false;
-
-      await tester.pumpWidget(
-        CupertinoApp(
-          home: CupertinoPageScaffold(
-            child: FloatingGlassHeader(
-              title: 'People & Memories',
-              count: 28,
-              onSettingsTap: () => settingsTapped = true,
-              onAddTap: () => addTapped = true,
-            ),
-          ),
-        ),
-      );
-
-      expect(find.text('People & Memories'), findsOneWidget);
-      expect(find.text('28'), findsOneWidget);
-
-      await tester.tap(find.byIcon(CupertinoIcons.gear));
-      await tester.pumpAndSettle();
-      expect(settingsTapped, isTrue);
-
-      await tester.tap(find.byIcon(CupertinoIcons.add));
-      await tester.pumpAndSettle();
-      expect(addTapped, isTrue);
+    test('theme colors are properly defined', () {
+      expect(AppCupertinoTheme.primaryPurple, const Color(0xFF8B5CF6));
+      expect(AppCupertinoTheme.accentRose, const Color(0xFFEC4899));
+      expect(AppCupertinoTheme.favoriteGold, const Color(0xFFF59E0B));
     });
   });
 
@@ -553,8 +473,6 @@ void main() {
       expect(find.text('SERVER CONNECTION'), findsOneWidget);
       expect(find.text('Server URL'), findsOneWidget);
       expect(find.text('Rebuild Hugo Site'), findsOneWidget);
-      expect(find.text('VISUAL PERFORMANCE'), findsOneWidget);
-      expect(find.text('Liquid Glass Effects'), findsOneWidget);
       expect(find.text('OFFLINE & SYNC QUEUE'), findsOneWidget);
       expect(find.text('Queued Mutations'), findsOneWidget);
       expect(find.text('ACCOUNT & ABOUT'), findsOneWidget);

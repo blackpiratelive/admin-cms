@@ -10,7 +10,6 @@ class LocalStore {
   static const String _keyServerUrl = 'pref_server_url';
   static const String _keyAuthToken = 'secure_auth_token';
   static const String _keyCachedPosts = 'pref_cached_microblogs';
-  static const String _keyLiquidGlassEnabled = 'pref_liquid_glass_enabled';
 
   static String get defaultServerUrl {
     try {
@@ -93,20 +92,4 @@ class LocalStore {
     } catch (_) {}
   }
 
-  // Liquid Glass Preferences
-  static Future<bool> getLiquidGlassEnabled() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getBool(_keyLiquidGlassEnabled) ?? true;
-    } catch (_) {
-      return true;
-    }
-  }
-
-  static Future<void> setLiquidGlassEnabled(bool enabled) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_keyLiquidGlassEnabled, enabled);
-    } catch (_) {}
-  }
 }

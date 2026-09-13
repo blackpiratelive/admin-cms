@@ -2,8 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../core/models/person_record.dart';
-import '../core/theme/liquid_glass_theme.dart';
-import 'liquid_glass_container.dart';
+import '../core/theme/cupertino_theme.dart';
 
 class PersonCard extends StatelessWidget {
   final PersonRecord person;
@@ -23,21 +22,39 @@ class PersonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = LiquidGlassTheme.isDark(context);
+    final isDark = AppCupertinoTheme.isDark(context);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: LiquidGlassContainer(
-        borderRadius: LiquidGlassTheme.cardRadius,
-        padding: const EdgeInsets.all(16),
-        interactive: true,
-        onTap: onTap,
+      decoration: BoxDecoration(
+        color: AppCupertinoTheme.cardBackground.resolveFrom(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppCupertinoTheme.cardBorder.resolveFrom(context),
+          width: 0.8,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: CupertinoColors.systemGrey5.resolveFrom(context).withValues(alpha: 0.3),
+            offset: const Offset(0, 2),
+            blurRadius: 8,
+          ),
+        ],
+      ),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
         onLongPress: () {
           HapticFeedback.heavyImpact();
           _showActionSheet(context);
         },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Top Row: Avatar, Name/Nickname, Favorite Star
             Row(
@@ -236,8 +253,9 @@ class PersonCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _initialsAvatar() {
     return Container(

@@ -1,8 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../core/models/upcoming_birthday_item.dart';
-import '../core/theme/liquid_glass_theme.dart';
-import 'liquid_glass_container.dart';
+import '../core/theme/cupertino_theme.dart';
 
 class UpcomingBirthdaysWidget extends StatelessWidget {
   final List<UpcomingBirthdayItem> items;
@@ -14,17 +13,37 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
     this.onItemTap,
   });
 
+  static Color getCountdownColor(int days) {
+    if (days == 0) return CupertinoColors.systemRed;
+    if (days == 1) return CupertinoColors.systemOrange;
+    if (days <= 7) return const Color(0xFFF59E0B);
+    return CupertinoColors.systemGreen;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) return const SizedBox.shrink();
 
-    final isDark = LiquidGlassTheme.isDark(context);
+    final isDark = AppCupertinoTheme.isDark(context);
 
-    return LiquidGlassContainer(
-      borderRadius: 20.0,
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+    return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      elevation: 1.0,
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppCupertinoTheme.cardBackground.resolveFrom(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppCupertinoTheme.cardBorder.resolveFrom(context),
+          width: 0.8,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: CupertinoColors.systemGrey5.resolveFrom(context).withValues(alpha: 0.3),
+            offset: const Offset(0, 2),
+            blurRadius: 8,
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -82,9 +101,9 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(14),
-                      color: isDark ? const Color(0x33FFFFFF) : const Color(0x18000000),
+                      color: AppCupertinoTheme.subtleFill.resolveFrom(context),
                       border: Border.all(
-                        color: isDark ? const Color(0x22FFFFFF) : const Color(0x15000000),
+                        color: AppCupertinoTheme.cardBorder.resolveFrom(context),
                         width: 0.8,
                       ),
                     ),
@@ -127,12 +146,13 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                // Glowing jewel indicator
+                                // Clean indicator dot
                                 Container(
                                   width: 7,
                                   height: 7,
-                                  decoration: LiquidGlassTheme.jewelCountdown(
-                                    daysRemaining: item.daysRemaining,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: getCountdownColor(item.daysRemaining),
                                   ),
                                 ),
                                 const SizedBox(width: 5),
@@ -168,9 +188,9 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
     return Container(
       width: 34,
       height: 34,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         shape: BoxShape.circle,
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,

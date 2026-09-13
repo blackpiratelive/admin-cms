@@ -21,7 +21,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _serverUrl = '';
   int _cachedCount = 0;
   int _offlineQueueCount = 0;
-  bool _liquidGlassEffects = true;
   bool _isDeploying = false;
   bool _isSyncing = false;
 
@@ -35,14 +34,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final url = await LocalStore.getServerUrl();
     final cached = await LocalStore.getCachedPeople();
     final queue = await LocalStore.getOfflineQueue();
-    final effects = await LocalStore.isLiquidGlassEffectsEnabled();
 
     if (mounted) {
       setState(() {
         _serverUrl = url;
         _cachedCount = cached.length;
         _offlineQueueCount = queue.length;
-        _liquidGlassEffects = effects;
       });
     }
   }
@@ -207,24 +204,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
 
-            // Section 2: Visual Effects
-            CupertinoListSection.insetGrouped(
-              header: const Text('VISUAL PERFORMANCE'),
-              children: [
-                CupertinoListTile(
-                  leading: const Icon(CupertinoIcons.sparkles, color: Color(0xFFEC4899)),
-                  title: const Text('Liquid Glass Effects'),
-                  subtitle: const Text('GPU backdrop blur & specular highlights', style: TextStyle(fontSize: 12)),
-                  trailing: CupertinoSwitch(
-                    value: _liquidGlassEffects,
-                    onChanged: (val) async {
-                      setState(() => _liquidGlassEffects = val);
-                      await LocalStore.setLiquidGlassEffectsEnabled(val);
-                    },
-                  ),
-                ),
-              ],
-            ),
 
             // Section 3: Offline & Sync
             CupertinoListSection.insetGrouped(

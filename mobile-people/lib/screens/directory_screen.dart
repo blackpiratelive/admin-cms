@@ -6,9 +6,7 @@ import '../core/network/api_service.dart';
 import '../core/network/sync_service.dart';
 import '../core/services/notification_service.dart';
 import '../core/storage/local_store.dart';
-import '../core/theme/liquid_glass_theme.dart';
-import '../widgets/ambient_mesh_background.dart';
-import '../widgets/floating_glass_header.dart';
+import '../core/theme/cupertino_theme.dart';
 import '../widgets/upcoming_birthdays_widget.dart';
 import '../widgets/person_card.dart';
 import 'person_detail_screen.dart';
@@ -292,177 +290,206 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = LiquidGlassTheme.isDark(context);
+    final isDark = AppCupertinoTheme.isDark(context);
 
     return CupertinoPageScaffold(
-      child: AmbientMeshBackground(
-        scrollController: _scrollController,
-        child: Stack(
-          children: [
-            // Scrollable Content
-            CustomScrollView(
-              controller: _scrollController,
-              physics: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics(),
-              ),
-              slivers: [
-                // Top Safe Area Spacer for Floating Header
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 84),
-                ),
-
-                // Pull to Refresh
-                CupertinoSliverRefreshControl(
-                  onRefresh: () async {
-                    await SyncService.processQueue();
-                    await _fetchData();
+      backgroundColor: CupertinoColors.systemGroupedBackground,
+      child: CustomScrollView(
+        controller: _scrollController,
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
+        slivers: [
+          // Cupertino Collapsing Navigation Bar
+          CupertinoSliverNavigationBar(
+            largeTitle: Text(
+              _people.isNotEmpty ? 'People (${_people.length})' : 'People',
+            ),
+            leading: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.of(context).push(
+                      CupertinoPageRoute(
+                        builder: (_) => SettingsScreen(onLogout: widget.onLogout),
+                      ),
+                    );
                   },
+                  child: const Icon(CupertinoIcons.gear, size: 22),
                 ),
-
-                // Upcoming Birthdays Widget
-                if (_birthdays.isNotEmpty)
-                  SliverToBoxAdapter(
-                    child: UpcomingBirthdaysWidget(
-                      items: _birthdays,
-                      onItemTap: (item) => _openDetail(item.personId),
-                    ),
-                  ),
-
-                // Search Bar
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    child: CupertinoSearchTextField(
-                      controller: _searchController,
-                      placeholder: 'Search name, nickname, interests, notes...',
-                      onChanged: _onSearchChanged,
-                    ),
-                  ),
-                ),
-
-                // Expandable Filter Drawer
-                if (_showFilters)
-                  SliverToBoxAdapter(
-                    child: _buildFilterDrawer(context, isDark),
-                  ),
-
-                // List of Person Cards
-                if (_isLoading && _people.isEmpty)
-                  const SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: Center(
-                      child: CupertinoActivityIndicator(radius: 14),
-                    ),
-                  )
-                else if (_people.isEmpty)
-                  SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              CupertinoIcons.person_2,
-                              size: 48,
-                              color: CupertinoColors.systemGrey,
-                            ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'No Contacts Found',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.bold,
-                                color: CupertinoColors.label,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              _searchQuery.isNotEmpty || _hasActiveFilters
-                                  ? 'No people match your active search filters.'
-                                  : 'Start building your relationship engine by adding your first friend, colleague, or partner.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            CupertinoButton.filled(
-                              onPressed: () {
-                                PersonFormModal.show(
-                                  context,
-                                  onSuccess: _fetchData,
-                                );
-                              },
-                              child: const Text('Add Contact'),
-                            ),
-                          ],
-                        ),
+                if (_pendingSyncCount > 0)
+                  Positioned(
+                    right: -2,
+                    top: 4,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: CupertinoColors.systemOrange,
+                        shape: BoxShape.circle,
                       ),
                     ),
-                  )
-                else
-                  SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final person = _people[index];
-                        return PersonCard(
-                          person: person,
-                          onTap: () => _openDetail(person.slug),
-                          onToggleFavorite: () => _handleToggleFavorite(person),
-                          onEdit: () {
-                            PersonFormModal.show(
-                              context,
-                              personToEdit: person,
-                              onSuccess: _fetchData,
-                            );
-                          },
-                          onDelete: () => _handleDeletePerson(person),
-                        );
-                      },
-                      childCount: _people.length,
-                    ),
                   ),
-
-                // Bottom padding
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 48),
+              ],
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    setState(() => _showFilters = !_showFilters);
+                  },
+                  child: Icon(
+                    _showFilters
+                        ? CupertinoIcons.line_horizontal_3_decrease_circle_fill
+                        : CupertinoIcons.line_horizontal_3_decrease_circle,
+                    size: 22,
+                    color: _hasActiveFilters
+                        ? AppCupertinoTheme.primaryPurple
+                        : CupertinoColors.systemBlue,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    PersonFormModal.show(
+                      context,
+                      onSuccess: _fetchData,
+                    );
+                  },
+                  child: const Icon(CupertinoIcons.add, size: 26),
                 ),
               ],
             ),
+          ),
 
-            // Top Floating Glass Island Header
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 8,
-              left: 16,
-              right: 16,
-              child: FloatingGlassHeader(
-                title: 'People',
-                count: _people.length,
-                pendingSyncCount: _pendingSyncCount,
-                hasActiveFilters: _hasActiveFilters,
-                onFilterTap: () {
-                  setState(() => _showFilters = !_showFilters);
-                },
-                onSettingsTap: () {
-                  Navigator.of(context).push(
-                    CupertinoPageRoute(
-                      builder: (_) => SettingsScreen(onLogout: widget.onLogout),
-                    ),
-                  );
-                },
-                onAddTap: () {
-                  PersonFormModal.show(
-                    context,
-                    onSuccess: _fetchData,
-                  );
-                },
+          // Pull to Refresh
+          CupertinoSliverRefreshControl(
+            onRefresh: () async {
+              await SyncService.processQueue();
+              await _fetchData();
+            },
+          ),
+
+          // Upcoming Birthdays Widget
+          if (_birthdays.isNotEmpty)
+            SliverToBoxAdapter(
+              child: UpcomingBirthdaysWidget(
+                items: _birthdays,
+                onItemTap: (item) => _openDetail(item.personId),
               ),
             ),
-          ],
-        ),
+
+          // Search Bar
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: CupertinoSearchTextField(
+                controller: _searchController,
+                placeholder: 'Search name, nickname, interests, notes...',
+                onChanged: _onSearchChanged,
+              ),
+            ),
+          ),
+
+          // Expandable Filter Drawer
+          if (_showFilters)
+            SliverToBoxAdapter(
+              child: _buildFilterDrawer(context, isDark),
+            ),
+
+          // List of Person Cards
+          if (_isLoading && _people.isEmpty)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: CupertinoActivityIndicator(radius: 14),
+              ),
+            )
+          else if (_people.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        CupertinoIcons.person_2,
+                        size: 48,
+                        color: CupertinoColors.systemGrey,
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'No Contacts Found',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: CupertinoColors.label,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _searchQuery.isNotEmpty || _hasActiveFilters
+                            ? 'No people match your active search filters.'
+                            : 'Start building your relationship engine by adding your first friend, colleague, or partner.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      CupertinoButton.filled(
+                        onPressed: () {
+                          PersonFormModal.show(
+                            context,
+                            onSuccess: _fetchData,
+                          );
+                        },
+                        child: const Text('Add Contact'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final person = _people[index];
+                  return PersonCard(
+                    person: person,
+                    onTap: () => _openDetail(person.slug),
+                    onToggleFavorite: () => _handleToggleFavorite(person),
+                    onEdit: () {
+                      PersonFormModal.show(
+                        context,
+                        personToEdit: person,
+                        onSuccess: _fetchData,
+                      );
+                    },
+                    onDelete: () => _handleDeletePerson(person),
+                  );
+                },
+                childCount: _people.length,
+              ),
+            ),
+
+          // Bottom padding
+          const SliverToBoxAdapter(
+            child: SizedBox(height: 48),
+          ),
+        ],
       ),
     );
   }
@@ -473,8 +500,18 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: isDark ? const Color(0x30FFFFFF) : const Color(0x18000000),
-        border: Border.all(color: isDark ? const Color(0x20FFFFFF) : const Color(0x12000000)),
+        color: AppCupertinoTheme.cardBackground.resolveFrom(context),
+        border: Border.all(
+          color: AppCupertinoTheme.cardBorder.resolveFrom(context),
+          width: 0.8,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: CupertinoColors.systemGrey5.resolveFrom(context).withValues(alpha: 0.3),
+            offset: const Offset(0, 2),
+            blurRadius: 8,
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -503,7 +540,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                       borderRadius: BorderRadius.circular(10),
                       color: isSelected
                           ? const Color(0xFF8B5CF6)
-                          : (isDark ? const Color(0x25FFFFFF) : const Color(0x12000000)),
+                          : AppCupertinoTheme.subtleFill.resolveFrom(context),
                     ),
                     child: Text(
                       rel == 'all' ? 'All Types' : rel,
@@ -544,7 +581,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                       borderRadius: BorderRadius.circular(8),
                       color: isSelected
                           ? const Color(0xFFEC4899)
-                          : (isDark ? const Color(0x25FFFFFF) : const Color(0x12000000)),
+                          : AppCupertinoTheme.subtleFill.resolveFrom(context),
                     ),
                     child: Text(
                       monthNames[index],
@@ -573,7 +610,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                     borderRadius: BorderRadius.circular(10),
                     color: _favoriteOnly
                         ? const Color(0xFFF59E0B)
-                        : (isDark ? const Color(0x25FFFFFF) : const Color(0x12000000)),
+                        : AppCupertinoTheme.subtleFill.resolveFrom(context),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,

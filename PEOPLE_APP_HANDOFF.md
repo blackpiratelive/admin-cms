@@ -11,15 +11,14 @@
 
 The **Cupertino People App** (`mobile-people/`) is a dedicated, high-performance mobile application providing **1:1 feature parity** with the `admin-cms` webapp's People & Memory Hub module (`/people` and `/people/[slug]`).
 
-- **Strict Separation from Legacy Client**: The primary `android/` directory contains a full legacy multi-module management app (Material design). In contrast, `mobile-people/` is an **independent, isolated Flutter project** adhering strictly to Apple's modern Cupertino and Liquid Glass design system. Never modify or regress `android/` when working on `mobile-people/`.
-- **Pure Apple Cupertino & Liquid Glass Design System**:
-  - Built strictly with Flutter's Cupertino widgets (`CupertinoApp`, `CupertinoPageScaffold`, `CupertinoNavigationBar`, `CupertinoSearchTextField`, `CupertinoActionSheet`, `CupertinoListSection.insetGrouped`).
-  - **Living Aurora Canvas**: Dynamic glowing radial gradient mesh background (`AmbientMeshBackground`) with real-time scroll parallax tracking.
-  - **5-Layer Liquid Glass**: `LiquidGlassContainer` featuring `RepaintBoundary` GPU scroll isolation, optical blur (`sigma: 18`), continuous directional specular gradients (light catching top-left edges), and multi-tiered elevation shadows.
-  - **Floating Glass Island Header**: `FloatingGlassHeader` with pill geometry (`borderRadius: 26`), hovering over content with integrated Settings button, title, live contact count badge, search filter toggle, and vibrant quick-add button.
+- **Strict Separation from Legacy Client**: The primary `android/` directory contains a full legacy multi-module management app (Material design). In contrast, `mobile-people/` is an **independent, isolated Flutter project** adhering strictly to Apple's modern Cupertino design system. Never modify or regress `android/` when working on `mobile-people/`.
+- **Pure Apple Cupertino Design System**:
+  - Built strictly with Flutter's Cupertino widgets (`CupertinoApp`, `CupertinoPageScaffold`, `CupertinoSliverNavigationBar`, `CupertinoSearchTextField`, `CupertinoActionSheet`, `CupertinoListSection.insetGrouped`).
+  - Native iOS dynamic colors (`AppCupertinoTheme`), adaptive grouped backgrounds, crisp border dividers, and subtle pill fills.
+  - Large title sliver navigation with collapsing title, contact count badge, offline pending sync badge, and filter drawer toggle.
 - **Master-Detail Memory Hub Flow**: Fluid directory list with filter chips (Relationship presets, Birthday months, Favorites, Search), smoothly transitioning to a deep `PersonDetailScreen` featuring personal memory graphs, connected trips, events, microblogs, quotes, and chronological activity timelines.
 - **Important Dates & Birthday Reminders**:
-  - Horizontal scrollable upcoming countdown tray (`UpcomingBirthdaysWidget`) with glowing jewel LED indicators (`jewelCountdown`).
+  - Horizontal scrollable upcoming countdown tray (`UpcomingBirthdaysWidget`) with clean color-coded status dot indicators.
   - Native device push notifications via `flutter_local_notifications` for dates marked with `reminderEnabled: true`.
 - **Entity Connection Engine**: Bi-directional entity connection modal (`ConnectEntityModal`) allowing immediate linkage to Locations, Trips, Projects, Microblogs, Photos, and Collections.
 - **Offline-First Resilience**: Full mutation queue with persistent background sync (`SyncService`, `LocalStore`), local cache fallback, and Hugo rebuild trigger hook.
@@ -59,24 +58,20 @@ mobile-people/
 │   │   ├── storage/
 │   │   │   └── local_store.dart           # Secure storage, preferences, mutation queue & local cache
 │   │   └── theme/
-│   │       ├── cupertino_theme.dart       # Dynamic Light/Dark iOS Cupertino design tokens
-│   │       └── liquid_glass_theme.dart    # Liquid Glass tokens, specular gradients & jewel LEDs
+│   │       └── cupertino_theme.dart       # Dynamic Light/Dark iOS Cupertino design tokens
 │   ├── screens/
 │   │   ├── connect_entity_modal.dart      # Multi-entity picker modal (Locations, Trips, Projects, etc.)
-│   │   ├── directory_screen.dart          # Living Aurora directory, filters, birthday tray & contacts list
+│   │   ├── directory_screen.dart          # Cupertino sliver directory, filters, birthday tray & contacts list
 │   │   ├── login_screen.dart              # Cupertino authentication screen with URL presets
 │   │   ├── person_detail_screen.dart      # Deep Memory Hub screen (Bio, Dates, Connections, Timeline)
 │   │   ├── person_form_modal.dart         # Full CRUD add/edit modal (Dates editor, Social, Tags)
-│   │   └── settings_screen.dart           # Inset-grouped settings, effects toggle, queue & deployment
+│   │   └── settings_screen.dart           # Inset-grouped settings, queue & deployment
 │   └── widgets/
-│       ├── ambient_mesh_background.dart   # Dynamic living aurora canvas with scroll parallax
-│       ├── floating_glass_header.dart     # Floating frosted glass island navigation capsule
 │       ├── image_lightbox.dart            # Full-screen pinch-to-zoom avatar/image viewer
-│       ├── liquid_glass_container.dart    # 5-layer optical glass container with blur & specular bevel
-│       ├── person_card.dart               # Liquid glass person card with jewel badges & quick actions
+│       ├── person_card.dart               # Clean Cupertino person card with badges & quick actions
 │       └── upcoming_birthdays_widget.dart # Horizontal upcoming birthdays & important dates countdown tray
 └── test/
-    └── widget_test.dart                   # 22 comprehensive unit & widget tests (100% passing)
+    └── widget_test.dart                   # 20 comprehensive unit & widget tests (100% passing)
 ```
 
 ---
@@ -92,12 +87,12 @@ flowchart TD
     AuthAPI --> StoreToken["LocalStore: Save JWT & URL"]
     StoreToken --> Directory
     
-    AuthCheck -- Yes --> Directory["DirectoryScreen\n(Living Aurora Canvas)"]
+    AuthCheck -- Yes --> Directory["DirectoryScreen\n(CupertinoPageScaffold + Slivers)"]
     
-    Directory --> Header["FloatingGlassHeader\n(Contact count, Settings, Add Contact)"]
-    Directory --> BirthdayTray["UpcomingBirthdaysWidget\n(Horizontal countdown cards, Jewel LEDs)"]
-    Directory --> FilterChips["Filter Chips\n(Relationship presets, Birthday month, Favorites)"]
-    Directory --> ContactCards["PersonCard Grid/List\n(Avatar, Relationship badge, Star favorite)"]
+    Directory --> NavBar["CupertinoSliverNavigationBar\n(Title, Contacts Count, Filter Drawer, Add Contact)"]
+    Directory --> BirthdayTray["UpcomingBirthdaysWidget\n(Horizontal countdown cards, Clean status dots)"]
+    Directory --> FilterDrawer["Filter Sheet & Search\n(Relationship presets, Birthday month, Favorites)"]
+    Directory --> ContactCards["PersonCard List\n(Avatar, Relationship badge, Star favorite)"]
     
     ContactCards -- "Tap Card" --> DetailScreen["PersonDetailScreen\n(Deep Memory Hub)"]
     DetailScreen --> BioCard["Bio, Role, Social Links"]
@@ -107,10 +102,10 @@ flowchart TD
     
     DetailScreen -- "Connect Entity" --> ConnectModal["ConnectEntityModal\n(GET /api/people/pickers -> POST /api/people/[id]/connections)"]
     
-    Header -- "Tap +" --> PersonForm["PersonFormModal\n(Add/Edit Person, Dates, Social, Tags)"]
+    NavBar -- "Tap +" --> PersonForm["PersonFormModal\n(Add/Edit Person, Dates, Social, Tags)"]
     PersonForm --> APIPost["POST /api/people"]
     
-    Header -- "Tap Gear" --> Settings["SettingsScreen\n(Sync Queue, Cache, Visual Effects, Hugo Rebuild)"]
+    NavBar -- "Tap Gear / Settings" --> Settings["SettingsScreen\n(Sync Queue, Cache, Hugo Rebuild)"]
     
     subgraph OfflineSync ["Offline-First Engine"]
       NetworkFail{"Network Error?"}
@@ -140,17 +135,15 @@ flowchart TD
 - **Error Handling**: Displays inline error banner with descriptive network/auth errors.
 
 ### 4.2 Directory Screen (`lib/screens/directory_screen.dart`)
-- **Header**: `FloatingGlassHeader` with live contact count badge, gear settings button, search filter toggle, and quick-add button.
-- **Upcoming Birthdays Tray**: `UpcomingBirthdaysWidget` displaying a horizontal scrollable strip of birthdays within 60 days with countdown badges (`in X days`, `Today!`) and jewel LED indicators. Tapping a card opens that person's detail screen.
-- **Filter Presets**:
-  - Relationship pills: `All`, `Family`, `Close Friend`, `Friend`, `Professional`, `Mentor`, `Acquaintance`.
-  - Birthday Month chips: `Jan` through `Dec` for targeted monthly planning.
-  - Favorites toggle star button.
-  - Real-time debounced search query field.
+- **Navigation Bar**: `CupertinoSliverNavigationBar` with large title, contact count capsule badge, offline pending sync indicator, filter drawer toggle, and quick-add button.
+- **Upcoming Birthdays Tray**: `UpcomingBirthdaysWidget` displaying a horizontal scrollable strip of birthdays within 60 days with countdown badges (`in X days`, `Today!`) and color-coded status dot indicators. Tapping a card opens that person's detail screen.
+- **Filter Sheet & Search**:
+  - Slide-out filter panel with relationship pills (`All`, `Family`, `Close Friend`, `Friend`, `Professional`, `Mentor`, `Acquaintance`), birthday month selector (`Jan` through `Dec`), and favorites toggle.
+  - Real-time debounced search query field pinned below the large navigation bar.
 - **Contact Cards**: Rendered with `PersonCard` featuring avatar initials, name, relationship tint, primary birthday badge, and instant favorite toggle. Long-pressing brings up a native `CupertinoActionSheet` (Edit, Delete, Copy link).
 
 ### 4.3 Person Detail & Memory Hub (`lib/screens/person_detail_screen.dart`)
-- **Profile Header**: Frosted glass card with large avatar (tapping opens `ImageLightbox`), relationship pill, favorite star toggle, and action buttons (Edit, Connect Entity, Delete).
+- **Profile Header**: Clean Cupertino card with large avatar (tapping opens `ImageLightbox`), relationship pill, favorite star toggle, and action buttons (Edit, Connect Entity, Delete).
 - **Important Dates Section**: Lists all anniversary and birthday dates with countdown badges, recurrence rules, and native reminder switch (`NotificationService`).
 - **Social Links Strip**: One-tap buttons for GitHub, Twitter/X, LinkedIn, Instagram, and Website opening via `url_launcher`.
 - **Notes & Bio**: Formatted Markdown notes rendered via `flutter_markdown`.
@@ -182,7 +175,6 @@ flowchart TD
 ### 4.6 Settings Screen (`lib/screens/settings_screen.dart`)
 - Inset-grouped settings list:
   - **Server Connection**: URL configuration and latency test.
-  - **Visual Performance**: "Liquid Glass Effects" toggle (switches between GPU optical blur and lightweight translucency).
   - **Offline & Sync Queue**: Displays count of pending offline mutations with manual "Sync Now" button.
   - **Cached Contacts**: Local cache counter and "Clear Cache" button.
   - **Push Reminders**: Test notification button triggering an immediate test push.
@@ -218,7 +210,7 @@ The app communicates with the following Next.js REST API endpoints:
 - When an operation (create person, update person, delete person, toggle favorite, add connection, remove connection) is performed without internet connectivity:
   1. The UI optimistically updates local state.
   2. The mutation is saved to `LocalStore.enqueueMutation()` in `SharedPreferences`.
-  3. The `FloatingGlassHeader` displays an orange badge indicating pending sync count.
+  3. The `CupertinoSliverNavigationBar` displays an orange badge indicating pending sync count.
   4. When connectivity resumes or the user taps "Sync Now" in Settings, `SyncService.processQueue()` executes the queued mutations sequentially in FIFO order.
 
 ### 6.2 Native Push Notifications
@@ -237,13 +229,13 @@ Run all automated checks prior to committing:
 cd mobile-people
 export PATH="/home/dog/flutter/bin:$PATH"
 flutter analyze    # Must report 0 issues
-flutter test       # Must pass 100% of tests (22/22 tests passing)
+flutter test       # Must pass 100% of tests (20/20 tests passing)
 
 # 2. Mobile Microblog App (verify no regression)
 cd mobile-microblog
 export PATH="/home/dog/flutter/bin:$PATH"
 flutter analyze    # Must report 0 issues
-flutter test       # Must pass 100% of tests (17/17 tests passing)
+flutter test       # Must pass 100% of tests (13/13 tests passing)
 
 # 3. Next.js & Backend CMS Vitest Suite
 npm test           # Must pass 100% of Vitest suites (67/67 tests passing)
@@ -266,3 +258,24 @@ git status android/ # Must remain completely clean!
 ### 8.2 CircleCI Configuration (`.circleci/config.yml`)
 - **Job**: `build_people_apk_arm64` (Docker image: `cimg/android:2026.07-ndk`).
 - **Steps**: Installs Flutter SDK, runs static analysis & test suites, configures keystore, builds ARM64 release APK, and stores `people-arm64-release.apk`.
+
+---
+
+## 9. Recent Updates & Architectural Changelog
+
+### Version 1.1.0 — De-bloat & Clean Cupertino Modernization (September 2026)
+
+1. **Complete Removal of Liquid Glass Effects**:
+   - Removed `liquid_glass_theme.dart`, `liquid_glass_container.dart`, `ambient_mesh_background.dart`, and `floating_glass_header.dart`.
+   - Eliminated heavy GPU backdrop blur filters, multi-layered mesh gradients, and specular bevel shaders.
+   - Removed redundant "Liquid Glass Effects" toggle from `SettingsScreen` and `LocalStore`.
+
+2. **Native Cupertino Architecture Restored**:
+   - Directory screen uses `CupertinoPageScaffold` and `CupertinoSliverNavigationBar` with large collapsing title, contact count capsule, offline pending sync badge, filter drawer toggle, and quick-add action.
+   - Restored `PersonCard`, `UpcomingBirthdaysWidget`, `ConnectEntityModal`, and `PersonDetailScreen` to use `AppCupertinoTheme.cardBackground`, dynamic borders, and subtle fills.
+   - Upcoming birthday countdown replaces jewel glow with clean solid indicator dots (`UpcomingBirthdaysWidget.getCountdownColor`).
+
+3. **Performance & Verification**:
+   - `flutter analyze` reports zero issues.
+   - 20/20 unit and widget tests passing in `test/widget_test.dart`.
+

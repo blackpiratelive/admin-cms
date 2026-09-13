@@ -42,23 +42,19 @@ mobile-microblog/
 │   │   ├── storage/
 │   │   │   └── local_store.dart           # Secure storage & persistent offline cache
 │   │   └── theme/
-│   │       ├── cupertino_theme.dart       # Dynamic Light/Dark iOS Cupertino design tokens
-│   │       └── liquid_glass_theme.dart    # Apple Liquid Glass tokens, specular gradients & glow effects
+│   │       └── cupertino_theme.dart       # Dynamic Light/Dark iOS Cupertino design tokens
 │   ├── screens/
 │   │   ├── compose_modal.dart             # Fast modal thought, image, slug & association composer
 │   │   ├── login_screen.dart              # Cupertino authentication screen with URL presets
-│   │   ├── settings_screen.dart           # Inset-grouped settings, effects toggle, cache & deployment
+│   │   ├── settings_screen.dart           # Inset-grouped settings, cache & deployment
 │   │   └── timeline_screen.dart           # Primary sliver timeline feed, search & filters
 │   └── widgets/
-│       ├── ambient_mesh_background.dart   # Dynamic living aurora canvas with scroll parallax
 │       ├── association_picker_sheet.dart  # Searchable bottom sheet modal for locations/trips
-│       ├── floating_glass_header.dart     # Floating frosted glass island navigation capsule
 │       ├── image_gallery_view.dart        # Full-screen pinch-to-zoom photo lightbox
-│       ├── liquid_glass_container.dart    # 5-layer optical glass container with blur, specular bevel & bounce
-│       ├── microblog_card.dart            # Liquid glass post card with jewel LED dots & association pills
+│       ├── microblog_card.dart            # Clean Cupertino post card with status indicator & association pills
 │       └── post_action_sheet.dart         # Action sheet for status, edit, share, and delete
 └── test/
-    └── widget_test.dart                   # 17 comprehensive unit & widget tests
+    └── widget_test.dart                   # 13 comprehensive unit & widget tests
 ```
 
 ---
@@ -313,6 +309,22 @@ When making future changes to `mobile-microblog/`, verify:
 ---
 
 ## 10. Recent Updates & Architectural Changelog
+
+### Version 1.3.0 — De-bloat & Clean Cupertino Modernization (September 2026)
+
+1. **Complete Removal of Liquid Glass Effects**:
+   - Removed `liquid_glass_theme.dart`, `liquid_glass_container.dart`, `ambient_mesh_background.dart`, and `floating_glass_header.dart`.
+   - Eliminated heavy GPU backdrop blur filters, multi-layered mesh gradients, and specular bevel shaders.
+   - Removed redundant "Liquid Glass Effects" toggle from `SettingsScreen` and `LocalStore`.
+
+2. **Native Cupertino Architecture Restored**:
+   - Restored standard `CupertinoPageScaffold` and `CupertinoSliverNavigationBar` with collapsing large titles, search input, and segmented control.
+   - Restored standard `MicroblogCard` with dynamic `AppCupertinoTheme.cardBackground`, crisp borders, and subtle fills.
+   - Compose dialog and action sheet styled with pure Apple Cupertino design tokens.
+
+3. **Performance & Reliability**:
+   - `flutter analyze` reports zero issues.
+   - 13/13 tests passing in `test/widget_test.dart`.
 
 ### Version 1.2.0 — Apple Liquid Glass Design System (September 2026)
 

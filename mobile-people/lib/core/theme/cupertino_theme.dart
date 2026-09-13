@@ -69,4 +69,8 @@ class AppCupertinoTheme {
   // Dynamic Secondary Text
   static const CupertinoDynamicColor secondaryLabel =
       CupertinoColors.secondaryLabel;
+
+  // Dark Brightness Helper
+  static bool isDark(BuildContext context) =>
+      CupertinoTheme.of(context).brightness == Brightness.dark;
 }

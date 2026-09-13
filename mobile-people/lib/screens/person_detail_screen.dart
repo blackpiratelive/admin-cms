@@ -8,9 +8,7 @@ import '../core/models/person_connections.dart';
 import '../core/models/person_timeline_item.dart';
 import '../core/network/api_service.dart';
 import '../core/network/sync_service.dart';
-import '../core/theme/liquid_glass_theme.dart';
-import '../widgets/ambient_mesh_background.dart';
-import '../widgets/liquid_glass_container.dart';
+import '../core/theme/cupertino_theme.dart';
 import '../widgets/image_lightbox.dart';
 import 'person_form_modal.dart';
 import 'connect_entity_modal.dart';
@@ -150,7 +148,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = LiquidGlassTheme.isDark(context);
+    final isDark = AppCupertinoTheme.isDark(context);
 
     if (_isLoading && _person == null) {
       return CupertinoPageScaffold(
@@ -221,9 +219,8 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
           ],
         ),
       ),
-      child: AmbientMeshBackground(
-        child: SafeArea(
-          child: ListView(
+      child: SafeArea(
+        child: ListView(
             padding: const EdgeInsets.only(bottom: 32),
             children: [
               // Hero Profile Banner
@@ -290,17 +287,62 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
             ],
           ),
         ),
-      ),
     );
+  }
+
+  Widget _buildCard({
+    required BuildContext context,
+    required Widget child,
+    EdgeInsetsGeometry padding = const EdgeInsets.all(16),
+  }) {
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: AppCupertinoTheme.cardBackground.resolveFrom(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppCupertinoTheme.cardBorder.resolveFrom(context),
+          width: 0.8,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: CupertinoColors.systemGrey5.resolveFrom(context).withValues(alpha: 0.3),
+            offset: const Offset(0, 2),
+            blurRadius: 8,
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Color _getCountdownColor(int days) {
+    if (days == 0) return CupertinoColors.systemRed;
+    if (days == 1) return CupertinoColors.systemOrange;
+    if (days <= 7) return const Color(0xFFF59E0B);
+    return CupertinoColors.systemGreen;
   }
 
   Widget _buildHeroCard(BuildContext context, PersonRecord p, bool isDark) {
     return Container(
       margin: const EdgeInsets.all(16),
-      child: LiquidGlassContainer(
-        borderRadius: 24,
-        padding: const EdgeInsets.all(20),
-        child: Column(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppCupertinoTheme.cardBackground.resolveFrom(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppCupertinoTheme.cardBorder.resolveFrom(context),
+          width: 0.8,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: CupertinoColors.systemGrey5.resolveFrom(context).withValues(alpha: 0.3),
+            offset: const Offset(0, 2),
+            blurRadius: 8,
+          ),
+        ],
+      ),
+      child: Column(
           children: [
             Row(
               children: [
@@ -480,7 +522,6 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
             ],
           ],
         ),
-      ),
     );
   }
 
@@ -522,9 +563,8 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Personal Notes
-          LiquidGlassContainer(
-            borderRadius: 18,
-            padding: const EdgeInsets.all(16),
+          _buildCard(
+            context: context,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -559,9 +599,8 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
           const SizedBox(height: 12),
 
           // Interests Tag Cloud
-          LiquidGlassContainer(
-            borderRadius: 18,
-            padding: const EdgeInsets.all(16),
+          _buildCard(
+            context: context,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -606,9 +645,8 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
           const SizedBox(height: 12),
 
           // Important Dates
-          LiquidGlassContainer(
-            borderRadius: 18,
-            padding: const EdgeInsets.all(16),
+          _buildCard(
+            context: context,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -631,14 +669,17 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
-                          color: isDark ? const Color(0x25FFFFFF) : const Color(0x12000000),
+                          color: AppCupertinoTheme.subtleFill.resolveFrom(context),
                         ),
                         child: Row(
                           children: [
                             Container(
                               width: 8,
                               height: 8,
-                              decoration: LiquidGlassTheme.jewelCountdown(daysRemaining: d.daysRemaining),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _getCountdownColor(d.daysRemaining),
+                              ),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
@@ -938,9 +979,8 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: LiquidGlassContainer(
-        borderRadius: 20,
-        padding: const EdgeInsets.all(16),
+      child: _buildCard(
+        context: context,
         child: Column(
           children: _timeline.asMap().entries.map((entry) {
             final idx = entry.key;
@@ -1054,9 +1094,8 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
     required Color color,
     required Widget child,
   }) {
-    return LiquidGlassContainer(
-      borderRadius: 18,
-      padding: const EdgeInsets.all(16),
+    return _buildCard(
+      context: context,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

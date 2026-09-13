@@ -41,6 +41,6 @@ This file outlines the engineering standards, workflow rules, and conventions fo
 
 ## 2. Architecture & Design Principles
 
-- **Mobile Design Language**: `mobile-microblog` adheres strictly to Apple's modern **Liquid Glass** and **Cupertino** design language (`CupertinoApp`, `LiquidGlassContainer`, `AmbientMeshBackground`, `FloatingGlassHeader`). Do not introduce Material widgets (e.g. `Scaffold`, `AppBar`, `FloatingActionButton`) into `mobile-microblog`.
+- **Mobile Design Language**: Both `mobile-microblog` and `mobile-people` adhere strictly to Apple's native **Cupertino** design language (`CupertinoApp`, `CupertinoPageScaffold`, `CupertinoSliverNavigationBar`, `AppCupertinoTheme`). Do not introduce Material widgets (e.g. `Scaffold`, `AppBar`, `FloatingActionButton`) into either mobile app.
 - **Database Access**: Single-user PKP using Drizzle ORM and Turso (libSQL). Hugo site is strictly read-only; CMS is the sole writer.
 - **Publishing Pipeline**: Mutations trigger asynchronous background jobs and deploy hooks (`VERCEL_DEPLOY_HOOK`) without blocking user operations.
