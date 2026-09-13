@@ -1,0 +1,33 @@
+name: mobile_people
+description: "Standalone Apple Liquid Glass & Cupertino People & Memory Hub Application."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  http: ^1.6.0
+  flutter_secure_storage: ^11.0.0
+  shared_preferences: ^2.5.5
+  flutter_markdown: ^0.7.7+1
+  intl: ^0.20.3
+  cached_network_image: ^3.4.1
+  image_picker: ^1.2.3
+  url_launcher: ^6.3.2
+  flutter_local_notifications: ^19.0.0
+  uuid: ^4.5.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

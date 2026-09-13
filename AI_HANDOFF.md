@@ -6,6 +6,8 @@
 > 📖 **Hugo Integration**: For instructions on plugging Hugo Content Adapters to this CMS, read [HUGO_CONTENT_ADAPTER.md](file:///home/dog/git/admin-cms/HUGO_CONTENT_ADAPTER.md).
 >
 > 📱 **Microblog Flutter App**: For architecture blueprint and developer handoff for the standalone Cupertino Microblog client, read [MICROBLOG_APP_HANDOFF.md](file:///home/dog/git/admin-cms/MICROBLOG_APP_HANDOFF.md).
+>
+> 👥 **People Flutter App**: For architecture blueprint and developer handoff for the standalone Cupertino People & Memory Hub client, read [PEOPLE_APP_HANDOFF.md](file:///home/dog/git/admin-cms/PEOPLE_APP_HANDOFF.md).
 
 ---
 
@@ -26,6 +28,7 @@ This repository is **`admin-cms`**, a private, single-user **Personal Knowledge 
 admin-cms/
 ├── android/                     # Flutter Cross-Platform Mobile & Tablet Application (Dart, Clean Architecture, Responsive Shell, Multi-Module, Multi-Theme)
 ├── mobile-microblog/            # Standalone Cupertino iOS Microblog Application (Apple Liquid Glass Design System, Living Aurora Canvas, Specular Bevels, Fast Modal Composer, Offline-First)
+├── mobile-people/               # Standalone Cupertino iOS People & Memory Hub Application (Liquid Glass Design System, Living Aurora Canvas, Important Dates, Push Reminders, Offline-First Sync)
 ├── .circleci/                   # CircleCI CI/CD pipeline configuration for Flutter analyze and APK build
 ├── src/
 │   ├── app/
@@ -48,6 +51,7 @@ admin-cms/
 │   │   │   ├── microblogs/      # Public REST API for Hugo adapter
 │   │   │   ├── gallery/         # Public REST API for gallery photos
 │   │   │   ├── movies/          # Public REST API for movies
+│   │   │   ├── people/          # People & Memory Hub REST API (CRUD, /birthdays, /pickers, /[id]/favorite, /[id]/connections)
 │   │   │   └── journal/         # Journal Sync & E2EE API (/status, /keys, /settings, /entries, /sync, /assets)
 │   │   ├── globals.css          # Design tokens, themes (HN Orange, Dark, Mono, Teal)
 │   │   └── layout.tsx           # Root layout & ThemeProvider
@@ -274,6 +278,7 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 - **Drizzle DB Push**: `npm run db:push`
 - **Flutter Main App Static Analysis**: `cd android && flutter analyze`
 - **Flutter Microblog App Analysis & Tests**: `cd mobile-microblog && flutter analyze && flutter test`
+- **Flutter People App Analysis & Tests**: `cd mobile-people && flutter analyze && flutter test`
 
 ---
 
@@ -314,7 +319,25 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 
 ---
 
-## 8. Standalone Microblog App & Release Signing Changelog
+## 8. Standalone Apps & Release Signing Changelog
+
+### September 2026: Mobile People v1.0.0 (Apple Liquid Glass Design System & Memory Hub)
+- **Standalone Cupertino Client**: Created `mobile-people/` featuring 1:1 feature parity with webapp People Memory Hub (`/people` and `/people/[slug]`), built strictly with Apple Cupertino widgets (`CupertinoApp`, `CupertinoPageScaffold`, `CupertinoNavigationBar`).
+- **Living Aurora Canvas & Liquid Glass**: Reusable `AmbientMeshBackground` living aurora mesh, `LiquidGlassContainer` with specular highlights, frosted blur, multi-tiered elevation shadows, and `FloatingGlassHeader` with real-time contact count, search, filters, and quick-add actions.
+- **Master-Detail Navigation**: Fluid directory grid/list with filter chips (Relationship type, Birthday month, Favorites, Search), animated transitions pushing to deep `PersonDetailScreen` featuring Memory Hub (Connected Trips, Events, Microblogs, Quotes, Activity Timeline).
+- **Important Dates & Birthday Reminders**: Native device push notifications via `flutter_local_notifications`, horizontal scrollable upcoming birthday countdown tray (`UpcomingBirthdaysWidget`), glowing jewel LED countdown badges (`jewelCountdown`).
+- **Entity Connection Engine**: Modal connection sheet (`ConnectEntityModal`) allowing bi-directional linkage to Locations, Trips, Projects, Microblogs, Photos, and Collections via `/api/people/pickers` and `/api/people/[id]/connections`.
+- **Offline-First Resilience**: Full mutation queue with persistent background sync (`SyncService`, `LocalStore`), local cache fallback, and Hugo rebuild trigger hook.
+- **Backend People REST APIs**:
+  - `GET /api/people`: Query with search, relationship filter, tags, and pagination.
+  - `POST /api/people`: Create or update person record with Zod validation.
+  - `GET /api/people/[id]`: Returns full composite Memory Hub payload including connected entities and activity timeline.
+  - `PUT /api/people/[id]` & `DELETE /api/people/[id]`: Update and delete endpoints.
+  - `POST /api/people/[id]/favorite`: Quick toggle favorite endpoint.
+  - `POST & DELETE /api/people/[id]/connections`: Bi-directional entity connection endpoints.
+  - `GET /api/people/birthdays`: Upcoming birthdays within 60 days with age calculation and daysRemaining.
+  - `GET /api/people/pickers`: Fast aggregated picker endpoint returning locations, trips, projects, microblogs, photos, collections.
+- **Quality Gates**: All 22 Flutter unit/widget tests pass (100%), 0 linter issues in `flutter analyze`, and all 67 Vitest backend tests pass cleanly. `android/` legacy client remained 100% clean and untouched.
 
 ### September 2026: Mobile Microblog v1.2.0 (Apple Liquid Glass Design System)
 - **Living Aurora Canvas**: Replaced static backgrounds with `AmbientMeshBackground`, rendering soft, dynamic glowing radial gradient auroras (Electric Indigo, Royal Violet, and Cyan in Dark Mode; Sky Blue, Lavender, Peach, and Mint in Light Mode) with real-time scroll parallax tracking.
