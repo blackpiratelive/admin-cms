@@ -34,6 +34,9 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Setup Gradle Cache & Tooling
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Doctor Check
         run: flutter doctor -v
 
