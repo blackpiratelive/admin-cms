@@ -31,6 +31,16 @@ class ConnectedPhoto {
   }
 
   String get displayUrl => thumbnailUrl ?? mediumUrl ?? originalUrl ?? '';
+
+  Map<String, dynamic> toJson() => {
+    'relationshipId': relationshipId,
+    'relationshipName': relationshipName,
+    'id': id,
+    'title': title,
+    'originalUrl': originalUrl,
+    'mediumUrl': mediumUrl,
+    'thumbnailUrl': thumbnailUrl,
+  };
 }
 
 class ConnectedLocation {
@@ -206,6 +216,63 @@ class PersonConnections {
       collections: rawCollections.map((e) => ConnectedCollection.fromJson(e as Map<String, dynamic>)).toList(),
     );
   }
+
+  PersonConnections copyWith({
+    List<ConnectedPhoto>? photos,
+    List<ConnectedLocation>? locations,
+    List<ConnectedTrip>? trips,
+    List<ConnectedMicroblog>? microblogs,
+    List<ConnectedProject>? projects,
+    List<ConnectedCollection>? collections,
+  }) {
+    return PersonConnections(
+      photos: photos ?? this.photos,
+      locations: locations ?? this.locations,
+      trips: trips ?? this.trips,
+      microblogs: microblogs ?? this.microblogs,
+      projects: projects ?? this.projects,
+      collections: collections ?? this.collections,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'photos': photos.map((e) => e.toJson()).toList(),
+    'locations': locations.map((e) => {
+      'relationshipId': e.relationshipId,
+      'relationshipName': e.relationshipName,
+      'id': e.id,
+      'name': e.name,
+      'city': e.city,
+      'country': e.country,
+    }).toList(),
+    'trips': trips.map((e) => {
+      'relationshipId': e.relationshipId,
+      'relationshipName': e.relationshipName,
+      'id': e.id,
+      'title': e.title,
+      'startDate': e.startDate,
+      'status': e.status,
+    }).toList(),
+    'microblogs': microblogs.map((e) => {
+      'relationshipId': e.relationshipId,
+      'relationshipName': e.relationshipName,
+      'id': e.id,
+      'contentMarkdown': e.contentMarkdown,
+      'publishedAt': e.publishedAt,
+    }).toList(),
+    'projects': projects.map((e) => {
+      'relationshipId': e.relationshipId,
+      'relationshipName': e.relationshipName,
+      'id': e.id,
+      'name': e.name,
+      'status': e.status,
+    }).toList(),
+    'collections': collections.map((e) => {
+      'id': e.id,
+      'name': e.name,
+      'description': e.description,
+    }).toList(),
+  };
 
   int get totalCount =>
       photos.length + locations.length + trips.length + microblogs.length + projects.length + collections.length;

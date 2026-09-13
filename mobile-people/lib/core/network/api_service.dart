@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../storage/local_store.dart';
+import '../services/image_cache_manager.dart';
 import '../models/person_record.dart';
 import '../models/person_connections.dart';
 import '../models/person_timeline_item.dart';
@@ -84,8 +85,9 @@ class ApiService {
     }
   }
 
-  // Fetch People Directory List
+  // Fetch People Directory List (Cache-first with 7-day TTL)
   static Future<PeopleFetchResult> getPeople({
+    bool forceRefresh = false,
     String search = '',
     String relationshipType = 'all',
     bool? favorite,
@@ -93,51 +95,119 @@ class ApiService {
     String visibility = 'all',
     String sortBy = 'created_desc',
     int page = 1,
-    int limit = 50,
+    int limit = 500,
   }) async {
-    final baseUrl = await _getBaseUrl();
-    final queryParams = <String, String>{
-      if (search.trim().isNotEmpty) 'search': search.trim(),
-      if (relationshipType != 'all') 'relationshipType': relationshipType,
-      if (favorite != null && favorite) 'favorite': 'true',
-      if (birthdayMonth != null) 'birthdayMonth': birthdayMonth.toString(),
-      if (visibility != 'all') 'visibility': visibility,
-      'sortBy': sortBy,
-      'page': page.toString(),
-      'limit': limit.toString(),
-    };
+    final bool isDefaultFilter = page == 1 &&
+        search.isEmpty &&
+        relationshipType == 'all' &&
+        (favorite == null || !favorite) &&
+        birthdayMonth == null &&
+        visibility == 'all';
 
-    final uri = Uri.parse('$baseUrl/api/people').replace(queryParameters: queryParams);
-    final headers = await _getHeaders();
-
-    final response = await http.get(uri, headers: headers).timeout(timeoutDuration);
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final list = (data['people'] as List<dynamic>? ?? [])
-          .map((e) => PersonRecord.fromJson(e as Map<String, dynamic>))
-          .toList();
-      final total = data['total'] as int? ?? list.length;
-      final totalPages = data['totalPages'] as int? ?? 1;
-
-      // Cache directory if default initial page
-      if (page == 1 && search.isEmpty && relationshipType == 'all' && (favorite == null || !favorite)) {
-        await LocalStore.saveCachedPeople(list);
+    // 1. If not forcing refresh and is default directory fetch, check cache first
+    if (!forceRefresh && isDefaultFilter) {
+      final isStale = await LocalStore.isPeopleCacheStale();
+      if (!isStale) {
+        final cached = await LocalStore.getCachedPeople();
+        if (cached.isNotEmpty) {
+          return PeopleFetchResult(
+            items: cached,
+            total: cached.length,
+            page: 1,
+            totalPages: 1,
+          );
+        }
       }
+    }
 
-      return PeopleFetchResult(
-        items: list,
-        total: total,
-        page: page,
-        totalPages: totalPages,
-      );
-    } else {
-      throw Exception('Failed to load people directory (${response.statusCode})');
+    // 2. Fetch from backend
+    try {
+      final baseUrl = await _getBaseUrl();
+      final queryParams = <String, String>{
+        if (search.trim().isNotEmpty) 'search': search.trim(),
+        if (relationshipType != 'all') 'relationshipType': relationshipType,
+        if (favorite != null && favorite) 'favorite': 'true',
+        if (birthdayMonth != null) 'birthdayMonth': birthdayMonth.toString(),
+        if (visibility != 'all') 'visibility': visibility,
+        'sortBy': sortBy,
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+
+      final uri = Uri.parse('$baseUrl/api/people').replace(queryParameters: queryParams);
+      final headers = await _getHeaders();
+
+      final response = await http.get(uri, headers: headers).timeout(timeoutDuration);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final list = (data['people'] as List<dynamic>? ?? [])
+            .map((e) => PersonRecord.fromJson(e as Map<String, dynamic>))
+            .toList();
+        final total = data['total'] as int? ?? list.length;
+        final totalPages = data['totalPages'] as int? ?? 1;
+
+        // Cache directory if default initial page
+        if (page == 1 && isDefaultFilter) {
+          await LocalStore.saveCachedPeople(list);
+
+          // Proactively pre-cache avatars into persistent disk cache in background
+          final avatarUrls = list
+              .where((p) => p.hasAvatar && p.avatarUrl != null)
+              .map((p) => p.avatarUrl!)
+              .toList();
+          PeopleImageCacheManager.precacheImages(avatarUrls);
+        }
+
+        return PeopleFetchResult(
+          items: list,
+          total: total,
+          page: page,
+          totalPages: totalPages,
+        );
+      } else {
+        throw Exception('Failed to load people directory (${response.statusCode})');
+      }
+    } catch (_) {
+      // Offline fallback: return cache if available
+      final cached = await LocalStore.getCachedPeople();
+      if (cached.isNotEmpty) {
+        return PeopleFetchResult(
+          items: cached,
+          total: cached.length,
+          page: 1,
+          totalPages: 1,
+        );
+      }
+      rethrow;
     }
   }
 
-  // Fetch Single Person Memory Hub
-  static Future<PersonDetailResult?> getPersonDetail(String idOrSlug) async {
+  // Fetch Single Person Memory Hub (Cache-first with 7-day TTL)
+  static Future<PersonDetailResult?> getPersonDetail(
+    String idOrSlug, {
+    bool forceRefresh = false,
+  }) async {
+    // 1. Check cache first if not forceRefresh
+    if (!forceRefresh) {
+      final isStale = await LocalStore.isDetailCacheStale(idOrSlug);
+      if (!isStale) {
+        final cached = await LocalStore.getCachedPersonDetail(idOrSlug);
+        if (cached != null) {
+          final person = PersonRecord.fromJson(cached['person'] as Map<String, dynamic>);
+          final connections = PersonConnections.fromJson((cached['connections'] as Map<String, dynamic>?) ?? {});
+          final rawTimeline = (cached['timeline'] as List<dynamic>?) ?? [];
+          final timeline = rawTimeline.map((e) => PersonTimelineItem.fromJson(e as Map<String, dynamic>)).toList();
+          return PersonDetailResult(
+            person: person,
+            connections: connections,
+            timeline: timeline,
+          );
+        }
+      }
+    }
+
+    // 2. Fetch from network
     try {
       final baseUrl = await _getBaseUrl();
       final uri = Uri.parse('$baseUrl/api/people/$idOrSlug');
@@ -154,6 +224,21 @@ class ApiService {
 
         // Cache detail for instant offline reload
         await LocalStore.saveCachedPersonDetail(idOrSlug, data);
+        if (person.id != idOrSlug) {
+          await LocalStore.saveCachedPersonDetail(person.id, data);
+        }
+        if (person.slug.isNotEmpty && person.slug != idOrSlug) {
+          await LocalStore.saveCachedPersonDetail(person.slug, data);
+        }
+
+        // Pre-cache connected photos in background
+        final photoUrls = <String>[];
+        if (person.hasAvatar) photoUrls.add(person.avatarUrl!);
+        for (final photo in connections.photos) {
+          if (photo.thumbnailUrl != null) photoUrls.add(photo.thumbnailUrl!);
+          if (photo.displayUrl.isNotEmpty) photoUrls.add(photo.displayUrl);
+        }
+        PeopleImageCacheManager.precacheImages(photoUrls);
 
         return PersonDetailResult(
           person: person,
@@ -180,7 +265,7 @@ class ApiService {
     }
   }
 
-  // Save Person (Create or Update)
+  // Save Person (Create or Update) with Cache Update
   static Future<PersonRecord> savePerson(Map<String, dynamic> input) async {
     final baseUrl = await _getBaseUrl();
     final uri = Uri.parse('$baseUrl/api/people');
@@ -196,7 +281,12 @@ class ApiService {
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       final data = jsonDecode(response.body);
-      return PersonRecord.fromJson(data['person'] as Map<String, dynamic>);
+      final record = PersonRecord.fromJson(data['person'] as Map<String, dynamic>);
+      await LocalStore.upsertCachedPerson(record);
+      if (record.hasAvatar) {
+        PeopleImageCacheManager.precacheImage(record.avatarUrl!);
+      }
+      return record;
     } else {
       String msg = 'Failed to save person (${response.statusCode})';
       try {
@@ -207,7 +297,7 @@ class ApiService {
     }
   }
 
-  // Update Person
+  // Update Person with Cache Update
   static Future<PersonRecord> updatePerson(String id, Map<String, dynamic> input) async {
     final baseUrl = await _getBaseUrl();
     final uri = Uri.parse('$baseUrl/api/people/$id');
@@ -223,7 +313,12 @@ class ApiService {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      return PersonRecord.fromJson(data['person'] as Map<String, dynamic>);
+      final record = PersonRecord.fromJson(data['person'] as Map<String, dynamic>);
+      await LocalStore.upsertCachedPerson(record);
+      if (record.hasAvatar) {
+        PeopleImageCacheManager.precacheImage(record.avatarUrl!);
+      }
+      return record;
     } else {
       String msg = 'Failed to update person (${response.statusCode})';
       try {
@@ -234,17 +329,21 @@ class ApiService {
     }
   }
 
-  // Delete Person
+  // Delete Person with Cache Invalidation
   static Future<bool> deletePerson(String id) async {
     final baseUrl = await _getBaseUrl();
     final uri = Uri.parse('$baseUrl/api/people/$id');
     final headers = await _getHeaders();
 
     final response = await http.delete(uri, headers: headers).timeout(timeoutDuration);
-    return response.statusCode == 200;
+    if (response.statusCode == 200) {
+      await LocalStore.deleteCachedPerson(id);
+      return true;
+    }
+    return false;
   }
 
-  // Toggle Favorite
+  // Toggle Favorite with Cache Update
   static Future<bool> toggleFavorite(String id) async {
     final baseUrl = await _getBaseUrl();
     final uri = Uri.parse('$baseUrl/api/people/$id/favorite');
@@ -253,13 +352,26 @@ class ApiService {
     final response = await http.post(uri, headers: headers).timeout(timeoutDuration);
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      return data['favorite'] == true;
+      final isFav = data['favorite'] == true;
+      await LocalStore.toggleCachedPersonFavorite(id, isFav);
+      return isFav;
     }
     return false;
   }
 
-  // Upcoming Birthdays
-  static Future<List<UpcomingBirthdayItem>> getUpcomingBirthdays({int limit = 10}) async {
+  // Upcoming Birthdays (Cache-first with 7-day TTL)
+  static Future<List<UpcomingBirthdayItem>> getUpcomingBirthdays({
+    bool forceRefresh = false,
+    int limit = 10,
+  }) async {
+    if (!forceRefresh) {
+      final isStale = await LocalStore.isBirthdaysCacheStale();
+      if (!isStale) {
+        final cached = await LocalStore.getCachedBirthdays();
+        if (cached.isNotEmpty) return cached;
+      }
+    }
+
     try {
       final baseUrl = await _getBaseUrl();
       final uri = Uri.parse('$baseUrl/api/people/birthdays?limit=$limit');
@@ -281,8 +393,16 @@ class ApiService {
     }
   }
 
-  // Fetch Entity Pickers for Connect Modal
-  static Future<PeoplePickersResult> getPickers() async {
+  // Fetch Entity Pickers (Cache-first with 7-day TTL)
+  static Future<PeoplePickersResult> getPickers({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final isStale = await LocalStore.isPickersCacheStale();
+      if (!isStale) {
+        final cached = await LocalStore.getCachedPickers();
+        if (cached != null) return cached;
+      }
+    }
+
     try {
       final baseUrl = await _getBaseUrl();
       final uri = Uri.parse('$baseUrl/api/people/pickers');
@@ -292,11 +412,13 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return PeoplePickersResult.fromJson(data);
+        final result = PeoplePickersResult.fromJson(data);
+        await LocalStore.saveCachedPickers(result);
+        return result;
       }
-      return const PeoplePickersResult();
+      return (await LocalStore.getCachedPickers()) ?? const PeoplePickersResult();
     } catch (_) {
-      return const PeoplePickersResult();
+      return (await LocalStore.getCachedPickers()) ?? const PeoplePickersResult();
     }
   }
 

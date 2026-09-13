@@ -2,10 +2,14 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../core/models/person_record.dart';
+import '../core/models/social_links.dart';
 import '../core/models/important_date.dart';
 import '../core/network/api_service.dart';
 import '../core/network/sync_service.dart';
+import '../core/storage/local_store.dart';
+import '../core/services/image_cache_manager.dart';
 import '../core/services/notification_service.dart';
 import '../core/theme/cupertino_theme.dart';
 
@@ -482,6 +486,33 @@ class _PersonFormModalState extends State<PersonFormModal> {
       'favorite': _favorite,
     };
 
+    // Construct optimistic record and save locally immediately (works 100% offline)
+    final tempId = widget.personToEdit?.id ?? 'temp_${DateTime.now().millisecondsSinceEpoch}';
+    final optimisticPerson = PersonRecord(
+      id: tempId,
+      displayName: _displayNameController.text.trim(),
+      firstName: _firstNameController.text.trim().isNotEmpty ? _firstNameController.text.trim() : null,
+      lastName: _lastNameController.text.trim().isNotEmpty ? _lastNameController.text.trim() : null,
+      nickname: _nicknameController.text.trim().isNotEmpty ? _nicknameController.text.trim() : null,
+      slug: _slugController.text.trim().isNotEmpty ? _slugController.text.trim() : tempId,
+      avatarUrl: _avatarUrlController.text.trim().isNotEmpty ? _avatarUrlController.text.trim() : null,
+      relationshipType: finalRelationship,
+      favorite: _favorite,
+      visibility: _visibility,
+      notesMarkdown: _notesController.text.trim(),
+      interests: interestsList,
+      tags: tagsList,
+      importantDates: _importantDates,
+      socialLinks: SocialLinks.fromJson(socialLinksMap),
+      createdAt: widget.personToEdit?.createdAt ?? DateTime.now().toIso8601String(),
+      updatedAt: DateTime.now().toIso8601String(),
+    );
+
+    await LocalStore.upsertCachedPerson(optimisticPerson);
+    if (optimisticPerson.hasAvatar) {
+      PeopleImageCacheManager.precacheImage(optimisticPerson.avatarUrl!);
+    }
+
     try {
       PersonRecord savedPerson;
       if (widget.personToEdit != null) {
@@ -498,10 +529,10 @@ class _PersonFormModalState extends State<PersonFormModal> {
         Navigator.of(context).pop();
       }
     } catch (e) {
-      // Offline fallback: queue mutation
+      // Offline fallback: queue mutation (person is already saved to local cache)
       await SyncService.queueMutation(
         type: widget.personToEdit != null ? 'update_person' : 'create_person',
-        entityId: widget.personToEdit?.id ?? '',
+        entityId: widget.personToEdit?.id ?? tempId,
         payload: payload,
       );
 
@@ -531,6 +562,9 @@ class _PersonFormModalState extends State<PersonFormModal> {
             child: const Text('Delete'),
             onPressed: () async {
               Navigator.of(ctx).pop();
+              // Optimistically delete from cache immediately
+              await LocalStore.deleteCachedPerson(widget.personToEdit!.id);
+
               try {
                 await ApiService.deletePerson(widget.personToEdit!.id);
               } catch (_) {
@@ -714,12 +748,13 @@ class _PersonFormModalState extends State<PersonFormModal> {
                           child: _avatarUrlController.text.isNotEmpty
                               ? ClipRRect(
                                   borderRadius: BorderRadius.circular(43),
-                                  child: Image.network(
-                                    _avatarUrlController.text,
+                                  child: CachedNetworkImage(
+                                    cacheManager: PeopleImageCacheManager.instance,
+                                    imageUrl: _avatarUrlController.text,
                                     width: 86,
                                     height: 86,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, _, _) => Center(
+                                    errorWidget: (_, _, _) => Center(
                                       child: Text(
                                         initials.isNotEmpty ? initials : '?',
                                         style: const TextStyle(

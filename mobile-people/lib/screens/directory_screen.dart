@@ -28,7 +28,8 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
 
-  List<PersonRecord> _people = [];
+  List<PersonRecord> _allPeople = [];
+  List<PersonRecord> _filteredPeople = [];
   List<UpcomingBirthdayItem> _birthdays = [];
   int _pendingSyncCount = 0;
   bool _isLoading = true;
@@ -64,42 +65,124 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
     _bootstrap();
   }
 
+  /// 100% Client-Side In-Memory Filtering and Sorting (0ms latency, works fully offline)
+  List<PersonRecord> _applyFiltersAndSort(List<PersonRecord> source) {
+    var result = List<PersonRecord>.from(source);
+
+    // 1. Search Query across name, nickname, notes, tags, and interests
+    if (_searchQuery.trim().isNotEmpty) {
+      final q = _searchQuery.trim().toLowerCase();
+      result = result.where((p) {
+        final nameMatch = p.displayName.toLowerCase().contains(q) ||
+            (p.firstName?.toLowerCase().contains(q) ?? false) ||
+            (p.lastName?.toLowerCase().contains(q) ?? false);
+        final nicknameMatch = p.nickname?.toLowerCase().contains(q) ?? false;
+        final notesMatch = p.notesMarkdown?.toLowerCase().contains(q) ?? false;
+        final tagMatch = p.tags.any((t) => t.toLowerCase().contains(q));
+        final interestMatch = p.interests.any((i) => i.toLowerCase().contains(q));
+        final relMatch = p.relationshipType.toLowerCase().contains(q);
+        return nameMatch || nicknameMatch || notesMatch || tagMatch || interestMatch || relMatch;
+      }).toList();
+    }
+
+    // 2. Relationship Filter
+    if (_selectedRelationship != 'all') {
+      result = result.where((p) => p.relationshipType.toLowerCase() == _selectedRelationship.toLowerCase()).toList();
+    }
+
+    // 3. Favorites Only
+    if (_favoriteOnly) {
+      result = result.where((p) => p.favorite).toList();
+    }
+
+    // 4. Birthday Month
+    if (_selectedMonth != null) {
+      result = result.where((p) {
+        return p.importantDates.any((d) {
+          try {
+            final parts = d.date.split('-');
+            int? m;
+            if (parts.length >= 3) {
+              m = int.tryParse(parts[1]);
+            } else if (parts.length == 2) {
+              m = int.tryParse(parts[0]);
+            }
+            return m == _selectedMonth;
+          } catch (_) {
+            return false;
+          }
+        });
+      }).toList();
+    }
+
+    // 5. Visibility Filter
+    if (_selectedVisibility != 'all') {
+      result = result.where((p) => p.visibility.toLowerCase() == _selectedVisibility.toLowerCase()).toList();
+    }
+
+    // 6. Sort By
+    result.sort((a, b) {
+      switch (_sortBy) {
+        case 'name_asc':
+          return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+        case 'name_desc':
+          return b.displayName.toLowerCase().compareTo(a.displayName.toLowerCase());
+        case 'favorite':
+          if (a.favorite != b.favorite) {
+            return a.favorite ? -1 : 1;
+          }
+          return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+        case 'created_asc':
+          return (a.createdAt ?? '').compareTo(b.createdAt ?? '');
+        case 'created_desc':
+        default:
+          return (b.createdAt ?? '').compareTo(a.createdAt ?? '');
+      }
+    });
+
+    return result;
+  }
+
   Future<void> _bootstrap() async {
-    // 1. Instant paint from cache
+    // 1. Instant paint from cache (0ms perceived latency)
     final cachedPeople = await LocalStore.getCachedPeople();
     final cachedBirthdays = await LocalStore.getCachedBirthdays();
     final queue = await LocalStore.getOfflineQueue();
 
     if (mounted) {
       setState(() {
-        if (cachedPeople.isNotEmpty) {
-          _people = cachedPeople;
-          _isLoading = false;
-        }
+        _allPeople = cachedPeople;
+        _filteredPeople = _applyFiltersAndSort(cachedPeople);
         _birthdays = cachedBirthdays;
         _pendingSyncCount = queue.length;
+        if (cachedPeople.isNotEmpty) {
+          _isLoading = false;
+        }
       });
     }
 
-    // 2. Process pending offline mutations
-    await SyncService.processQueue();
+    // 2. Process pending offline mutations in background
+    SyncService.processQueue().then((_) async {
+      final q = await LocalStore.getOfflineQueue();
+      if (mounted) setState(() => _pendingSyncCount = q.length);
+    });
 
-    // 3. Fetch fresh data from server
-    await _fetchData();
+    // 3. Only fetch from server if cache is empty or stale (>7 days TTL)
+    final isStale = await LocalStore.isPeopleCacheStale() || await LocalStore.isBirthdaysCacheStale();
+    if (cachedPeople.isEmpty || isStale) {
+      await _fetchData(forceRefresh: false);
+    } else {
+      if (mounted && _isLoading) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
-  Future<void> _fetchData() async {
+  Future<void> _fetchData({bool forceRefresh = false}) async {
     try {
       final [peopleRes, birthdaysRes] = await Future.wait([
-        ApiService.getPeople(
-          search: _searchQuery,
-          relationshipType: _selectedRelationship,
-          favorite: _favoriteOnly ? true : null,
-          birthdayMonth: _selectedMonth,
-          visibility: _selectedVisibility,
-          sortBy: _sortBy,
-        ),
-        ApiService.getUpcomingBirthdays(limit: 10),
+        ApiService.getPeople(forceRefresh: forceRefresh, limit: 500),
+        ApiService.getUpcomingBirthdays(forceRefresh: forceRefresh, limit: 10),
       ]);
 
       final peopleResult = peopleRes as PeopleFetchResult;
@@ -108,7 +191,8 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
 
       if (mounted) {
         setState(() {
-          _people = peopleResult.items;
+          _allPeople = peopleResult.items;
+          _filteredPeople = _applyFiltersAndSort(peopleResult.items);
           _birthdays = birthdaysList;
           _pendingSyncCount = queue.length;
           _isLoading = false;
@@ -122,6 +206,21 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
     }
   }
 
+  /// Instant local refresh when returning from modals or detail changes
+  Future<void> _onLocalDataChanged() async {
+    final cached = await LocalStore.getCachedPeople();
+    final birthdays = await LocalStore.getCachedBirthdays();
+    final queue = await LocalStore.getOfflineQueue();
+    if (mounted) {
+      setState(() {
+        _allPeople = cached;
+        _filteredPeople = _applyFiltersAndSort(cached);
+        _birthdays = birthdays;
+        _pendingSyncCount = queue.length;
+      });
+    }
+  }
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -130,16 +229,19 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
   }
 
   void _onSearchChanged(String query) {
-    setState(() => _searchQuery = query);
-    _fetchData();
+    setState(() {
+      _searchQuery = query;
+      _filteredPeople = _applyFiltersAndSort(_allPeople);
+    });
   }
 
-  void _openDetail(String idOrSlug) {
+  void _openDetail(PersonRecord person) {
     Navigator.of(context).push(
       CupertinoPageRoute(
         builder: (_) => PersonDetailScreen(
-          personIdOrSlug: idOrSlug,
-          onPersonChanged: _fetchData,
+          personIdOrSlug: person.id,
+          initialPerson: person,
+          onPersonChanged: _onLocalDataChanged,
         ),
       ),
     );
@@ -149,19 +251,23 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
     HapticFeedback.lightImpact();
     PersonFormModal.show(
       context,
-      onSuccess: _fetchData,
+      onSuccess: _onLocalDataChanged,
     );
   }
 
   Future<void> _handleToggleFavorite(PersonRecord person) async {
     final newFav = !person.favorite;
+    final updated = person.copyWith(favorite: newFav);
+
+    // 1. Optimistic instant local update
+    await LocalStore.toggleCachedPersonFavorite(person.id, newFav);
     setState(() {
-      final idx = _people.indexWhere((p) => p.id == person.id);
-      if (idx != -1) {
-        _people[idx] = person.copyWith(favorite: newFav);
-      }
+      final idx = _allPeople.indexWhere((p) => p.id == person.id);
+      if (idx != -1) _allPeople[idx] = updated;
+      _filteredPeople = _applyFiltersAndSort(_allPeople);
     });
 
+    // 2. Background sync
     try {
       await ApiService.toggleFavorite(person.id);
     } catch (_) {
@@ -170,24 +276,30 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
         entityId: person.id,
         payload: {'favorite': newFav},
       );
+      final q = await LocalStore.getOfflineQueue();
+      if (mounted) setState(() => _pendingSyncCount = q.length);
     }
   }
 
   Future<void> _handleDeletePerson(PersonRecord person) async {
+    // 1. Optimistic instant local removal
+    await LocalStore.deleteCachedPerson(person.id);
     setState(() {
-      _people.removeWhere((p) => p.id == person.id);
+      _allPeople.removeWhere((p) => p.id == person.id);
+      _filteredPeople = _applyFiltersAndSort(_allPeople);
     });
 
+    // 2. Background sync
     try {
       await ApiService.deletePerson(person.id);
-      _fetchData();
     } catch (_) {
       await SyncService.queueMutation(
         type: 'delete_person',
         entityId: person.id,
         payload: {},
       );
-      _fetchData();
+      final q = await LocalStore.getOfflineQueue();
+      if (mounted) setState(() => _pendingSyncCount = q.length);
     }
   }
 
@@ -276,8 +388,8 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                                 _selectedVisibility = tempVisibility;
                                 _favoriteOnly = tempFavoriteOnly;
                                 _sortBy = tempSortBy;
+                                _filteredPeople = _applyFiltersAndSort(_allPeople);
                               });
-                              _fetchData();
                             },
                             child: const Text(
                               'Done',
@@ -298,45 +410,125 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         children: [
                           // Section: Favorites Toggle
-                          CupertinoListSection.insetGrouped(
-                            header: const Text('FAVORITES'),
-                            children: [
-                              CupertinoListTile(
-                                leading: const Icon(CupertinoIcons.star_fill, color: Color(0xFFF59E0B)),
-                                title: const Text('Only Favorites'),
-                                trailing: CupertinoSwitch(
-                                  value: tempFavoriteOnly,
-                                  activeTrackColor: AppCupertinoTheme.brandAccent,
-                                  onChanged: (val) {
-                                    setSheetState(() => tempFavoriteOnly = val);
-                                  },
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: AppCupertinoTheme.cardBackground.resolveFrom(context),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppCupertinoTheme.cardBorder.resolveFrom(context),
+                                  width: 0.6,
                                 ),
                               ),
-                            ],
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        CupertinoIcons.star_fill,
+                                        color: Color(0xFFEAB308),
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Only Favorites',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                          color: labelColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  CupertinoSwitch(
+                                    value: tempFavoriteOnly,
+                                    activeTrackColor: AppCupertinoTheme.brandAccent,
+                                    onChanged: (val) {
+                                      HapticFeedback.selectionClick();
+                                      setSheetState(() => tempFavoriteOnly = val);
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
 
                           // Section: Sort Order
-                          CupertinoListSection.insetGrouped(
-                            header: const Text('SORT BY'),
-                            children: [
-                              _buildSortTile('Recently Added', 'created_desc', tempSortBy, (v) {
-                                setSheetState(() => tempSortBy = v);
-                              }),
-                              _buildSortTile('Recently Updated', 'updated_desc', tempSortBy, (v) {
-                                setSheetState(() => tempSortBy = v);
-                              }),
-                              _buildSortTile('Name (A-Z)', 'name', tempSortBy, (v) {
-                                setSheetState(() => tempSortBy = v);
-                              }),
-                              _buildSortTile('Memory Score', 'memory_score', tempSortBy, (v) {
-                                setSheetState(() => tempSortBy = v);
-                              }),
-                            ],
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                            child: Text(
+                              'SORT BY',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: secondaryColor,
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: AppCupertinoTheme.cardBackground.resolveFrom(context),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppCupertinoTheme.cardBorder.resolveFrom(context),
+                                  width: 0.6,
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  _buildSortRow(
+                                    title: 'Recently Added (Newest)',
+                                    value: 'created_desc',
+                                    currentValue: tempSortBy,
+                                    onSelect: (v) => setSheetState(() => tempSortBy = v),
+                                    showDivider: true,
+                                    context: context,
+                                  ),
+                                  _buildSortRow(
+                                    title: 'First Added (Oldest)',
+                                    value: 'created_asc',
+                                    currentValue: tempSortBy,
+                                    onSelect: (v) => setSheetState(() => tempSortBy = v),
+                                    showDivider: true,
+                                    context: context,
+                                  ),
+                                  _buildSortRow(
+                                    title: 'Name (A to Z)',
+                                    value: 'name_asc',
+                                    currentValue: tempSortBy,
+                                    onSelect: (v) => setSheetState(() => tempSortBy = v),
+                                    showDivider: true,
+                                    context: context,
+                                  ),
+                                  _buildSortRow(
+                                    title: 'Name (Z to A)',
+                                    value: 'name_desc',
+                                    currentValue: tempSortBy,
+                                    onSelect: (v) => setSheetState(() => tempSortBy = v),
+                                    showDivider: true,
+                                    context: context,
+                                  ),
+                                  _buildSortRow(
+                                    title: 'Favorites First',
+                                    value: 'favorite',
+                                    currentValue: tempSortBy,
+                                    onSelect: (v) => setSheetState(() => tempSortBy = v),
+                                    showDivider: false,
+                                    context: context,
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
 
                           // Section: Relationship
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
                             child: Text(
                               'RELATIONSHIP',
                               style: TextStyle(
@@ -351,20 +543,21 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                             child: Wrap(
                               spacing: 8,
                               runSpacing: 8,
-                              children: relationshipFilterPresets.map((rel) {
-                                final isSelected = tempRelationship == rel;
+                              children: relationshipFilterPresets.map((r) {
+                                final isSelected = tempRelationship.toLowerCase() == r.toLowerCase();
+                                final displayLabel = r == 'all' ? 'All Relationships' : r;
                                 return GestureDetector(
                                   onTap: () {
                                     HapticFeedback.selectionClick();
-                                    setSheetState(() => tempRelationship = rel);
+                                    setSheetState(() => tempRelationship = r);
                                   },
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                     decoration: BoxDecoration(
                                       color: isSelected
                                           ? AppCupertinoTheme.brandAccent
                                           : AppCupertinoTheme.cardBackground.resolveFrom(context),
-                                      borderRadius: BorderRadius.circular(18),
+                                      borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
                                         color: isSelected
                                             ? AppCupertinoTheme.brandAccent
@@ -373,9 +566,9 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                                       ),
                                     ),
                                     child: Text(
-                                      rel == 'all' ? 'All' : rel,
+                                      displayLabel,
                                       style: TextStyle(
-                                        fontSize: 13,
+                                        fontSize: 14,
                                         fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                                         color: isSelected
                                             ? CupertinoColors.white
@@ -451,7 +644,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                           Padding(
                             padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
                             child: Text(
-                              'PRIVACY / VISIBILITY',
+                              'VISIBILITY',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
@@ -461,26 +654,44 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                           ),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: SizedBox(
+                            child: Container(
                               width: double.infinity,
-                              child: CupertinoSegmentedControl<String>(
+                              padding: const EdgeInsets.all(3),
+                              decoration: BoxDecoration(
+                                color: AppCupertinoTheme.subtleFill.resolveFrom(context),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: CupertinoSlidingSegmentedControl<String>(
                                 groupValue: tempVisibility,
-                                selectedColor: AppCupertinoTheme.brandAccent,
-                                unselectedColor: AppCupertinoTheme.cardBackground.resolveFrom(context),
-                                borderColor: AppCupertinoTheme.cardBorder.resolveFrom(context),
-                                children: const {
-                                  'all': Padding(padding: EdgeInsets.symmetric(vertical: 6), child: Text('All')),
-                                  'public': Padding(padding: EdgeInsets.symmetric(vertical: 6), child: Text('Public')),
-                                  'unlisted': Padding(padding: EdgeInsets.symmetric(vertical: 6), child: Text('Unlisted')),
-                                  'private': Padding(padding: EdgeInsets.symmetric(vertical: 6), child: Text('Private')),
+                                thumbColor: AppCupertinoTheme.cardBackground.resolveFrom(context),
+                                children: {
+                                  'all': Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    child: Text('All', style: TextStyle(fontSize: 13, color: labelColor)),
+                                  ),
+                                  'private': Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    child: Text('Private', style: TextStyle(fontSize: 13, color: labelColor)),
+                                  ),
+                                  'unlisted': Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    child: Text('Unlisted', style: TextStyle(fontSize: 13, color: labelColor)),
+                                  ),
+                                  'public': Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    child: Text('Public', style: TextStyle(fontSize: 13, color: labelColor)),
+                                  ),
                                 },
                                 onValueChanged: (val) {
-                                  HapticFeedback.selectionClick();
-                                  setSheetState(() => tempVisibility = val);
+                                  if (val != null) {
+                                    HapticFeedback.selectionClick();
+                                    setSheetState(() => tempVisibility = val);
+                                  }
                                 },
                               ),
                             ),
                           ),
+
                           const SizedBox(height: 32),
                         ],
                       ),
@@ -495,17 +706,55 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
     );
   }
 
-  Widget _buildSortTile(String title, String value, String currentVal, ValueChanged<String> onSelect) {
-    final isSelected = currentVal == value;
-    return CupertinoListTile(
-      title: Text(title),
-      trailing: isSelected
-          ? const Icon(CupertinoIcons.checkmark, color: AppCupertinoTheme.brandAccent, size: 18)
-          : null,
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onSelect(value);
-      },
+  Widget _buildSortRow({
+    required String title,
+    required String value,
+    required String currentValue,
+    required ValueChanged<String> onSelect,
+    required bool showDivider,
+    required BuildContext context,
+  }) {
+    final isSelected = value == currentValue;
+    final labelColor = AppCupertinoTheme.label(context);
+
+    return Column(
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onSelect(value);
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: labelColor,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+                if (isSelected)
+                  const Icon(
+                    CupertinoIcons.checkmark,
+                    color: AppCupertinoTheme.brandAccent,
+                    size: 18,
+                  ),
+              ],
+            ),
+          ),
+        ),
+        if (showDivider)
+          Container(
+            margin: const EdgeInsets.only(left: 16),
+            height: 0.5,
+            color: AppCupertinoTheme.cardBorder.resolveFrom(context),
+          ),
+      ],
     );
   }
 
@@ -524,11 +773,11 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
             parent: AlwaysScrollableScrollPhysics(),
           ),
           slivers: [
-            // Pull-to-refresh
+            // Pull-to-refresh: forces fresh sync from backend and flushes queue
             CupertinoSliverRefreshControl(
               onRefresh: () async {
                 await SyncService.processQueue();
-                await _fetchData();
+                await _fetchData(forceRefresh: true);
               },
             ),
 
@@ -555,8 +804,8 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            _people.isNotEmpty
-                                ? '${_people.length} ${_people.length == 1 ? 'person' : 'people'} in your circle${_pendingSyncCount > 0 ? ' • $_pendingSyncCount pending sync' : ''}'
+                            _allPeople.isNotEmpty
+                                ? '${_allPeople.length} ${_allPeople.length == 1 ? 'person' : 'people'} in your circle${_pendingSyncCount > 0 ? ' • $_pendingSyncCount pending sync' : ''}'
                                 : (_isLoading ? 'Loading circle...' : '0 people in your circle'),
                             style: TextStyle(
                               fontSize: 15,
@@ -681,7 +930,20 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
               SliverToBoxAdapter(
                 child: UpcomingBirthdaysWidget(
                   items: _birthdays,
-                  onItemTap: (item) => _openDetail(item.personId),
+                  onItemTap: (item) {
+                    final matching = _allPeople.firstWhere(
+                      (p) => p.id == item.personId || (p.slug.isNotEmpty && p.slug == item.slug),
+                      orElse: () => PersonRecord(
+                        id: item.personId,
+                        displayName: item.displayName,
+                        slug: item.slug,
+                        avatarUrl: item.avatarUrl,
+                        relationshipType: item.relationshipType ?? 'Friend',
+                        favorite: false,
+                      ),
+                    );
+                    _openDetail(matching);
+                  },
                 ),
               ),
 
@@ -749,14 +1011,14 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
             ),
 
             // People List Container
-            if (_isLoading && _people.isEmpty)
+            if (_isLoading && _allPeople.isEmpty)
               const SliverFillRemaining(
                 hasScrollBody: false,
                 child: Center(
                   child: CupertinoActivityIndicator(radius: 14),
                 ),
               )
-            else if (_people.isEmpty)
+            else if (_filteredPeople.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
                 child: Center(
@@ -824,20 +1086,20 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                       padding: EdgeInsets.zero,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _people.length,
+                      itemCount: _filteredPeople.length,
                       itemBuilder: (context, index) {
-                        final person = _people[index];
-                        final isLast = index == _people.length - 1;
+                        final person = _filteredPeople[index];
+                        final isLast = index == _filteredPeople.length - 1;
                         return PersonCard(
                           person: person,
                           showDivider: !isLast,
-                          onTap: () => _openDetail(person.slug),
+                          onTap: () => _openDetail(person),
                           onToggleFavorite: () => _handleToggleFavorite(person),
                           onEdit: () {
                             PersonFormModal.show(
                               context,
                               personToEdit: person,
-                              onSuccess: _fetchData,
+                              onSuccess: _onLocalDataChanged,
                             );
                           },
                           onDelete: () => _handleDeletePerson(person),

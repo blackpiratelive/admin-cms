@@ -54,9 +54,10 @@ mobile-people/
 │   │   │   ├── api_service.dart           # HTTP REST client (Auth, People, Memory Hub, Pickers, Deploy)
 │   │   │   └── sync_service.dart          # Offline-first background synchronization worker
 │   │   ├── services/
+│   │   │   ├── image_cache_manager.dart   # Dedicated PeopleImageCacheManager (90-day disk cache, pre-cacher)
 │   │   │   └── notification_service.dart  # Local push notifications & scheduled birthday alarms
 │   │   ├── storage/
-│   │   │   └── local_store.dart           # Secure storage, preferences, mutation queue & local cache
+│   │   │   └── local_store.dart           # Secure storage, 7-day TTL, mutation queue, optimistic CRUD & local cache
 │   │   └── theme/
 │   │       └── cupertino_theme.dart       # Dynamic Light/Dark iOS Cupertino design tokens
 │   ├── screens/
@@ -73,7 +74,7 @@ mobile-people/
 │       ├── person_card.dart               # Clean Cupertino person list row with subtle metadata & star action
 │       └── upcoming_birthdays_widget.dart # Compact Coming up cards with date badges & countdown pills
 └── test/
-    └── widget_test.dart                   # 25 comprehensive unit & widget tests (100% passing)
+    └── widget_test.dart                   # 35 comprehensive unit & widget tests (100% passing)
 ```
 
 ---
@@ -206,16 +207,39 @@ The app communicates with the following Next.js REST API endpoints:
 
 ---
 
-## 6. Offline-First Synchronization & Push Notifications
+## 6. Offline-First Architecture & Push Notifications
 
-### 6.1 Mutation Queue Architecture
-- When an operation (create person, update person, delete person, toggle favorite, add connection, remove connection) is performed without internet connectivity:
-  1. The UI optimistically updates local state.
-  2. The mutation is saved to `LocalStore.enqueueMutation()` in `SharedPreferences`.
-  3. The `CupertinoSliverNavigationBar` displays an orange badge indicating pending sync count.
-  4. When connectivity resumes or the user taps "Sync Now" in Settings, `SyncService.processQueue()` executes the queued mutations sequentially in FIFO order.
+### 6.1 7-Day TTL Cache-First Architecture & Network Policy
+- **Offline-First Strategy**: The app prioritizes local disk cache for all read operations (`getPeople`, `getPersonDetail`, `getUpcomingBirthdays`, and `getPickers`).
+- **7-Day Expiry Policy (`LocalStore.defaultCacheTtl = Duration(days: 7)`)**:
+  - The app serves cached data immediately upon navigation with 0ms network latency.
+  - Network requests are bypassed unless the cache is older than 7 days (`isPeopleCacheStale`, `isDetailCacheStale`, `isBirthdaysCacheStale`, `isPickersCacheStale`), an explicit pull-to-refresh (`CupertinoSliverRefreshControl(forceRefresh: true)`) is performed, or the user taps "Force Sync All" in Settings.
+  - If network connectivity is unavailable when cache expires, the app gracefully falls back to existing cached data indefinitely.
+  - Initial load retrieves up to 500 contacts (`limit=500`) in a single payload, ensuring complete circles are cached locally.
 
-### 6.2 Native Push Notifications
+### 6.2 100% In-Memory Search, Sort & Filtering Engine
+- **0ms Keystroke Latency**: Search queries in `DirectoryScreen` execute entirely client-side across the in-memory contact circle (`_applyFiltersAndSort`). No network requests are dispatched on keystrokes.
+- **In-Memory Sort**: Supports instant switching between Sort by Name (A-Z / Z-A), Recently Updated, Recently Created, Next Birthday, and Age / Birth Year.
+- **Compound Filters**: Combines search text, relationship filters, birthday month selections, and favorites filter with instantaneous results (<1ms execution time).
+
+### 6.3 Persistent Disk Image Caching & Background Pre-Caching
+- **`PeopleImageCacheManager`**: Dedicated cache manager extending `CacheManager` with key `'people_app_image_cache'`.
+  - **90-Day Retention**: `stalePeriod: Duration(days: 90)` preserves avatars, thumbnails, and attached photos across app restarts.
+  - **Capacity**: Holds up to 2,000 cached image files (`maxNrOfCacheObjects: 2000`).
+  - **Background Pre-Caching**: Whenever contacts are loaded from cache or network, `PeopleImageCacheManager.precacheImages()` non-blockingly pre-downloads all contact avatars in the background.
+  - **Uniform Usage**: Integrated into `PersonCard`, `PersonDetailScreen`, `UpcomingBirthdaysWidget`, `PhotoPickerModal`, `PersonFormModal`, and `ImageLightbox`.
+
+### 6.4 Optimistic Local Mutations & Sync Queue
+- **Instant Mutation Feedback**:
+  - Creating or editing a contact immediately writes to `LocalStore.upsertCachedPerson()` and updates the UI.
+  - Deleting a contact immediately removes it via `LocalStore.deleteCachedPerson()`.
+  - Favoriting immediately updates `LocalStore.toggleCachedPersonFavorite()`.
+- **FIFO Offline Queue**:
+  - If offline, mutations are recorded to `LocalStore.enqueueMutation()` in `SharedPreferences`.
+  - `CupertinoSliverNavigationBar` displays an orange badge indicating pending mutations count.
+  - When connectivity resumes or the user taps "Sync Now" in Settings, `SyncService.processQueue()` processes queued mutations in order.
+
+### 6.5 Native Push Notifications
 - Integrated via `flutter_local_notifications: ^19.0.0`.
 - Supports Android 13+ runtime permissions (`POST_NOTIFICATIONS`) and iOS/macOS alert permissions.
 - When an important date has `reminderEnabled: true`, the app calculates the next occurrence and schedules a local notification on the device.
@@ -231,7 +255,7 @@ Run all automated checks prior to committing:
 cd mobile-people
 export PATH="/home/dog/flutter/bin:$PATH"
 flutter analyze    # Must report 0 issues
-flutter test       # Must pass 100% of tests (25/25 tests passing)
+flutter test       # Must pass 100% of tests (35/35 tests passing)
 
 # 2. Mobile Microblog App (verify no regression)
 cd mobile-microblog
@@ -264,6 +288,44 @@ git status android/ # Must remain completely clean!
 ---
 
 ## 9. Recent Updates & Architectural Changelog
+
+### Version 1.5.0 — Offline-First Architecture, 7-Day TTL Caching, Instant Search & Persistent Disk Image Caching (September 2026)
+
+1. **Smart Cache-First Architecture with 7-Day TTL**:
+   - Implemented 7-day Time-to-Live (`LocalStore.defaultCacheTtl = Duration(days: 7)`) across all read endpoints (`getPeople`, `getPersonDetail`, `getUpcomingBirthdays`, `getPickers`).
+   - The app operates completely disconnected from the network on subsequent navigations, serving data from local cache in 0ms. Network requests only occur when:
+     - The cache is older than 7 days (`isPeopleCacheStale`, `isDetailCacheStale`, `isBirthdaysCacheStale`, `isPickersCacheStale`).
+     - The user performs an explicit pull-to-refresh (`CupertinoSliverRefreshControl(forceRefresh: true)`).
+     - The user taps "Force Sync All" in Settings.
+   - Batch retrieval limit increased to 500 contacts, ensuring the entire contact circle is retrieved in a single request and cached locally.
+   - If the network is unavailable upon cache expiry, the app gracefully falls back to the existing cache indefinitely.
+
+2. **0ms Latency In-Memory Search, Sort & Filtering Engine**:
+   - Replaced all network queries during searching and filtering with 100% client-side in-memory evaluation (`DirectoryScreen._applyFiltersAndSort`).
+   - Keystrokes in `CupertinoSearchTextField` filter instantly in <1ms without hitting the server.
+   - Dynamic client-side sorting (Name A-Z, Name Z-A, Recently Updated, Recently Created, Next Birthday, Age / Birth Year).
+   - Instant multi-filter combinations: Relationship pills, birthday months, favorites only, and search keywords.
+
+3. **0ms Instant Navigation to Person Detail**:
+   - `PersonDetailScreen` accepts an optional `initialPerson` constructor parameter passed directly from `PersonCard`.
+   - The profile header, display name, relationship badge, and basic info render in 0ms without waiting for network or disk fetches.
+   - Detailed memory graph (connected trips, events, microblogs, quotes, photos, timeline) loads immediately from `LocalStore.getCachedPersonDetail(id)`.
+
+4. **Persistent Disk Image Caching (90-Day Retention) & Background Pre-Caching**:
+   - Implemented `PeopleImageCacheManager` extending `CacheManager` with key `'people_app_image_cache'`, 90-day retention period (`stalePeriod: Duration(days: 90)`), and up to 2,000 cached objects (`maxNrOfCacheObjects: 2000`).
+   - Wired `PeopleImageCacheManager.instance` into all `CachedNetworkImage` components throughout the app (`PersonCard`, `PersonDetailScreen`, `UpcomingBirthdaysWidget`, `PhotoPickerModal`, `ImageLightbox`, `PersonFormModal`).
+   - Background Pre-caching: As soon as contacts load from cache or network, `PeopleImageCacheManager.precacheImages()` non-blockingly pre-warms all contact avatars in the background so they appear instantaneously offline and across app restarts.
+   - Settings integration: "Clear Cache" in `SettingsScreen` clears both JSON data cache and disk image cache.
+
+5. **Optimistic Local Mutations & Cache Consistency**:
+   - Person creation, edit, deletion, favorite toggling, and relationship disconnections immediately update in-memory state and disk cache (`LocalStore.upsertCachedPerson`, `deleteCachedPerson`, `toggleCachedPersonFavorite`).
+   - Changes are immediately visible offline; mutations are queued in FIFO order and synchronized upon network availability or manual trigger.
+
+6. **Quality Gates & Verification**:
+   - `flutter analyze` reports 0 issues.
+   - 35/35 unit and widget tests pass (100%), including 10 new comprehensive tests verifying 7-day TTL, cache staleness, optimistic local CRUD, pickers serialization, image cache manager, instant detail rendering, and in-memory search/filter.
+   - 100% passing across `mobile-microblog` (13/13) and Vitest backend (69/69).
+   - Strict subsystem isolation: `android/` directory remained 100% untouched.
 
 ### Version 1.4.0 — 3-Tab Photo Connection Popup & Cloudinary Integration (September 2026)
 

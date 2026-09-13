@@ -8,6 +8,8 @@ import '../core/models/person_connections.dart';
 import '../core/models/person_timeline_item.dart';
 import '../core/network/api_service.dart';
 import '../core/network/sync_service.dart';
+import '../core/storage/local_store.dart';
+import '../core/services/image_cache_manager.dart';
 import '../core/theme/cupertino_theme.dart';
 import '../widgets/image_lightbox.dart';
 import 'person_form_modal.dart';
@@ -16,11 +18,13 @@ import 'photo_picker_modal.dart';
 
 class PersonDetailScreen extends StatefulWidget {
   final String personIdOrSlug;
+  final PersonRecord? initialPerson;
   final VoidCallback? onPersonChanged;
 
   const PersonDetailScreen({
     super.key,
     required this.personIdOrSlug,
+    this.initialPerson,
     this.onPersonChanged,
   });
 
@@ -39,23 +43,50 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialPerson != null) {
+      _person = widget.initialPerson;
+      _isLoading = false;
+    }
     _loadPersonDetail();
   }
 
-  Future<void> _loadPersonDetail() async {
-    setState(() => _isLoading = true);
-    try {
-      final res = await ApiService.getPersonDetail(widget.personIdOrSlug);
-      if (res != null && mounted) {
+  Future<void> _loadPersonDetail({bool forceRefresh = false}) async {
+    // 1. Instant paint from disk cache (0ms perceived wait)
+    if (!forceRefresh) {
+      final cached = await LocalStore.getCachedPersonDetail(widget.personIdOrSlug);
+      if (cached != null && mounted) {
+        final person = PersonRecord.fromJson(cached['person'] as Map<String, dynamic>);
+        final connections = PersonConnections.fromJson((cached['connections'] as Map<String, dynamic>?) ?? {});
+        final rawTimeline = (cached['timeline'] as List<dynamic>?) ?? [];
+        final timeline = rawTimeline.map((e) => PersonTimelineItem.fromJson(e as Map<String, dynamic>)).toList();
         setState(() {
-          _person = res.person;
-          _connections = res.connections;
-          _timeline = res.timeline;
+          _person = person;
+          _connections = connections;
+          _timeline = timeline;
           _isLoading = false;
         });
       }
-    } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+    }
+
+    // 2. Check if cache is stale (>7 days TTL) or missing or forceRefresh
+    final isStale = await LocalStore.isDetailCacheStale(widget.personIdOrSlug);
+    if (_person == null || isStale || forceRefresh) {
+      if (_person == null) {
+        setState(() => _isLoading = true);
+      }
+      try {
+        final res = await ApiService.getPersonDetail(widget.personIdOrSlug, forceRefresh: forceRefresh);
+        if (res != null && mounted) {
+          setState(() {
+            _person = res.person;
+            _connections = res.connections;
+            _timeline = res.timeline;
+            _isLoading = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -64,20 +95,24 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
     HapticFeedback.lightImpact();
 
     final newFav = !_person!.favorite;
+    final updated = _person!.copyWith(favorite: newFav);
     setState(() {
-      _person = _person!.copyWith(favorite: newFav);
+      _person = updated;
     });
 
+    // 1. Optimistic local store update
+    await LocalStore.toggleCachedPersonFavorite(_person!.id, newFav);
+    widget.onPersonChanged?.call();
+
+    // 2. Background sync
     try {
       await ApiService.toggleFavorite(_person!.id);
-      widget.onPersonChanged?.call();
     } catch (_) {
       await SyncService.queueMutation(
         type: 'toggle_favorite',
         entityId: _person!.id,
         payload: {'favorite': newFav},
       );
-      widget.onPersonChanged?.call();
     }
   }
 
@@ -99,6 +134,10 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
             child: const Text('Delete'),
             onPressed: () async {
               Navigator.of(ctx).pop();
+              // Optimistically delete from cache
+              await LocalStore.deleteCachedPerson(_person!.id);
+              widget.onPersonChanged?.call();
+
               try {
                 await ApiService.deletePerson(_person!.id);
               } catch (_) {
@@ -108,7 +147,6 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                   payload: {},
                 );
               }
-              widget.onPersonChanged?.call();
               if (mounted) Navigator.of(context).pop();
             },
           ),
@@ -121,12 +159,24 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
     if (relationshipId == null || _person == null) return;
     HapticFeedback.mediumImpact();
 
+    // Optimistically update connections
+    final updatedPhotos = _connections.photos.where((ph) => ph.relationshipId != relationshipId).toList();
+    final updatedConnections = _connections.copyWith(photos: updatedPhotos);
+    setState(() {
+      _connections = updatedConnections;
+    });
+
+    final cachedDetail = await LocalStore.getCachedPersonDetail(widget.personIdOrSlug);
+    if (cachedDetail != null) {
+      cachedDetail['connections'] = updatedConnections.toJson();
+      await LocalStore.saveCachedPersonDetail(widget.personIdOrSlug, cachedDetail, updateTimestamp: false);
+    }
+
     try {
       await ApiService.removeConnection(
         personId: _person!.id,
         relationshipId: relationshipId,
       );
-      _loadPersonDetail();
       widget.onPersonChanged?.call();
     } catch (_) {
       await SyncService.queueMutation(
@@ -134,7 +184,6 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
         entityId: _person!.id,
         payload: {'relationshipId': relationshipId},
       );
-      _loadPersonDetail();
       widget.onPersonChanged?.call();
     }
   }
@@ -204,7 +253,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                   context,
                   personToEdit: p,
                   onSuccess: () {
-                    _loadPersonDetail();
+                    _loadPersonDetail(forceRefresh: false);
                     widget.onPersonChanged?.call();
                   },
                 );
@@ -221,73 +270,115 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
         ),
       ),
       child: SafeArea(
-        child: ListView(
-            padding: const EdgeInsets.only(bottom: 32),
-            children: [
-              // Hero Profile Banner
-              _buildHeroCard(context, p, isDark),
-
-              // Segmented Tabs Switcher
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: CupertinoSlidingSegmentedControl<int>(
-                  groupValue: _activeTabIndex,
-                  onValueChanged: (val) {
-                    if (val != null) setState(() => _activeTabIndex = val);
-                  },
-                  children: {
-                    0: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 6),
-                      child: Text('Overview', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                    ),
-                    1: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text('Connections', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                          if (_connections.totalCount > 0) ...[
-                            const SizedBox(width: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                color: isDark ? const Color(0x35FFFFFF) : const Color(0x20000000),
-                              ),
-                              child: Text(
-                                _connections.totalCount.toString(),
-                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    2: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 6),
-                      child: Text('Timeline', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                    ),
-                  },
-                ),
-              ),
-
-              // TAB 0: OVERVIEW & NOTES
-              if (_activeTabIndex == 0) ...[
-                _buildOverviewTab(context, p, isDark),
-              ],
-
-              // TAB 1: CONNECTIONS HUB
-              if (_activeTabIndex == 1) ...[
-                _buildConnectionsTab(context, p, isDark),
-              ],
-
-              // TAB 2: MEMORY TIMELINE
-              if (_activeTabIndex == 2) ...[
-                _buildTimelineTab(context, p, isDark),
-              ],
-            ],
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
           ),
+          slivers: [
+            CupertinoSliverRefreshControl(
+              onRefresh: () => _loadPersonDetail(forceRefresh: true),
+            ),
+            SliverList(
+              delegate: SliverChildListDelegate([
+                // Hero Profile Banner
+                _buildHeroCard(context, p, isDark),
+
+                // Segmented Tabs Switcher
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: CupertinoSlidingSegmentedControl<int>(
+                    groupValue: _activeTabIndex,
+                    onValueChanged: (val) {
+                      if (val != null) setState(() => _activeTabIndex = val);
+                    },
+                    children: {
+                      0: const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 6),
+                        child: Text('Overview', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      ),
+                      1: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text('Connections', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            if (_connections.totalCount > 0) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: _activeTabIndex == 1
+                                      ? AppCupertinoTheme.brandAccent
+                                      : CupertinoColors.systemGrey4,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '${_connections.totalCount}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: _activeTabIndex == 1 ? CupertinoColors.white : CupertinoColors.systemGrey,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      2: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text('Timeline', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            if (_timeline.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: _activeTabIndex == 2
+                                      ? AppCupertinoTheme.brandAccent
+                                      : CupertinoColors.systemGrey4,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '${_timeline.length}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: _activeTabIndex == 2 ? CupertinoColors.white : CupertinoColors.systemGrey,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    },
+                  ),
+                ),
+
+                // TAB 0: OVERVIEW & NOTES
+                if (_activeTabIndex == 0) ...[
+                  _buildOverviewTab(context, p, isDark),
+                ],
+
+                // TAB 1: CONNECTIONS HUB
+                if (_activeTabIndex == 1) ...[
+                  _buildConnectionsTab(context, p, isDark),
+                ],
+
+                // TAB 2: MEMORY TIMELINE
+                if (_activeTabIndex == 2) ...[
+                  _buildTimelineTab(context, p, isDark),
+                ],
+
+                const SizedBox(height: 32),
+              ]),
+            ),
+          ],
         ),
+      ),
     );
   }
 
@@ -352,6 +443,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(35),
                     child: CachedNetworkImage(
+                      cacheManager: PeopleImageCacheManager.instance,
                       imageUrl: p.avatarUrl!,
                       width: 70,
                       height: 70,
@@ -835,6 +927,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(10),
                               child: CachedNetworkImage(
+                                cacheManager: PeopleImageCacheManager.instance,
                                 imageUrl: photo.displayUrl,
                                 fit: BoxFit.cover,
                               ),
@@ -1091,6 +1184,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
                               child: CachedNetworkImage(
+                                cacheManager: PeopleImageCacheManager.instance,
                                 imageUrl: item.thumbnailUrl!,
                                 width: 90,
                                 height: 90,

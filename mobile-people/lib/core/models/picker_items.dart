@@ -10,6 +10,20 @@ class PickerItem {
     this.subtitle,
     required this.type,
   });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'subtitle': subtitle,
+    'type': type,
+  };
+
+  factory PickerItem.fromJson(Map<String, dynamic> json) => PickerItem(
+    id: json['id'] as String? ?? '',
+    title: json['title'] as String? ?? '',
+    subtitle: json['subtitle'] as String?,
+    type: json['type'] as String? ?? 'location',
+  );
 }
 
 class PeoplePickersResult {
@@ -28,6 +42,30 @@ class PeoplePickersResult {
     this.photos = const [],
     this.collections = const [],
   });
+
+  Map<String, dynamic> toJson() => {
+    'locations': locations.map((e) => e.toJson()).toList(),
+    'trips': trips.map((e) => e.toJson()).toList(),
+    'projects': projects.map((e) => e.toJson()).toList(),
+    'microblogs': microblogs.map((e) => e.toJson()).toList(),
+    'photos': photos.map((e) => e.toJson()).toList(),
+    'collections': collections.map((e) => e.toJson()).toList(),
+  };
+
+  factory PeoplePickersResult.fromCachedJson(Map<String, dynamic> json) {
+    List<PickerItem> parseList(String key) {
+      final list = json[key] as List<dynamic>? ?? [];
+      return list.map((e) => PickerItem.fromJson(e as Map<String, dynamic>)).toList();
+    }
+    return PeoplePickersResult(
+      locations: parseList('locations'),
+      trips: parseList('trips'),
+      projects: parseList('projects'),
+      microblogs: parseList('microblogs'),
+      photos: parseList('photos'),
+      collections: parseList('collections'),
+    );
+  }
 
   factory PeoplePickersResult.fromJson(Map<String, dynamic> json) {
     final rawLocs = json['locations'] as List<dynamic>? ?? [];

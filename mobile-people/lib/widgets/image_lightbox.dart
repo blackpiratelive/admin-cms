@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../core/services/image_cache_manager.dart';
 
 class ImageLightbox extends StatefulWidget {
   final List<String> imageUrls;
@@ -74,6 +75,7 @@ class _ImageLightboxState extends State<ImageLightbox> {
               maxScale: 3.5,
               child: Center(
                 child: CachedNetworkImage(
+                  cacheManager: PeopleImageCacheManager.instance,
                   imageUrl: widget.imageUrls[index],
                   fit: BoxFit.contain,
                   placeholder: (context, url) => const Center(

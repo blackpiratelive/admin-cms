@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../core/storage/local_store.dart';
 import '../core/network/api_service.dart';
 import '../core/network/sync_service.dart';
+import '../core/services/image_cache_manager.dart';
 import '../core/services/notification_service.dart';
 import '../core/theme/cupertino_theme.dart';
 
@@ -22,6 +23,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _serverUrl = '';
   int _cachedCount = 0;
   int _offlineQueueCount = 0;
+  DateTime? _lastSyncTime;
   bool _isDeploying = false;
   bool _isSyncing = false;
 
@@ -35,14 +37,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final url = await LocalStore.getServerUrl();
     final cached = await LocalStore.getCachedPeople();
     final queue = await LocalStore.getOfflineQueue();
+    final lastSync = await LocalStore.getLastSyncTime();
 
     if (mounted) {
       setState(() {
         _serverUrl = url;
         _cachedCount = cached.length;
         _offlineQueueCount = queue.length;
+        _lastSyncTime = lastSync;
       });
     }
+  }
+
+  String _formatLastSync(DateTime? time) {
+    if (time == null) return 'Never synced';
+    final diff = DateTime.now().difference(time);
+    if (diff.inSeconds < 60) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
   }
 
   Future<void> _handleProcessSyncQueue() async {
@@ -51,9 +64,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     try {
       final processed = await SyncService.processQueue();
+      // Pull fresh data to fully refresh offline store
+      await ApiService.getPeople(forceRefresh: true, limit: 500);
+      await ApiService.getUpcomingBirthdays(forceRefresh: true);
       await _loadSettings();
       if (mounted) {
-        _showSuccessDialog('Sync Complete', 'Processed $processed pending mutations successfully.');
+        _showSuccessDialog('Sync Complete', 'Synchronized contact circle and processed $processed pending mutations.');
       }
     } catch (e) {
       if (mounted) {
@@ -66,10 +82,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _handleClearCache() async {
     await LocalStore.clearAllCache();
+    await PeopleImageCacheManager.clearCache();
     await _loadSettings();
     HapticFeedback.mediumImpact();
     if (mounted) {
-      _showSuccessDialog('Cache Cleared', 'Offline cached contacts and birthdays have been cleared.');
+      _showSuccessDialog('Cache Cleared', 'Offline cached contacts, birthdays, and disk image cache have been cleared.');
     }
   }
 
@@ -161,7 +178,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
         title: const Text('Sign Out'),
-        content: const Text('Are you sure you want to sign out of your People CMS?'),
+        content: const Text('Are you sure you want to sign out from the People app?'),
         actions: [
           CupertinoDialogAction(
             child: const Text('Cancel'),
@@ -173,6 +190,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () async {
               Navigator.of(ctx).pop();
               await LocalStore.clearAuth();
+              await LocalStore.clearAllCache();
               widget.onLogout();
             },
           ),
@@ -256,12 +274,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 CupertinoListTile(
                   leading: _buildIconTile(CupertinoIcons.archivebox_fill, const Color(0xFF5856D6)),
                   title: const Text('Cached Contacts'),
-                  subtitle: Text('$_cachedCount contacts cached locally', style: const TextStyle(fontSize: 12)),
+                  subtitle: Text(
+                    '$_cachedCount contacts cached • 7-day TTL • Last sync: ${_formatLastSync(_lastSyncTime)}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
                   trailing: CupertinoButton(
                     padding: EdgeInsets.zero,
                     onPressed: _handleClearCache,
                     child: const Text('Clear', style: TextStyle(color: CupertinoColors.systemRed, fontSize: 14)),
                   ),
+                ),
+                CupertinoListTile(
+                  leading: _buildIconTile(CupertinoIcons.arrow_clockwise, AppCupertinoTheme.brandAccent),
+                  title: const Text('Force Sync All'),
+                  subtitle: const Text('Refresh contacts, birthdays & process queue', style: TextStyle(fontSize: 12)),
+                  trailing: _isSyncing ? const CupertinoActivityIndicator() : const CupertinoListTileChevron(),
+                  onTap: _isSyncing ? null : _handleProcessSyncQueue,
                 ),
               ],
             ),
@@ -303,7 +331,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 CupertinoListTile(
                   leading: const Icon(CupertinoIcons.info, color: CupertinoColors.systemGrey),
                   title: const Text('App Version'),
-                  trailing: Text('1.2.0', style: TextStyle(color: AppCupertinoTheme.secondary(context))),
+                  trailing: Text('1.5.0 (Offline First)', style: TextStyle(color: AppCupertinoTheme.secondary(context))),
                 ),
                 CupertinoListTile(
                   leading: const Icon(CupertinoIcons.square_arrow_right, color: CupertinoColors.systemRed),

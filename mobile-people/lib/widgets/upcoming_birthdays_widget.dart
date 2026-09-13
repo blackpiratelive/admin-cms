@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../core/services/image_cache_manager.dart';
 import '../core/models/upcoming_birthday_item.dart';
 import '../core/theme/cupertino_theme.dart';
 
@@ -365,6 +366,7 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
       return ClipRRect(
         borderRadius: BorderRadius.circular(size / 2),
         child: CachedNetworkImage(
+          cacheManager: PeopleImageCacheManager.instance,
           imageUrl: item.avatarUrl!,
           width: size,
           height: size,

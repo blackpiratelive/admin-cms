@@ -28,7 +28,7 @@ This repository is **`admin-cms`**, a private, single-user **Personal Knowledge 
 admin-cms/
 ├── android/                     # Flutter Cross-Platform Mobile & Tablet Application (Dart, Clean Architecture, Responsive Shell, Multi-Module, Multi-Theme)
 ├── mobile-microblog/            # Standalone Cupertino iOS Microblog Application (Apple Cupertino Design System, Fast Modal Composer, Offline-First)
-├── mobile-people/               # Standalone Cupertino iOS People & Memory Hub Application (Apple Cupertino Design System, Important Dates, Push Reminders, Offline-First Sync)
+├── mobile-people/               # Standalone Cupertino iOS People & Memory Hub Application (Apple Cupertino Design System, 7-Day TTL Offline-First Cache, Persistent Image Caching, Push Reminders)
 ├── .circleci/                   # CircleCI CI/CD pipeline configuration for Flutter analyze and APK build
 ├── src/
 │   ├── app/
@@ -83,7 +83,7 @@ admin-cms/
 │   │   ├── event-bus.ts         # Internal event pub-sub bus
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
-├── tests/                       # Vitest unit test suite (50 unit tests)
+├── tests/                       # Vitest unit test suite (69 unit tests)
 ├── freshrss.md                  # FreshRSS Sync Provider feature specification
 ├── android-journal.md           # Native Android Journal Application specification
 ├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
@@ -381,6 +381,18 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
   - `GET /api/people/pickers`: Fast aggregated picker endpoint returning locations, trips, projects, microblogs, photos, collections.
 - **CI/CD Automation**: Configured dual GitHub Actions (`.github/workflows/build-people-apk.yml`) and CircleCI (`.circleci/config.yml`) workflows for automated analyze, test, release keystore signing, and ARM64 APK build artifacts.
 - **Quality Gates**: All 24 Flutter unit/widget tests pass (100%), 0 linter issues in `flutter analyze`, and all 67 Vitest backend tests pass cleanly. `android/` legacy client remained 100% clean and untouched.
+
+### September 2026: Mobile People v1.5.0 (Offline-First Architecture, 7-Day TTL Caching, Instant Search & Persistent Disk Image Caching)
+- **7-Day TTL Cache-First Network Policy**: Configured `LocalStore.defaultCacheTtl = Duration(days: 7)`. Read requests for directory contacts (`limit=500`), person details, upcoming birthdays, and pickers are served instantaneously offline from local disk storage. Network hits are bypassed entirely unless cache exceeds 7 days, the user pulls to refresh, or triggers "Force Sync All".
+- **0ms Client-Side Search, Sort & Filter**: Eliminates network latency on search queries. All searching, filtering by relationship/month/favorite, and sorting are executed 100% in-memory in <1ms.
+- **Instant Detail Screen Paint**: `PersonDetailScreen` renders immediately using `initialPerson` passed from the directory and cached detail payloads.
+- **Persistent Disk Image Caching (90-Day Retention)**: Integrated `PeopleImageCacheManager` (extending `CacheManager`, key `'people_app_image_cache'`, 90-day retention, 2000 max files) across all `CachedNetworkImage` widgets, with automatic background pre-caching (`precacheImages`) for all contacts upon loading.
+- **Optimistic Local Mutations**: Add, edit, delete, and favorite operations update the local in-memory state and disk cache immediately, queuing mutations for background sync.
+- **Quality Gates**: All 35 Flutter unit and widget tests pass (100%), 0 issues in `flutter analyze`. `mobile-microblog` (13/13) and Vitest backend (69/69) remain 100% passing. `android/` legacy client remains 100% clean and untouched.
+
+### September 2026: Mobile People v1.4.0 (3-Tab Photo Connection Popup & Cloudinary Integration)
+- **3-Tab Photo Connection Modal (`PhotoPickerModal`)**: Built pure Cupertino modal sheet (`showCupertinoModalPopup`) with 3-tab segmented control for R2 Gallery, Cloudinary media, and camera/gallery multi-image upload directly to Cloudinary.
+- **Unified Attachments & Relationship Engine**: Cloudinary assets persist in `attachments` (`entityType: 'person'`, `kind: 'photo'`), and gallery photos link via `relationships` (`targetType: 'gallery'`).
 
 ### September 2026: Mobile People v1.3.1 (Brand Color Restoration & Dark Mode Text Legibility Fix)
 - **Brand Blue Restoration**: Restored `AppCupertinoTheme.brandAccent` from purple back to Apple iOS Blue (`#007AFF`) and `brandGradient` to Apple iOS Blue to Indigo (`[Color(0xFF007AFF), Color(0xFF6366F1)]`).

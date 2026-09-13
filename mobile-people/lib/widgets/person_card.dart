@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../core/services/image_cache_manager.dart';
 import '../core/models/person_record.dart';
 import '../core/models/important_date.dart';
 import '../core/theme/cupertino_theme.dart';
@@ -90,6 +91,7 @@ class PersonCard extends StatelessWidget {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(22),
                     child: CachedNetworkImage(
+                      cacheManager: PeopleImageCacheManager.instance,
                       imageUrl: person.avatarUrl!,
                       width: 44,
                       height: 44,

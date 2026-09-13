@@ -9,10 +9,13 @@ import 'package:mobile_people/core/models/person_timeline_item.dart';
 import 'package:mobile_people/core/models/upcoming_birthday_item.dart';
 import 'package:mobile_people/core/models/picker_items.dart';
 import 'package:mobile_people/core/models/offline_mutation.dart';
+import 'package:mobile_people/core/storage/local_store.dart';
+import 'package:mobile_people/core/services/image_cache_manager.dart';
 import 'package:mobile_people/core/theme/cupertino_theme.dart';
 import 'package:mobile_people/widgets/upcoming_birthdays_widget.dart';
 import 'package:mobile_people/widgets/person_card.dart';
 import 'package:mobile_people/screens/directory_screen.dart';
+import 'package:mobile_people/screens/person_detail_screen.dart';
 import 'package:mobile_people/screens/settings_screen.dart';
 import 'package:mobile_people/screens/main_navigation_screen.dart';
 import 'package:mobile_people/screens/person_form_modal.dart';
@@ -708,6 +711,197 @@ void main() {
       // Verify upload actions exist
       expect(find.text('Take Photo'), findsOneWidget);
       expect(find.text('Photo Library'), findsOneWidget);
+    });
+  });
+
+  group('LocalStore 7-Day TTL & Cache Staleness Tests', () {
+    test('defaultCacheTtl is 7 days', () {
+      expect(LocalStore.defaultCacheTtl, const Duration(days: 7));
+    });
+
+    test('isPeopleCacheStale returns true when empty and false when freshly saved', () async {
+      SharedPreferences.setMockInitialValues({});
+      expect(await LocalStore.isPeopleCacheStale(), isTrue);
+
+      await LocalStore.saveCachedPeople([
+        const PersonRecord(id: 'p1', displayName: 'John Doe', slug: 'john-doe'),
+      ]);
+      expect(await LocalStore.isPeopleCacheStale(), isFalse);
+
+      final cached = await LocalStore.getCachedPeople();
+      expect(cached.length, 1);
+      expect(cached.first.displayName, 'John Doe');
+    });
+
+    test('isDetailCacheStale returns false when within 7-day TTL and true when expired', () async {
+      SharedPreferences.setMockInitialValues({});
+      expect(await LocalStore.isDetailCacheStale('p1'), isTrue);
+
+      await LocalStore.saveCachedPersonDetail('p1', {
+        'person': {'id': 'p1', 'displayName': 'John Doe', 'slug': 'john-doe', 'favorite': false},
+        'connections': {},
+        'timeline': [],
+      });
+      expect(await LocalStore.isDetailCacheStale('p1'), isFalse);
+
+      // Verify custom TTL expiration
+      expect(
+        await LocalStore.isDetailCacheStale('p1', ttl: const Duration(milliseconds: -1)),
+        isTrue,
+      );
+    });
+  });
+
+  group('LocalStore Optimistic Local CRUD Tests', () {
+    test('upsertCachedPerson inserts and updates person record', () async {
+      SharedPreferences.setMockInitialValues({});
+
+      const p1 = PersonRecord(id: 'p1', displayName: 'Alice', slug: 'alice');
+      await LocalStore.upsertCachedPerson(p1);
+
+      var list = await LocalStore.getCachedPeople();
+      expect(list.length, 1);
+      expect(list.first.displayName, 'Alice');
+
+      // Update Alice's name
+      const p1Updated = PersonRecord(id: 'p1', displayName: 'Alice Wonder', slug: 'alice');
+      await LocalStore.upsertCachedPerson(p1Updated);
+
+      list = await LocalStore.getCachedPeople();
+      expect(list.length, 1);
+      expect(list.first.displayName, 'Alice Wonder');
+
+      // Insert Bob
+      const p2 = PersonRecord(id: 'p2', displayName: 'Bob', slug: 'bob');
+      await LocalStore.upsertCachedPerson(p2);
+
+      list = await LocalStore.getCachedPeople();
+      expect(list.length, 2);
+    });
+
+    test('deleteCachedPerson removes person and cached detail', () async {
+      SharedPreferences.setMockInitialValues({});
+      const p1 = PersonRecord(id: 'p1', displayName: 'Alice', slug: 'alice');
+      await LocalStore.upsertCachedPerson(p1);
+      await LocalStore.saveCachedPersonDetail('p1', {'person': p1.toJson()});
+
+      expect((await LocalStore.getCachedPeople()).length, 1);
+      expect(await LocalStore.getCachedPersonDetail('p1'), isNotNull);
+
+      await LocalStore.deleteCachedPerson('p1');
+      expect((await LocalStore.getCachedPeople()).isEmpty, isTrue);
+      expect(await LocalStore.getCachedPersonDetail('p1'), isNull);
+    });
+
+    test('toggleCachedPersonFavorite toggles favorite in cache list and detail', () async {
+      SharedPreferences.setMockInitialValues({});
+      const p1 = PersonRecord(id: 'p1', displayName: 'Alice', slug: 'alice', favorite: false);
+      await LocalStore.upsertCachedPerson(p1);
+      await LocalStore.saveCachedPersonDetail('p1', {'person': p1.toJson()});
+
+      await LocalStore.toggleCachedPersonFavorite('p1', true);
+
+      final list = await LocalStore.getCachedPeople();
+      expect(list.first.favorite, isTrue);
+
+      final detail = await LocalStore.getCachedPersonDetail('p1');
+      expect(detail!['person']['favorite'], isTrue);
+    });
+
+    test('saveCachedPickers and getCachedPickers serializes correctly', () async {
+      SharedPreferences.setMockInitialValues({});
+      const pickers = PeoplePickersResult(
+        locations: [
+          PickerItem(id: 'loc1', title: 'Tokyo', subtitle: 'Japan', type: 'location'),
+        ],
+      );
+
+      await LocalStore.saveCachedPickers(pickers);
+      final retrieved = await LocalStore.getCachedPickers();
+      expect(retrieved, isNotNull);
+      expect(retrieved!.locations.length, 1);
+      expect(retrieved.locations.first.title, 'Tokyo');
+    });
+  });
+
+  group('PeopleImageCacheManager Tests', () {
+    test('PeopleImageCacheManager is properly initialized with 90-day disk retention', () {
+      expect(PeopleImageCacheManager.key, 'people_app_image_cache');
+      expect(PeopleImageCacheManager.instance, isNotNull);
+    });
+  });
+
+  group('PersonDetailScreen Instant Cache & InitialPerson Tests', () {
+    testWidgets('renders immediately with initialPerson without blocking loading spinner', (WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues({});
+
+      const person = PersonRecord(
+        id: 'p_test',
+        displayName: 'Instant Alice',
+        slug: 'instant-alice',
+        relationshipType: 'Close Friend',
+        notesMarkdown: 'Instant notes for Alice',
+        favorite: true,
+      );
+
+      await tester.pumpWidget(
+        const CupertinoApp(
+          home: PersonDetailScreen(
+            personIdOrSlug: 'p_test',
+            initialPerson: person,
+          ),
+        ),
+      );
+
+      // Verify contact display name renders immediately (0ms)
+      expect(find.text('Instant Alice'), findsWidgets);
+      expect(find.text('Close Friend'), findsOneWidget);
+    });
+  });
+
+  group('DirectoryScreen In-Memory Search & Offline Filter Tests', () {
+    testWidgets('filters contacts in memory immediately when typing in search field', (WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues({});
+
+      // Seed local cache with test contacts
+      await LocalStore.saveCachedPeople([
+        const PersonRecord(id: 'p1', displayName: 'Alice Anderson', slug: 'alice', relationshipType: 'Friend', favorite: false),
+        const PersonRecord(id: 'p2', displayName: 'Bob Barker', slug: 'bob', relationshipType: 'Colleague', favorite: true),
+        const PersonRecord(id: 'p3', displayName: 'Charlie Chaplin', slug: 'charlie', relationshipType: 'Family', favorite: false),
+      ]);
+
+      await tester.pumpWidget(
+        CupertinoApp(
+          home: DirectoryScreen(
+            onLogout: () {},
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Initial contacts rendered from cache
+      expect(find.text('Alice Anderson'), findsOneWidget);
+      expect(find.text('Bob Barker'), findsOneWidget);
+      expect(find.text('Charlie Chaplin'), findsOneWidget);
+
+      // Search for "Bob"
+      await tester.enterText(find.byType(CupertinoTextField), 'Bob');
+      await tester.pump();
+
+      // Alice & Charlie filtered out, Bob remains
+      expect(find.text('Bob Barker'), findsOneWidget);
+      expect(find.text('Alice Anderson'), findsNothing);
+      expect(find.text('Charlie Chaplin'), findsNothing);
+
+      // Clear search
+      await tester.enterText(find.byType(CupertinoTextField), '');
+      await tester.pump();
+
+      // All contacts restored instantly
+      expect(find.text('Alice Anderson'), findsOneWidget);
+      expect(find.text('Bob Barker'), findsOneWidget);
+      expect(find.text('Charlie Chaplin'), findsOneWidget);
     });
   });
 

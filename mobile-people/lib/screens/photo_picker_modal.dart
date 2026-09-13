@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../core/services/image_cache_manager.dart';
 import '../core/models/person_record.dart';
 import '../core/models/picker_items.dart';
 import '../core/network/api_service.dart';
@@ -649,6 +650,7 @@ class _PhotoPickerModalState extends State<PhotoPickerModal> {
           children: [
             imageUrl.isNotEmpty
                 ? CachedNetworkImage(
+                    cacheManager: PeopleImageCacheManager.instance,
                     imageUrl: imageUrl,
                     fit: BoxFit.cover,
                     placeholder: (_, _) => Container(color: CupertinoColors.systemGrey6),
