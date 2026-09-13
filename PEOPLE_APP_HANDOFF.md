@@ -61,17 +61,18 @@ mobile-people/
 │   │       └── cupertino_theme.dart       # Dynamic Light/Dark iOS Cupertino design tokens
 │   ├── screens/
 │   │   ├── connect_entity_modal.dart      # Multi-entity picker modal (Locations, Trips, Projects, etc.)
-│   │   ├── directory_screen.dart          # Cupertino sliver directory, filters, birthday tray & contacts list
+│   │   ├── directory_screen.dart          # Cupertino sliver directory, search, filter sheet & contacts list
 │   │   ├── login_screen.dart              # Cupertino authentication screen with URL presets
+│   │   ├── main_navigation_screen.dart    # Native 2-tab Cupertino tab bar (People, Settings)
 │   │   ├── person_detail_screen.dart      # Deep Memory Hub screen (Bio, Dates, Connections, Timeline)
 │   │   ├── person_form_modal.dart         # Full CRUD add/edit modal (Dates editor, Social, Tags)
 │   │   └── settings_screen.dart           # Inset-grouped settings, queue & deployment
 │   └── widgets/
 │       ├── image_lightbox.dart            # Full-screen pinch-to-zoom avatar/image viewer
-│       ├── person_card.dart               # Clean Cupertino person card with badges & quick actions
-│       └── upcoming_birthdays_widget.dart # Horizontal upcoming birthdays & important dates countdown tray
+│       ├── person_card.dart               # Clean Cupertino person list row with subtle metadata & star action
+│       └── upcoming_birthdays_widget.dart # Compact Coming up cards with date badges & countdown pills
 └── test/
-    └── widget_test.dart                   # 20 comprehensive unit & widget tests (100% passing)
+    └── widget_test.dart                   # 22 comprehensive unit & widget tests (100% passing)
 ```
 
 ---
@@ -262,6 +263,40 @@ git status android/ # Must remain completely clean!
 ---
 
 ## 9. Recent Updates & Architectural Changelog
+
+### Version 1.2.0 — Native iOS Design System & Homepage Redesign (September 2026)
+
+1. **Brand Accent & Visual Identity**:
+   - Transitioned brand primary accent from dominant purple to refined Apple iOS Blue (`#007AFF`).
+   - Cleaned up heavy glow shadows and gradients, using restrained subtle gradients only for initials avatars and primary add action.
+
+2. **Dedicated 2-Tab Navigation Bar (`MainNavigationScreen`)**:
+   - Implemented native `CupertinoTabScaffold` and `CupertinoTabBar` with exactly two tabs: **People** (`CupertinoIcons.person_2`) and **Settings** (`CupertinoIcons.gear_alt`).
+   - Removed duplicate Settings and Filter triggers from the top header; respects iOS safe areas.
+
+3. **Homepage Hierarchy Redesign (`DirectoryScreen`)**:
+   - **Header**: Clean, native hierarchy with large title "People", subtitle text with contact count (`X people in your circle`), and a refined circular `+` button in the top right.
+   - **Search & Filter**: 50px tall full-width search field with subtle background and prefix icon, adjacent to a dedicated filter button with `CupertinoIcons.slider_horizontal_3`.
+   - **Native Filter Bottom Sheet**: Replaced always-visible filter drawer with a native Cupertino modal sheet (`showCupertinoModalPopup`), featuring Favorites toggle, Sort options, Relationship pills, Birthday month selector, Visibility control, and Reset/Done actions.
+
+4. **Compact "Coming up" Section (`UpcomingBirthdaysWidget`)**:
+   - Replaced bulky horizontal card carousel with a compact, scannable "Coming up" section with a "See all >" modal action.
+   - Cards feature clean date badge boxes (`SEP 21`), initials avatars, subtitles (`Birthday · Sep 21`), and trailing countdown badges (`In 8 days`).
+
+5. **Clean Native iOS People List (`PersonCard`)**:
+   - Replaced floating card-in-card containers with a unified iOS list container and subtle inset dividers.
+   - Initial avatar (44x44) with multi-character support, bold name, subtle `Relationship · 🔒 Privacy` metadata text, optional birthday indicator, and trailing outline star toggle.
+   - Dramatically reduced pill badges in favor of typography and clean alignment.
+
+6. **Native iOS Settings Redesign (`SettingsScreen`)**:
+   - Formatted into standard iOS Settings inset-grouped sections with colorful SF Symbol icon tiles (Blue Globe for Server, Orange Cloud for Sync, Purple Folder for Cache, Pink Bell for Notifications, Green Arrows for Hugo, Gray Info for Version).
+   - Separated destructive Sign Out row.
+
+7. **Verification & Quality Gates**:
+   - `flutter analyze` reports 0 issues.
+   - 22/22 unit and widget tests passing in `test/widget_test.dart`.
+   - 100% passing across `mobile-microblog` and Vitest suites.
+   - Strict subsystem isolation: `android/` untouched.
 
 ### Version 1.1.0 — De-bloat & Clean Cupertino Modernization (September 2026)
 

@@ -12,7 +12,9 @@ import 'package:mobile_people/core/models/offline_mutation.dart';
 import 'package:mobile_people/core/theme/cupertino_theme.dart';
 import 'package:mobile_people/widgets/upcoming_birthdays_widget.dart';
 import 'package:mobile_people/widgets/person_card.dart';
+import 'package:mobile_people/screens/directory_screen.dart';
 import 'package:mobile_people/screens/settings_screen.dart';
+import 'package:mobile_people/screens/main_navigation_screen.dart';
 import 'package:mobile_people/main.dart';
 
 void main() {
@@ -361,6 +363,7 @@ void main() {
     });
 
     test('theme colors are properly defined', () {
+      expect(AppCupertinoTheme.primaryBlue, const Color(0xFF007AFF));
       expect(AppCupertinoTheme.primaryPurple, const Color(0xFF8B5CF6));
       expect(AppCupertinoTheme.accentRose, const Color(0xFFEC4899));
       expect(AppCupertinoTheme.favoriteGold, const Color(0xFFF59E0B));
@@ -368,7 +371,7 @@ void main() {
   });
 
   group('UpcomingBirthdaysWidget Widget Tests', () {
-    testWidgets('renders horizontal tray and triggers item tap', (WidgetTester tester) async {
+    testWidgets('renders compact coming up section and triggers item tap', (WidgetTester tester) async {
       UpcomingBirthdayItem? selected;
       final birthdays = [
         const UpcomingBirthdayItem(
@@ -402,10 +405,11 @@ void main() {
         ),
       );
 
-      expect(find.text('Upcoming Dates & Birthdays'), findsOneWidget);
+      expect(find.text('Coming up'), findsOneWidget);
+      expect(find.text('See all'), findsOneWidget);
       expect(find.text('Sarah Connor'), findsOneWidget);
       expect(find.text('John Wick'), findsOneWidget);
-      expect(find.text('Birthday • in 2 days'), findsOneWidget);
+      expect(find.text('In 2 days'), findsOneWidget);
 
       await tester.tap(find.text('Sarah Connor'));
       await tester.pumpAndSettle();
@@ -445,8 +449,7 @@ void main() {
 
       expect(find.text('Dr. Evelyn Reed'), findsOneWidget);
       expect(find.text('Mentor'), findsOneWidget);
-      expect(find.text('#research'), findsOneWidget);
-      expect(find.text('#ai'), findsOneWidget);
+      expect(find.text('Private'), findsOneWidget);
       expect(find.byIcon(CupertinoIcons.star_fill), findsOneWidget);
 
       await tester.tap(find.byIcon(CupertinoIcons.star_fill));
@@ -477,6 +480,71 @@ void main() {
       expect(find.text('Queued Mutations'), findsOneWidget);
       expect(find.text('ACCOUNT & ABOUT'), findsOneWidget);
       expect(find.text('Sign Out'), findsOneWidget);
+    });
+  });
+
+  group('DirectoryScreen Widget Tests', () {
+    testWidgets('renders redesigned header, search, and opens filter bottom sheet', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        CupertinoApp(
+          home: DirectoryScreen(
+            onLogout: () {},
+          ),
+        ),
+      );
+
+      // Verify header and primary add button
+      expect(find.text('People'), findsOneWidget);
+      expect(find.byIcon(CupertinoIcons.add), findsOneWidget);
+
+      // Verify search field
+      expect(find.text('Search people, notes, interests...'), findsOneWidget);
+      expect(find.byIcon(CupertinoIcons.slider_horizontal_3), findsWidgets);
+
+      // Tap filter button to open native filter bottom sheet
+      await tester.tap(find.byIcon(CupertinoIcons.slider_horizontal_3).first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Verify filter sheet contents
+      expect(find.text('Filters'), findsOneWidget);
+      expect(find.text('Reset'), findsOneWidget);
+      expect(find.text('Done'), findsOneWidget);
+      expect(find.text('Only Favorites'), findsOneWidget);
+      expect(find.text('SORT BY'), findsOneWidget);
+      expect(find.text('RELATIONSHIP'), findsOneWidget);
+
+      // Tap Done to dismiss
+      await tester.tap(find.text('Done'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.text('Filters'), findsNothing);
+    });
+  });
+
+  group('MainNavigationScreen Widget Tests', () {
+    testWidgets('renders exactly 2 bottom tabs: People and Settings', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        CupertinoApp(
+          home: MainNavigationScreen(
+            onLogout: () {},
+          ),
+        ),
+      );
+
+      // Verify bottom navigation bar items
+      expect(find.text('People'), findsWidgets);
+      expect(find.text('Settings'), findsOneWidget);
+      expect(find.byIcon(CupertinoIcons.person_2_fill), findsOneWidget);
+      expect(find.byIcon(CupertinoIcons.gear_alt), findsOneWidget);
+
+      // Tap Settings tab
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+
+      // Verify Settings screen is shown
+      expect(find.text('SERVER CONNECTION'), findsOneWidget);
+      expect(find.text('Server URL'), findsOneWidget);
     });
   });
 

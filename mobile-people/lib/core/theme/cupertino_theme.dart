@@ -3,7 +3,8 @@ import 'package:flutter/cupertino.dart';
 class AppCupertinoTheme {
   // Brand / Tint Colors
   static const Color primaryPurple = Color(0xFF8B5CF6);
-  static const Color primaryBlue = CupertinoColors.systemBlue;
+  static const Color primaryBlue = Color(0xFF007AFF);
+  static const Color brandAccent = Color(0xFF007AFF);
   static const Color accentRose = Color(0xFFEC4899);
   static const Color favoriteGold = Color(0xFFF59E0B);
   static const Color statusGreen = CupertinoColors.systemGreen;
@@ -12,7 +13,7 @@ class AppCupertinoTheme {
   // Cupertino Theme Factory
   static CupertinoThemeData get dynamicTheme {
     return const CupertinoThemeData(
-      primaryColor: primaryPurple,
+      primaryColor: primaryBlue,
       applyThemeToAll: true,
       scaffoldBackgroundColor: CupertinoColors.systemGroupedBackground,
       barBackgroundColor: CupertinoDynamicColor.withBrightness(
@@ -69,6 +70,13 @@ class AppCupertinoTheme {
   // Dynamic Secondary Text
   static const CupertinoDynamicColor secondaryLabel =
       CupertinoColors.secondaryLabel;
+
+  // Dynamic Bar Background (for navigation & tab bars)
+  static const CupertinoDynamicColor barBackground =
+      CupertinoDynamicColor.withBrightness(
+    color: Color(0xF2F9F9FB),
+    darkColor: Color(0xF21C1C1E),
+  );
 
   // Dark Brightness Helper
   static bool isDark(BuildContext context) =>

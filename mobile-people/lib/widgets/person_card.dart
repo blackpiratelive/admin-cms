@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../core/models/person_record.dart';
+import '../core/models/important_date.dart';
 import '../core/theme/cupertino_theme.dart';
 
 class PersonCard extends StatelessWidget {
@@ -10,6 +11,7 @@ class PersonCard extends StatelessWidget {
   final VoidCallback? onToggleFavorite;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final bool showDivider;
 
   const PersonCard({
     super.key,
@@ -18,49 +20,70 @@ class PersonCard extends StatelessWidget {
     this.onToggleFavorite,
     this.onEdit,
     this.onDelete,
+    this.showDivider = true,
   });
+
+  static const List<String> _monthNames = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+
+  static ({String monthName, String day}) _formatDate(String dateStr) {
+    try {
+      final parts = dateStr.split('-');
+      int m = 1;
+      int d = 1;
+      if (parts.length == 3) {
+        m = int.tryParse(parts[1]) ?? 1;
+        d = int.tryParse(parts[2]) ?? 1;
+      } else if (parts.length == 2) {
+        m = int.tryParse(parts[0]) ?? 1;
+        d = int.tryParse(parts[1]) ?? 1;
+      }
+      m = m.clamp(1, 12);
+      return (monthName: _monthNames[m - 1], day: d.toString());
+    } catch (_) {
+      return (monthName: '', day: '');
+    }
+  }
+
+  ImportantDate? get _primaryBirthday {
+    if (person.importantDates.isEmpty) return null;
+    try {
+      return person.importantDates.firstWhere(
+        (d) => d.title.toLowerCase().contains('birth'),
+        orElse: () => person.importantDates.first,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = AppCupertinoTheme.isDark(context);
+    final birthday = _primaryBirthday;
+    final birthdayDateInfo = birthday != null ? _formatDate(birthday.date) : null;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppCupertinoTheme.cardBackground.resolveFrom(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppCupertinoTheme.cardBorder.resolveFrom(context),
-          width: 0.8,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: CupertinoColors.systemGrey5.resolveFrom(context).withValues(alpha: 0.3),
-            offset: const Offset(0, 2),
-            blurRadius: 8,
-          ),
-        ],
-      ),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          HapticFeedback.lightImpact();
-          onTap();
-        },
-        onLongPress: () {
-          HapticFeedback.heavyImpact();
-          _showActionSheet(context);
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top Row: Avatar, Name/Nickname, Favorite Star
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onTap();
+          },
+          onLongPress: () {
+            HapticFeedback.heavyImpact();
+            _showActionSheet(context);
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Avatar
+                // Initials or Image Avatar (Restrained 44x44 circle)
                 if (person.hasAvatar)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(22),
@@ -75,13 +98,15 @@ class PersonCard extends StatelessWidget {
                 else
                   _initialsAvatar(),
 
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
 
-                // Name & Subtitle
+                // Name & Metadata Column
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Name Line
                       Row(
                         children: [
                           Flexible(
@@ -89,7 +114,7 @@ class PersonCard extends StatelessWidget {
                               person.displayName,
                               style: const TextStyle(
                                 fontSize: 16,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w600,
                                 letterSpacing: -0.3,
                                 color: CupertinoColors.label,
                               ),
@@ -99,76 +124,96 @@ class PersonCard extends StatelessWidget {
                           ),
                           if (person.nickname != null && person.nickname!.isNotEmpty) ...[
                             const SizedBox(width: 6),
-                            Text(
-                              '(${person.nickname})',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontStyle: FontStyle.italic,
-                                color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
+                            Flexible(
+                              child: Text(
+                                '(${person.nickname})',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontStyle: FontStyle.italic,
+                                  color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 3),
 
-                      // Badges: Relationship + Visibility
+                      // Relationship · Privacy Line (Plain text with subtle icon, no large pills!)
                       Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Relationship Pill
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(6),
-                              color: const Color(0xFF8B5CF6).withValues(alpha: 0.16),
-                              border: Border.all(
-                                color: const Color(0xFF8B5CF6).withValues(alpha: 0.35),
-                                width: 0.8,
-                              ),
-                            ),
-                            child: Text(
-                              person.relationshipType,
-                              style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF8B5CF6),
-                              ),
+                          Text(
+                            person.relationshipType,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: CupertinoColors.secondaryLabel,
                             ),
                           ),
-                          const SizedBox(width: 6),
-
-                          // Visibility
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                person.visibility == 'public'
-                                    ? CupertinoIcons.globe
-                                    : person.visibility == 'unlisted'
-                                        ? CupertinoIcons.eye_slash
-                                        : CupertinoIcons.lock,
-                                size: 10,
-                                color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
-                              ),
-                              const SizedBox(width: 3),
-                              Text(
-                                person.visibility,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
-                                ),
-                              ),
-                            ],
+                          const Text(
+                            ' · ',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: CupertinoColors.secondaryLabel,
+                            ),
+                          ),
+                          Icon(
+                            person.visibility == 'public'
+                                ? CupertinoIcons.globe
+                                : person.visibility == 'unlisted'
+                                    ? CupertinoIcons.eye_slash
+                                    : CupertinoIcons.lock,
+                            size: 11,
+                            color: CupertinoColors.secondaryLabel,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            person.visibility == 'public'
+                                ? 'Public'
+                                : person.visibility == 'unlisted'
+                                    ? 'Unlisted'
+                                    : 'Private',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: CupertinoColors.secondaryLabel,
+                            ),
                           ),
                         ],
                       ),
+
+                      // Birthday Line (if present)
+                      if (birthday != null && birthdayDateInfo != null && birthdayDateInfo.monthName.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              CupertinoIcons.calendar,
+                              size: 12,
+                              color: Color(0xFFEC4899),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${birthday.title} · ${birthdayDateInfo.monthName} ${birthdayDateInfo.day}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: CupertinoColors.secondaryLabel,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
 
-                // Favorite Star
+                const SizedBox(width: 8),
+
+                // Trailing Favorite Star
                 CupertinoButton(
-                  padding: EdgeInsets.zero,
+                  padding: const EdgeInsets.all(8),
                   minimumSize: Size.zero,
                   onPressed: () {
                     HapticFeedback.lightImpact();
@@ -176,95 +221,38 @@ class PersonCard extends StatelessWidget {
                   },
                   child: Icon(
                     person.favorite ? CupertinoIcons.star_fill : CupertinoIcons.star,
-                    size: 19,
-                    color: person.favorite ? const Color(0xFFF59E0B) : CupertinoColors.systemGrey,
+                    size: 20,
+                    color: person.favorite
+                        ? const Color(0xFFF59E0B)
+                        : (isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey3),
                   ),
                 ),
               ],
             ),
-
-            // Important Dates Preview
-            if (person.importantDates.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: person.importantDates.take(2).map((d) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      color: isDark ? const Color(0x28FFFFFF) : const Color(0x12000000),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(CupertinoIcons.calendar, size: 11, color: Color(0xFFEC4899)),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${d.title}: ${d.date}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
-                          ),
-                        ),
-                        if (d.daysRemaining <= 30) ...[
-                          const SizedBox(width: 4),
-                          Text(
-                            '(${d.countdownBadge})',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFFEC4899),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
-
-            // Interests Tag Chips
-            if (person.interests.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                children: person.interests.take(4).map((interest) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(6),
-                      color: isDark ? const Color(0x22FFFFFF) : const Color(0x10000000),
-                    ),
-                    child: Text(
-                      '#$interest',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
-          ],
+          ),
         ),
-      ),
-    ),
-  );
-}
+
+        // Subtle Inset Divider
+        if (showDivider)
+          Padding(
+            padding: const EdgeInsets.only(left: 74),
+            child: Container(
+              height: 0.5,
+              color: AppCupertinoTheme.cardBorder.resolveFrom(context),
+            ),
+          ),
+      ],
+    );
+  }
 
   Widget _initialsAvatar() {
     return Container(
       width: 44,
       height: 44,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         shape: BoxShape.circle,
-        gradient: const LinearGradient(
-          colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+        gradient: LinearGradient(
+          colors: [Color(0xFF007AFF), Color(0xFF6366F1)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -275,7 +263,7 @@ class PersonCard extends StatelessWidget {
         style: const TextStyle(
           color: CupertinoColors.white,
           fontSize: 16,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -286,7 +274,7 @@ class PersonCard extends StatelessWidget {
       context: context,
       builder: (BuildContext sheetContext) => CupertinoActionSheet(
         title: Text(person.displayName),
-        message: Text(person.relationshipType),
+        message: Text('${person.relationshipType} • ${person.visibility}'),
         actions: <CupertinoActionSheetAction>[
           CupertinoActionSheetAction(
             onPressed: () {

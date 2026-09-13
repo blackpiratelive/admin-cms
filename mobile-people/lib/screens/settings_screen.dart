@@ -4,6 +4,7 @@ import '../core/storage/local_store.dart';
 import '../core/network/api_service.dart';
 import '../core/network/sync_service.dart';
 import '../core/services/notification_service.dart';
+import '../core/theme/cupertino_theme.dart';
 
 class SettingsScreen extends StatefulWidget {
   final VoidCallback onLogout;
@@ -77,7 +78,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await NotificationService.showNotification(
       id: 9999,
       title: '🎉 Important Date Reminder Test',
-      body: 'This is a test notification from the People & Memory Hub app!',
+      body: 'This is a test notification from your People relationship hub!',
     );
   }
 
@@ -180,6 +181,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildIconTile(IconData icon, Color backgroundColor) {
+    return Container(
+      width: 30,
+      height: 30,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      alignment: Alignment.center,
+      child: Icon(
+        icon,
+        color: CupertinoColors.white,
+        size: 18,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
@@ -189,30 +207,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       child: SafeArea(
         child: ListView(
+          padding: const EdgeInsets.symmetric(vertical: 12),
           children: [
             // Section 1: Server Connection
             CupertinoListSection.insetGrouped(
               header: const Text('SERVER CONNECTION'),
               children: [
                 CupertinoListTile(
-                  leading: const Icon(CupertinoIcons.globe, color: Color(0xFF8B5CF6)),
+                  leading: _buildIconTile(CupertinoIcons.globe, AppCupertinoTheme.primaryBlue),
                   title: const Text('Server URL'),
-                  subtitle: Text(_serverUrl, style: const TextStyle(fontSize: 12)),
+                  subtitle: Text(
+                    _serverUrl.isNotEmpty ? _serverUrl : 'Not configured',
+                    style: const TextStyle(fontSize: 12),
+                  ),
                   trailing: const CupertinoListTileChevron(),
                   onTap: _showEditUrlDialog,
                 ),
               ],
             ),
 
-
-            // Section 3: Offline & Sync
+            // Section 2: Offline & Sync Queue
             CupertinoListSection.insetGrouped(
               header: const Text('OFFLINE & SYNC QUEUE'),
               children: [
                 CupertinoListTile(
-                  leading: const Icon(CupertinoIcons.cloud_upload, color: CupertinoColors.systemOrange),
+                  leading: _buildIconTile(CupertinoIcons.cloud_upload, const Color(0xFFFF9500)),
                   title: const Text('Queued Mutations'),
-                  subtitle: Text('$_offlineQueueCount pending offline edits', style: const TextStyle(fontSize: 12)),
+                  subtitle: Text(
+                    '$_offlineQueueCount pending offline edits',
+                    style: const TextStyle(fontSize: 12),
+                  ),
                   trailing: _isSyncing
                       ? const CupertinoActivityIndicator()
                       : (_offlineQueueCount > 0
@@ -221,10 +245,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               onPressed: _handleProcessSyncQueue,
                               child: const Text('Sync Now', style: TextStyle(fontSize: 14)),
                             )
-                          : const SizedBox.shrink()),
+                          : const Text(
+                              'Up to date',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: CupertinoColors.secondaryLabel,
+                              ),
+                            )),
                 ),
                 CupertinoListTile(
-                  leading: const Icon(CupertinoIcons.folder, color: Color(0xFF3B82F6)),
+                  leading: _buildIconTile(CupertinoIcons.archivebox_fill, const Color(0xFF5856D6)),
                   title: const Text('Cached Contacts'),
                   subtitle: Text('$_cachedCount contacts cached locally', style: const TextStyle(fontSize: 12)),
                   trailing: CupertinoButton(
@@ -236,12 +266,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
 
-            // Section 4: Push Reminders
+            // Section 3: Push Notifications
             CupertinoListSection.insetGrouped(
               header: const Text('NOTIFICATIONS'),
               children: [
                 CupertinoListTile(
-                  leading: const Icon(CupertinoIcons.bell_fill, color: Color(0xFFF59E0B)),
+                  leading: _buildIconTile(CupertinoIcons.bell_fill, const Color(0xFFFF2D55)),
                   title: const Text('Test Notification'),
                   subtitle: const Text('Trigger immediate birthday reminder', style: TextStyle(fontSize: 12)),
                   trailing: const CupertinoListTileChevron(),
@@ -250,12 +280,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
 
-            // Section 5: Hugo Publishing
+            // Section 4: Static Hugo Publishing
             CupertinoListSection.insetGrouped(
               header: const Text('STATIC HUGO PUBLISHING'),
               children: [
                 CupertinoListTile(
-                  leading: const Icon(CupertinoIcons.arrow_2_circlepath, color: CupertinoColors.systemGreen),
+                  leading: _buildIconTile(CupertinoIcons.arrow_2_circlepath, const Color(0xFF34C759)),
                   title: const Text('Rebuild Hugo Site'),
                   subtitle: const Text('Trigger Vercel deploy hook', style: TextStyle(fontSize: 12)),
                   trailing: _isDeploying
@@ -266,14 +296,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
 
-            // Section 6: About & Sign Out
+            // Section 5: Account & About
             CupertinoListSection.insetGrouped(
               header: const Text('ACCOUNT & ABOUT'),
               children: [
                 const CupertinoListTile(
                   leading: Icon(CupertinoIcons.info, color: CupertinoColors.systemGrey),
                   title: Text('App Version'),
-                  trailing: Text('1.0.0+1', style: TextStyle(color: CupertinoColors.secondaryLabel)),
+                  trailing: Text('1.2.0', style: TextStyle(color: CupertinoColors.secondaryLabel)),
                 ),
                 CupertinoListTile(
                   leading: const Icon(CupertinoIcons.square_arrow_right, color: CupertinoColors.systemRed),
@@ -285,6 +315,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
             ),
+
             const SizedBox(height: 32),
           ],
         ),

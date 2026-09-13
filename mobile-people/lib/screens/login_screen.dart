@@ -97,14 +97,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            Color(0xFF8B5CF6),
-                            Color(0xFFEC4899),
+                            Color(0xFF007AFF),
+                            Color(0xFF6366F1),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(22),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF8B5CF6).withValues(alpha: 0.35),
+                            color: const Color(0xFF007AFF).withValues(alpha: 0.35),
                             offset: const Offset(0, 8),
                             blurRadius: 18,
                           ),

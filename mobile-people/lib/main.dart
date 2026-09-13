@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'core/theme/cupertino_theme.dart';
 import 'core/storage/local_store.dart';
 import 'core/services/notification_service.dart';
-import 'screens/directory_screen.dart';
+import 'screens/main_navigation_screen.dart';
 import 'screens/login_screen.dart';
 
 void main() async {
@@ -64,7 +64,7 @@ class _CupertinoPeopleAppState extends State<CupertinoPeopleApp> {
               ),
             )
           : _isLoggedIn
-              ? DirectoryScreen(onLogout: _handleLogout)
+              ? MainNavigationScreen(onLogout: _handleLogout)
               : LoginScreen(onLoginSuccess: _handleLoginSuccess),
     );
   }

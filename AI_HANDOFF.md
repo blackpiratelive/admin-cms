@@ -328,9 +328,19 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
   - `mobile-people/`: Restored `CupertinoPageScaffold` and `CupertinoSliverNavigationBar` with large collapsing title, contact count capsule, offline pending sync badge, filter drawer toggle, and quick-add action; replaced jewel LED glowing countdowns with clean status indicators.
 - **Quality Gates & Isolation**:
   - `mobile-microblog`: 0 analyze issues, 13/13 tests passing (100%).
-  - `mobile-people`: 0 analyze issues, 20/20 tests passing (100%).
+  - `mobile-people`: 0 analyze issues, 22/22 tests passing (100%).
   - Root Next.js CMS: 13/13 test files passing, 67/67 unit tests passing (100%).
   - `git status android/` remained 100% clean and untouched throughout.
+
+### September 2026: Mobile People v1.2.0 (Native iOS Cupertino Redesign)
+- **Apple iOS Blue Brand Accent**: Switched primary tint to `#007AFF` for avatars, primary actions, selected controls, and navigation.
+- **Dedicated 2-Tab Navigation Bar**: Root `MainNavigationScreen` featuring native `CupertinoTabScaffold` and `CupertinoTabBar` with `People` (`CupertinoIcons.person_2`) and `Settings` (`CupertinoIcons.gear_alt`).
+- **Clean Homepage Header Hierarchy**: Large title "People", subtitle text with circle count (`X people in your circle`), and top-right refined circular `+` button. Filter and Settings removed from top header.
+- **Search & Adjacent Filter Sheet**: Height 50px subtle gray search field with adjacent filter button triggering a native Cupertino bottom sheet (`_showFilterSheet`) supporting Relationship presets, Birthday month, Favorites toggle, Sorting order, and Visibility options.
+- **Compact "Coming up" Cards**: Compact upcoming birthdays section with calendar date badge boxes (`SEP 21`), initials avatars, and countdown pills (`In 8 days`), plus "See all" action sheet.
+- **Clean Native iOS People List**: Flat grouped list surface with inset dividers, initials avatar, name, subtitle (`Relationship · 🔒 Privacy`), optional birthday metadata, and trailing star favorite outline toggle.
+- **Native iOS Settings Page**: Organized into native iOS inset-grouped sections with colorful SF Symbol icon tiles and separated destructive Sign Out row.
+- **Quality Gates**: 0 `flutter analyze` issues, 22/22 unit and widget tests passing (100%), 0 regressions across repository.
 
 ### September 2026: Mobile People v1.0.0 (Apple Liquid Glass Design System & Memory Hub)
 - **Standalone Cupertino Client**: Created `mobile-people/` featuring 1:1 feature parity with webapp People Memory Hub (`/people` and `/people/[slug]`), built strictly with Apple Cupertino widgets (`CupertinoApp`, `CupertinoPageScaffold`, `CupertinoNavigationBar`).
