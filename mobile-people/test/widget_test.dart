@@ -16,6 +16,7 @@ import 'package:mobile_people/screens/directory_screen.dart';
 import 'package:mobile_people/screens/settings_screen.dart';
 import 'package:mobile_people/screens/main_navigation_screen.dart';
 import 'package:mobile_people/screens/person_form_modal.dart';
+import 'package:mobile_people/screens/photo_picker_modal.dart';
 import 'package:mobile_people/main.dart';
 
 void main() {
@@ -661,6 +662,52 @@ void main() {
       expect(find.text('Created'), findsOneWidget);
       expect(find.text('Last updated'), findsOneWidget);
       expect(find.text('Delete Contact'), findsOneWidget);
+    });
+  });
+
+  group('PhotoPickerModal Widget Tests', () {
+    testWidgets('renders 3-tab photo picker modal and switches tabs cleanly', (WidgetTester tester) async {
+      const person = PersonRecord(
+        id: 'p_photo_test',
+        displayName: 'Elena Rostova',
+        slug: 'elena-rostova',
+      );
+
+      await tester.pumpWidget(
+        CupertinoApp(
+          home: CupertinoPageScaffold(
+            child: PhotoPickerModal(
+              person: person,
+              onSuccess: () {},
+            ),
+          ),
+        ),
+      );
+
+      // Header verification
+      expect(find.text('Add Photos'), findsOneWidget);
+      expect(find.text('Elena Rostova'), findsOneWidget);
+
+      // 3-tab segmented control verification
+      expect(find.text('Gallery (R2)'), findsOneWidget);
+      expect(find.text('Cloudinary'), findsOneWidget);
+      expect(find.text('Upload'), findsOneWidget);
+
+      // Bottom bar
+      expect(find.text('0 photos selected'), findsOneWidget);
+      expect(find.text('Connect'), findsOneWidget);
+
+      // Tap Cloudinary tab
+      await tester.tap(find.text('Cloudinary'));
+      await tester.pump();
+
+      // Tap Upload tab
+      await tester.tap(find.text('Upload'));
+      await tester.pump();
+
+      // Verify upload actions exist
+      expect(find.text('Take Photo'), findsOneWidget);
+      expect(find.text('Photo Library'), findsOneWidget);
     });
   });
 

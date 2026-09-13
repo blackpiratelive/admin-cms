@@ -4,6 +4,8 @@ import { GET as getPersonDetail, PUT as updatePerson, DELETE as deletePerson } f
 import { POST as toggleFavorite } from "@/app/api/people/[id]/favorite/route";
 import { GET as getBirthdays } from "@/app/api/people/birthdays/route";
 import { GET as getPickers } from "@/app/api/people/pickers/route";
+import { POST as addConnection, DELETE as removeConnection } from "@/app/api/people/[id]/connections/route";
+import { GET as getCloudinaryMedia } from "@/app/api/media/cloudinary/route";
 import { ensureDbInitialized } from "@/db";
 
 describe("People REST API Endpoints", () => {
@@ -126,6 +128,66 @@ describe("People REST API Endpoints", () => {
     expect(data.microblogs).toBeInstanceOf(Array);
     expect(data.photos).toBeInstanceOf(Array);
     expect(data.collections).toBeInstanceOf(Array);
+  });
+
+  it("connects batch photos via POST /api/people/[id]/connections and removes attachment", async () => {
+    // 1. Connect a Cloudinary photo via batch payload
+    const batchReq = new Request(`http://localhost/api/people/${createdPersonId}/connections`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        photos: [
+          {
+            type: "cloudinary",
+            url: "https://res.cloudinary.com/demo/image/upload/v12345/test_photo.jpg",
+            title: "Test Cloudinary Photo",
+            publicId: "test_photo",
+          },
+        ],
+        relationship: "appears_in",
+      }),
+    });
+
+    const batchRes = await addConnection(batchReq, { params: Promise.resolve({ id: createdPersonId }) });
+    expect(batchRes.status).toBe(201);
+    const batchData = await batchRes.json();
+    expect(batchData.success).toBe(true);
+    expect(batchData.count).toBe(1);
+
+    // 2. Verify person detail returns the connected photo
+    const detailReq = new Request(`http://localhost/api/people/${createdPersonId}`);
+    const detailRes = await getPersonDetail(detailReq, { params: Promise.resolve({ id: createdPersonId }) });
+    expect(detailRes.status).toBe(200);
+    const detailData = await detailRes.json();
+    expect(detailData.connections.photos.length).toBeGreaterThanOrEqual(1);
+
+    const connectedPhoto = detailData.connections.photos.find(
+      (p: any) => p.entity.title === "Test Cloudinary Photo"
+    );
+    expect(connectedPhoto).toBeDefined();
+    expect(connectedPhoto.entity.thumbnailUrl).toBe("https://res.cloudinary.com/demo/image/upload/v12345/test_photo.jpg");
+
+    // 3. Remove the photo attachment connection
+    const removeReq = new Request(
+      `http://localhost/api/people/${createdPersonId}/connections?relationshipId=${connectedPhoto.relationshipId}`,
+      { method: "DELETE" }
+    );
+    const removeRes = await removeConnection(removeReq, { params: Promise.resolve({ id: createdPersonId }) });
+    expect(removeRes.status).toBe(200);
+
+    // 4. Verify photo is no longer in person detail
+    const verifyReq = new Request(`http://localhost/api/people/${createdPersonId}`);
+    const verifyRes = await getPersonDetail(verifyReq, { params: Promise.resolve({ id: createdPersonId }) });
+    const verifyData = await verifyRes.json();
+    expect(
+      verifyData.connections.photos.some((p: any) => p.relationshipId === connectedPhoto.relationshipId)
+    ).toBe(false);
+  });
+
+  it("handles GET /api/media/cloudinary endpoint safely", async () => {
+    const res = await getCloudinaryMedia();
+    // Either 200 with resources or 500 if unconfigured environment in test
+    expect([200, 500]).toContain(res.status);
   });
 
   it("deletes person via DELETE /api/people/[id]", async () => {

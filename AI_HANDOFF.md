@@ -321,6 +321,27 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 
 ## 8. Standalone Apps & Release Signing Changelog
 
+### September 2026: People Module & Mobile People — 3-Tab Photo Connection Hub & Cloudinary Integration
+- **3-Tab Photo Picker Engine**:
+  - Added dedicated 3-tab photo connection popup modal on Web (`PersonPhotoPickerModal.tsx`) and Cupertino Mobile (`PhotoPickerModal.dart`):
+    1. Tab 1: **Gallery (Cloudflare R2)**: Multi-select existing gallery photos from R2.
+    2. Tab 2: **Choose from Cloudinary**: Multi-select existing Cloudinary assets via `GET /api/media/cloudinary`.
+    3. Tab 3: **Upload to Cloudinary**: Multi-file upload directly to Cloudinary with automatic selection.
+- **Unified Attachments Data Model**:
+  - Cloudinary and uploaded photos are stored in the `attachments` table (`entityType: 'person'`, `kind: 'photo'`).
+  - Gallery photos link via `relationships` (`targetType: 'gallery'`).
+  - `fetchPersonConnectionsRaw` and `getPersonMemoryHubDataAction` query attachments in parallel and combine both sources into `connections.photos`.
+  - Deletions seamlessly remove attachments or relationships based on ID prefix.
+- **REST Endpoints & Batch Actions**:
+  - Added `GET /api/media/cloudinary` exposing Cloudinary asset list for pickers.
+  - Added `connectPersonPhotosBatchAction` and upgraded `POST /api/people/[id]/connections` to accept batch photo connections.
+  - Added direct `+ Add Photos` buttons on the "Photos Together" cards on both Web and Mobile.
+- **Quality Gates & Subsystem Isolation**:
+  - 13/13 Vitest test files passing, 69/69 backend tests passing (100%).
+  - 25/25 Flutter tests passing in `mobile-people` with 0 `flutter analyze` issues.
+  - 13/13 Flutter tests passing in `mobile-microblog` with 0 `flutter analyze` issues.
+  - `android/` legacy client remained 100% clean and untouched.
+
 ### September 2026: Mobile Apps Modernization — De-bloat & Clean Cupertino Modernization
 - **Liquid Glass Removal**: Completely removed the Apple Liquid Glass design system (optical blur `BackdropFilter`, specular gradient highlights, living aurora mesh canvas `AmbientMeshBackground`, and floating island navigation `FloatingGlassHeader`) from both `mobile-microblog/` and `mobile-people/`.
 - **Pure Apple Cupertino Experience**:

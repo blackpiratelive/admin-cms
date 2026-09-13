@@ -326,6 +326,49 @@ class ApiService {
     return response.statusCode == 200 || response.statusCode == 201;
   }
 
+  // Connect Photos in Batch
+  static Future<bool> connectPhotosBatch({
+    required String personId,
+    required List<Map<String, dynamic>> photos,
+    String relationship = 'appears_in',
+  }) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/people/$personId/connections');
+    final headers = await _getHeaders();
+
+    final response = await http
+        .post(
+          uri,
+          headers: headers,
+          body: jsonEncode({
+            'photos': photos,
+            'relationship': relationship,
+          }),
+        )
+        .timeout(timeoutDuration);
+
+    return response.statusCode == 200 || response.statusCode == 201;
+  }
+
+  // Fetch Cloudinary Photos
+  static Future<List<Map<String, dynamic>>> getCloudinaryPhotos() async {
+    try {
+      final baseUrl = await _getBaseUrl();
+      final uri = Uri.parse('$baseUrl/api/media/cloudinary');
+      final headers = await _getHeaders();
+
+      final response = await http.get(uri, headers: headers).timeout(timeoutDuration);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final list = data['resources'] as List<dynamic>? ?? [];
+        return list.map((e) => e as Map<String, dynamic>).toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
   // Remove Entity Connection
   static Future<bool> removeConnection({
     required String personId,

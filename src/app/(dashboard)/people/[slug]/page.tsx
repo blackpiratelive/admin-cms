@@ -15,6 +15,7 @@ import {
 import { ImportantDate, SocialLinks } from "@/features/people/schema";
 import { PersonFormModal } from "@/features/people/components/PersonFormModal";
 import { ConnectEntityModal } from "@/features/people/components/ConnectEntityModal";
+import { PersonPhotoPickerModal } from "@/features/people/components/PersonPhotoPickerModal";
 import { getLocations } from "@/features/locations/actions";
 import { getTrips } from "@/features/trips/actions";
 import {
@@ -63,6 +64,7 @@ export default function PersonDetailPage({ params }: { params: Promise<{ slug: s
   // Modals
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
+  const [isPhotoPickerOpen, setIsPhotoPickerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "connections" | "timeline">("overview");
 
   const loadPerson = useCallback(async () => {
@@ -656,14 +658,24 @@ export default function PersonDetailPage({ params }: { params: Promise<{ slug: s
               padding: "16px",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-              <ImageIcon size={16} style={{ color: "var(--accent)" }} />
-              <h3 style={{ fontSize: "14px", fontWeight: 700, margin: 0 }}>
-                Photos Together ({connections?.photos.length || 0})
-              </h3>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <ImageIcon size={16} style={{ color: "var(--accent)" }} />
+                <h3 style={{ fontSize: "14px", fontWeight: 700, margin: 0 }}>
+                  Photos Together ({connections?.photos.length || 0})
+                </h3>
+              </div>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setIsPhotoPickerOpen(true)}
+                style={{ fontSize: "12px", padding: "4px 10px", display: "inline-flex", alignItems: "center", gap: "5px" }}
+              >
+                <Plus size={13} />
+                <span>Add Photos</span>
+              </button>
             </div>
             {connections?.photos.length === 0 ? (
-              <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>No gallery photos linked yet.</div>
+              <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>No photos linked yet.</div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "10px" }}>
                 {connections?.photos.map((ph) => (
@@ -918,6 +930,16 @@ export default function PersonDetailPage({ params }: { params: Promise<{ slug: s
         onSuccess={loadPerson}
         allLocations={allLocations}
         allTrips={allTrips}
+        onOpenPhotoPicker={() => setIsPhotoPickerOpen(true)}
+      />
+
+      {/* 3-Tab Photo Picker Modal (Gallery R2, Cloudinary, Upload) */}
+      <PersonPhotoPickerModal
+        isOpen={isPhotoPickerOpen}
+        onClose={() => setIsPhotoPickerOpen(false)}
+        personId={person.id}
+        personName={person.displayName}
+        onSuccess={loadPerson}
       />
     </div>
   );

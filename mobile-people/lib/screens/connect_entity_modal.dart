@@ -5,6 +5,7 @@ import '../core/models/picker_items.dart';
 import '../core/network/api_service.dart';
 import '../core/network/sync_service.dart';
 import '../core/theme/cupertino_theme.dart';
+import 'photo_picker_modal.dart';
 
 class ConnectEntityModal extends StatefulWidget {
   final PersonRecord person;
@@ -65,6 +66,12 @@ class _ConnectEntityModalState extends State<ConnectEntityModal> {
   }
 
   void _onTypeChanged(String newType) {
+    if (newType == 'gallery') {
+      Navigator.of(context).pop();
+      PhotoPickerModal.show(context, person: widget.person, onSuccess: widget.onSuccess);
+      return;
+    }
+
     setState(() {
       _targetType = newType;
       _selectedTargetId = null;

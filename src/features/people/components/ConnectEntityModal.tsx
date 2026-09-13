@@ -19,6 +19,7 @@ interface ConnectEntityModalProps {
   allProjects?: Array<{ id: string; name: string }>;
   allMicroblogs?: Array<{ id: string; slug: string; contentMarkdown: string }>;
   allPhotos?: Array<{ id: string; title: string }>;
+  onOpenPhotoPicker?: () => void;
 }
 
 export function ConnectEntityModal({
@@ -32,6 +33,7 @@ export function ConnectEntityModal({
   allProjects = [],
   allMicroblogs = [],
   allPhotos = [],
+  onOpenPhotoPicker,
 }: ConnectEntityModalProps) {
   const [targetType, setTargetType] = useState<"location" | "trip" | "project" | "microblog" | "gallery" | "collection">("location");
   const [selectedTargetId, setSelectedTargetId] = useState("");
@@ -184,7 +186,13 @@ export function ConnectEntityModal({
               className="form-input"
               value={targetType}
               onChange={(e) => {
-                setTargetType(e.target.value as any);
+                const val = e.target.value as any;
+                if (val === "gallery" && onOpenPhotoPicker) {
+                  onClose();
+                  onOpenPhotoPicker();
+                  return;
+                }
+                setTargetType(val);
                 setSelectedTargetId("");
               }}
             >

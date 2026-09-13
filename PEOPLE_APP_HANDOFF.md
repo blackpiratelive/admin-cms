@@ -66,13 +66,14 @@ mobile-people/
 │   │   ├── main_navigation_screen.dart    # Native 2-tab Cupertino tab bar (People, Settings)
 │   │   ├── person_detail_screen.dart      # Deep Memory Hub screen (Bio, Dates, Connections, Timeline)
 │   │   ├── person_form_modal.dart         # Full CRUD add/edit modal (Dates editor, Social, Tags)
+│   │   ├── photo_picker_modal.dart        # 3-Tab Photo Connection Modal (Gallery/R2, Cloudinary, Upload)
 │   │   └── settings_screen.dart           # Inset-grouped settings, queue & deployment
 │   └── widgets/
 │       ├── image_lightbox.dart            # Full-screen pinch-to-zoom avatar/image viewer
 │       ├── person_card.dart               # Clean Cupertino person list row with subtle metadata & star action
 │       └── upcoming_birthdays_widget.dart # Compact Coming up cards with date badges & countdown pills
 └── test/
-    └── widget_test.dart                   # 24 comprehensive unit & widget tests (100% passing)
+    └── widget_test.dart                   # 25 comprehensive unit & widget tests (100% passing)
 ```
 
 ---
@@ -230,7 +231,7 @@ Run all automated checks prior to committing:
 cd mobile-people
 export PATH="/home/dog/flutter/bin:$PATH"
 flutter analyze    # Must report 0 issues
-flutter test       # Must pass 100% of tests (24/24 tests passing)
+flutter test       # Must pass 100% of tests (25/25 tests passing)
 
 # 2. Mobile Microblog App (verify no regression)
 cd mobile-microblog
@@ -239,7 +240,7 @@ flutter analyze    # Must report 0 issues
 flutter test       # Must pass 100% of tests (13/13 tests passing)
 
 # 3. Next.js & Backend CMS Vitest Suite
-npm test           # Must pass 100% of Vitest suites (67/67 tests passing)
+npm test           # Must pass 100% of Vitest suites (69/69 tests passing)
 
 # 4. Strict Subsystem Isolation Check
 git status android/ # Must remain completely clean!
@@ -263,6 +264,30 @@ git status android/ # Must remain completely clean!
 ---
 
 ## 9. Recent Updates & Architectural Changelog
+
+### Version 1.4.0 — 3-Tab Photo Connection Popup & Cloudinary Integration (September 2026)
+
+1. **Dedicated 3-Tab Photo Connection Modal (`PhotoPickerModal`)**:
+   - Built pure Cupertino modal sheet (`showCupertinoModalPopup`) with a 3-tab `CupertinoSlidingSegmentedControl`:
+     - `Gallery (R2)`: Browses and multi-selects gallery photos hosted on Cloudflare R2 via `/api/people/pickers`.
+     - `Cloudinary`: Browses and multi-selects assets hosted on Cloudinary via `GET /api/media/cloudinary`.
+     - `Upload`: Multi-photo picker via `ImagePicker.pickMultiImage` and camera (`ImagePicker.pickImage`), uploading directly to Cloudinary with real-time status and automatic selection.
+   - Dynamic multi-selection badge pill, relationship verb editor (defaults to `appears_in`), and batch connection trigger.
+
+2. **Unified Attachments & Relationship Engine Integration**:
+   - Cloudinary and uploaded photos persist in the `attachments` table (`entityType: 'person'`, `kind: 'photo'`).
+   - Gallery photos link via the `relationships` table (`targetType: 'gallery'`).
+   - `PersonConnections` and `ConnectedPhoto` seamlessly parse both sources into uniform cards with full pinch-to-zoom `ImageLightbox` support.
+   - Deletion removes attachments or relationships based on ID prefix.
+
+3. **Homepage & Memory Hub Ergonomics**:
+   - `PersonDetailScreen`: Added direct Cupertino `+ Add Photos` shortcut button on the "Photos Together" section card.
+   - `ConnectEntityModal`: When `Photo` is selected in the entity segmented control, automatically transitions to `PhotoPickerModal`.
+
+4. **Quality Gates & Subsystem Isolation**:
+   - `flutter analyze` reports 0 issues.
+   - 25/25 unit and widget tests pass (100%), including new tests covering `PhotoPickerModal`.
+   - Strict subsystem isolation: `android/` legacy client remained 100% untouched.
 
 ### Version 1.3.1 — Brand Color Restoration to Apple iOS Blue & Complete Dark Mode Text Legibility Fix (September 2026)
 

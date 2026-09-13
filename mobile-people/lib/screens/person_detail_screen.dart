@@ -12,6 +12,7 @@ import '../core/theme/cupertino_theme.dart';
 import '../widgets/image_lightbox.dart';
 import 'person_form_modal.dart';
 import 'connect_entity_modal.dart';
+import 'photo_picker_modal.dart';
 
 class PersonDetailScreen extends StatefulWidget {
   final String personIdOrSlug;
@@ -790,6 +791,28 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
             title: 'Photos Together (${_connections.photos.length})',
             icon: CupertinoIcons.photo,
             color: const Color(0xFF06B6D4),
+            trailingAction: CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: Size.zero,
+              onPressed: () {
+                PhotoPickerModal.show(
+                  context,
+                  person: p,
+                  onSuccess: () {
+                    _loadPersonDetail();
+                    widget.onPersonChanged?.call();
+                  },
+                );
+              },
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(CupertinoIcons.plus_circle, size: 14),
+                  SizedBox(width: 4),
+                  Text('Add Photos', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
             child: _connections.photos.isEmpty
                 ? _emptyNotice('No photos linked yet.')
                 : GridView.builder(
@@ -1093,6 +1116,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
     required IconData icon,
     required Color color,
     required Widget child,
+    Widget? trailingAction,
   }) {
     return _buildCard(
       context: context,
@@ -1100,13 +1124,19 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(width: 6),
-              Text(
-                title,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppCupertinoTheme.label(context)),
+              Row(
+                children: [
+                  Icon(icon, size: 16, color: color),
+                  const SizedBox(width: 6),
+                  Text(
+                    title,
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppCupertinoTheme.label(context)),
+                  ),
+                ],
               ),
+              ?trailingAction,
             ],
           ),
           const SizedBox(height: 10),

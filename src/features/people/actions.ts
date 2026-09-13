@@ -13,6 +13,7 @@ import {
   collectionItems,
   collections,
   activities,
+  attachments,
   GalleryPhoto,
   LocationRecord,
   TripRecord,
@@ -462,24 +463,53 @@ async function fetchPersonConnectionsRaw(personId: string): Promise<PersonConnec
   }
 
   // Execute all batch IN queries in parallel in 1 roundtrip!
-  const [photosRes, locationsRes, tripsRes, microblogsRes, projectsRes, colItemsRes] = await Promise.all([
+  const [photosRes, locationsRes, tripsRes, microblogsRes, projectsRes, colItemsRes, photoAttachments] = await Promise.all([
     photoIds.length > 0 ? db.select().from(gallery).where(inArray(gallery.id, photoIds)) : Promise.resolve([]),
     locationIds.length > 0 ? db.select().from(locations).where(inArray(locations.id, locationIds)) : Promise.resolve([]),
     tripIds.length > 0 ? db.select().from(trips).where(inArray(trips.id, tripIds)) : Promise.resolve([]),
     microblogIds.length > 0 ? db.select().from(microblogs).where(inArray(microblogs.id, microblogIds)) : Promise.resolve([]),
     projectIds.length > 0 ? db.select().from(projects).where(inArray(projects.id, projectIds)) : Promise.resolve([]),
     db.select().from(collectionItems).where(and(eq(collectionItems.itemType, "person"), eq(collectionItems.itemId, personId))),
+    db.select().from(attachments).where(and(eq(attachments.entityType, "person"), eq(attachments.entityId, personId), eq(attachments.kind, "photo"))),
   ]);
 
   const collectionIds = colItemsRes.map((ci) => ci.collectionId);
   const collectionsRes = collectionIds.length > 0 ? await db.select().from(collections).where(inArray(collections.id, collectionIds)) : [];
 
-  return {
-    photos: photosRes.map((p) => ({
+  const allPhotos: ConnectedEntityItem<GalleryPhoto>[] = [
+    ...photosRes.map((p) => ({
       relationshipId: relMap.get(`photo_${p.id}`)?.relId,
       relationshipName: relMap.get(`photo_${p.id}`)?.name || "appears_in",
       entity: p,
     })),
+    ...photoAttachments.map((att) => {
+      let meta: any = {};
+      try {
+        meta = JSON.parse(att.metadataJson || "{}");
+      } catch {}
+      return {
+        relationshipId: att.id,
+        relationshipName: "photo",
+        entity: {
+          id: att.id,
+          title: meta.title || "Photo",
+          slug: att.id,
+          originalUrl: att.url,
+          largeUrl: att.url,
+          mediumUrl: att.url,
+          thumbnailUrl: att.url,
+          width: att.width,
+          height: att.height,
+          createdAt: att.createdAt,
+          updatedAt: att.createdAt,
+          visibility: "public",
+        } as GalleryPhoto,
+      };
+    }),
+  ];
+
+  return {
+    photos: allPhotos,
     locations: locationsRes.map((l) => ({
       relationshipId: relMap.get(`location_${l.id}`)?.relId,
       relationshipName: relMap.get(`location_${l.id}`)?.name || "visited",
@@ -541,12 +571,88 @@ export async function connectPersonToEntityAction(
   }
 }
 
+export interface BatchPhotoConnectItem {
+  type: "gallery" | "cloudinary";
+  id?: string; // Gallery photo id
+  url?: string; // Cloudinary secure url
+  title?: string;
+  publicId?: string;
+  width?: number;
+  height?: number;
+}
+
+export async function connectPersonPhotosBatchAction(
+  personId: string,
+  photos: BatchPhotoConnectItem[],
+  relationship: string = "appears_in"
+): Promise<{ success: boolean; error?: string; count?: number }> {
+  try {
+    await ensureDbInitialized();
+    const now = new Date().toISOString();
+
+    for (const photo of photos) {
+      if (photo.type === "gallery" && photo.id) {
+        await addRelationship("person", personId, "gallery", photo.id, relationship);
+      } else if (photo.type === "cloudinary" && photo.url) {
+        const id = `att_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        await db.insert(attachments).values({
+          id,
+          entityType: "person",
+          entityId: personId,
+          kind: "photo",
+          url: photo.url,
+          width: photo.width || null,
+          height: photo.height || null,
+          metadataJson: JSON.stringify({
+            title: photo.title || photo.publicId || "Photo",
+            publicId: photo.publicId,
+            provider: "cloudinary",
+          }),
+          createdAt: now,
+        });
+      }
+    }
+
+    purgeTag("people-list");
+    purgeTag(`person-${personId}`);
+    purgeTag(`person-connections-${personId}`);
+    purgeTag(`person-timeline-${personId}`);
+
+    const person = await db.select().from(persons).where(eq(persons.id, personId)).limit(1);
+    if (person[0]) {
+      try {
+        revalidatePath(`/people/${person[0].slug}`);
+      } catch {}
+    }
+
+    return { success: true, count: photos.length };
+  } catch (err: any) {
+    console.error("Error connecting photos in batch:", err);
+    return { success: false, error: err.message || "Failed to connect photos" };
+  }
+}
+
 export async function removePersonEntityConnectionAction(
   relationshipId: string,
   personSlug?: string
 ): Promise<{ success: boolean }> {
   await ensureDbInitialized();
-  await removeRelationship(relationshipId);
+  if (relationshipId.startsWith("att_")) {
+    await db.delete(attachments).where(eq(attachments.id, relationshipId));
+  } else {
+    // Check if it exists in attachments table first
+    const attExists = await db
+      .select({ id: attachments.id })
+      .from(attachments)
+      .where(eq(attachments.id, relationshipId))
+      .limit(1);
+
+    if (attExists[0]) {
+      await db.delete(attachments).where(eq(attachments.id, relationshipId));
+    } else {
+      await removeRelationship(relationshipId);
+    }
+  }
 
   purgeTag("people-list");
   if (personSlug) {
@@ -628,8 +734,8 @@ async function fetchPersonMemoryHubDataRaw(slug: string): Promise<PersonMemoryHu
     }
   }
 
-  // 2. Execute parallel batch IN queries + activity logs in 1 single Promise.all call!
-  const [photosRes, locationsRes, tripsRes, microblogsRes, projectsRes, colItemsRes, actRows] = await Promise.all([
+  // 2. Execute parallel batch IN queries + activity logs + attachments in 1 single Promise.all call!
+  const [photosRes, locationsRes, tripsRes, microblogsRes, projectsRes, colItemsRes, actRows, photoAttachments] = await Promise.all([
     photoIds.length > 0 ? db.select().from(gallery).where(inArray(gallery.id, photoIds)) : Promise.resolve([]),
     locationIds.length > 0 ? db.select().from(locations).where(inArray(locations.id, locationIds)) : Promise.resolve([]),
     tripIds.length > 0 ? db.select().from(trips).where(inArray(trips.id, tripIds)) : Promise.resolve([]),
@@ -637,17 +743,46 @@ async function fetchPersonMemoryHubDataRaw(slug: string): Promise<PersonMemoryHu
     projectIds.length > 0 ? db.select().from(projects).where(inArray(projects.id, projectIds)) : Promise.resolve([]),
     db.select().from(collectionItems).where(and(eq(collectionItems.itemType, "person"), eq(collectionItems.itemId, personId))),
     db.select().from(activities).where(and(eq(activities.entityType, "person"), eq(activities.entityId, personId))).orderBy(desc(activities.createdAt)).limit(30),
+    db.select().from(attachments).where(and(eq(attachments.entityType, "person"), eq(attachments.entityId, personId), eq(attachments.kind, "photo"))),
   ]);
 
   const collectionIds = colItemsRes.map((ci) => ci.collectionId);
   const collectionsRes = collectionIds.length > 0 ? await db.select().from(collections).where(inArray(collections.id, collectionIds)) : [];
 
-  const connections: PersonConnectionsResult = {
-    photos: photosRes.map((p) => ({
+  const allPhotos: ConnectedEntityItem<GalleryPhoto>[] = [
+    ...photosRes.map((p) => ({
       relationshipId: relMap.get(`photo_${p.id}`)?.relId,
       relationshipName: relMap.get(`photo_${p.id}`)?.name || "appears_in",
       entity: p,
     })),
+    ...photoAttachments.map((att) => {
+      let meta: any = {};
+      try {
+        meta = JSON.parse(att.metadataJson || "{}");
+      } catch {}
+      return {
+        relationshipId: att.id,
+        relationshipName: "photo",
+        entity: {
+          id: att.id,
+          title: meta.title || "Photo",
+          slug: att.id,
+          originalUrl: att.url,
+          largeUrl: att.url,
+          mediumUrl: att.url,
+          thumbnailUrl: att.url,
+          width: att.width,
+          height: att.height,
+          createdAt: att.createdAt,
+          updatedAt: att.createdAt,
+          visibility: "public",
+        } as GalleryPhoto,
+      };
+    }),
+  ];
+
+  const connections: PersonConnectionsResult = {
+    photos: allPhotos,
     locations: locationsRes.map((l) => ({
       relationshipId: relMap.get(`location_${l.id}`)?.relId,
       relationshipName: relMap.get(`location_${l.id}`)?.name || "visited",

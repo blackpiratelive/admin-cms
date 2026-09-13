@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import {
   connectPersonToEntityAction,
+  connectPersonPhotosBatchAction,
   removePersonEntityConnectionAction,
+  BatchPhotoConnectItem,
 } from "@/features/people/actions";
 import { addItemToCollectionAction } from "@/features/libraries/actions/collections";
 
@@ -14,11 +16,38 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { targetType, targetId, relationship } = body;
+
+    // Check if batch photos payload is provided
+    if (body.photos && Array.isArray(body.photos)) {
+      const result = await connectPersonPhotosBatchAction(
+        id,
+        body.photos as BatchPhotoConnectItem[],
+        body.relationship || "appears_in"
+      );
+      if (!result.success) {
+        return NextResponse.json({ error: result.error || "Failed to connect photos" }, { status: 400 });
+      }
+      return NextResponse.json(result, { status: 201 });
+    }
+
+    const { targetType, targetId, relationship, url, title, publicId } = body;
+
+    // Single Cloudinary photo connection support
+    if (targetType === "cloudinary" || targetType === "attachment") {
+      const result = await connectPersonPhotosBatchAction(
+        id,
+        [{ type: "cloudinary", url: url || targetId, title, publicId }],
+        relationship || "photo"
+      );
+      if (!result.success) {
+        return NextResponse.json({ error: result.error || "Failed to connect photo" }, { status: 400 });
+      }
+      return NextResponse.json(result, { status: 201 });
+    }
 
     if (!targetType || !targetId) {
       return NextResponse.json(
-        { error: "targetType and targetId are required" },
+        { error: "targetType and targetId (or photos array) are required" },
         { status: 400 }
       );
     }
