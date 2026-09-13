@@ -337,6 +337,7 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
   - `POST & DELETE /api/people/[id]/connections`: Bi-directional entity connection endpoints.
   - `GET /api/people/birthdays`: Upcoming birthdays within 60 days with age calculation and daysRemaining.
   - `GET /api/people/pickers`: Fast aggregated picker endpoint returning locations, trips, projects, microblogs, photos, collections.
+- **CI/CD Automation**: Configured dual GitHub Actions (`.github/workflows/build-people-apk.yml`) and CircleCI (`.circleci/config.yml`) workflows for automated analyze, test, release keystore signing, and ARM64 APK build artifacts.
 - **Quality Gates**: All 22 Flutter unit/widget tests pass (100%), 0 linter issues in `flutter analyze`, and all 67 Vitest backend tests pass cleanly. `android/` legacy client remained 100% clean and untouched.
 
 ### September 2026: Mobile Microblog v1.2.0 (Apple Liquid Glass Design System)

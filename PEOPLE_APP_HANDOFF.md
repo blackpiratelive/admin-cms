@@ -254,11 +254,15 @@ git status android/ # Must remain completely clean!
 
 ---
 
-## 8. CI/CD Pipeline (CircleCI)
+## 8. CI/CD Pipeline (GitHub Actions & CircleCI)
 
-The project includes an automated CircleCI workflow in `.circleci/config.yml` that builds an ARM64 release APK for `mobile-people`:
+### 8.1 GitHub Actions Workflow (`.github/workflows/build-people-apk.yml`)
+- **Trigger**: Automatic on pushes and PRs touching `mobile-people/**` or `.github/workflows/build-people-apk.yml`, plus manual trigger via `workflow_dispatch`.
+- **Environment**: `ubuntu-latest` with Java 17 (Temurin) and Flutter stable (cached).
+- **Quality Gates**: Runs `flutter pub get`, `flutter analyze` (0 issues enforced), and `flutter test` (100% passing).
+- **Keystore Automation**: Decodes and mounts release keystore if secrets are set (`KEYSTORE_BASE64` or `ANDROID_KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) in `key.properties`, falling back gracefully to debug signing.
+- **Build & Artifact**: Executes `flutter build apk --release --target-platform android-arm64` and publishes artifact `people-arm64-release`.
 
-- Job name: `build_people_apk_arm64`
-- Runs `flutter pub get`, `flutter analyze`, and `flutter test`.
-- Automatically signs the release APK if `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, and `KEY_ALIAS` secrets are present in CircleCI.
-- Stores the output artifact as `people-arm64-release.apk`.
+### 8.2 CircleCI Configuration (`.circleci/config.yml`)
+- **Job**: `build_people_apk_arm64` (Docker image: `cimg/android:2026.07-ndk`).
+- **Steps**: Installs Flutter SDK, runs static analysis & test suites, configures keystore, builds ARM64 release APK, and stores `people-arm64-release.apk`.
