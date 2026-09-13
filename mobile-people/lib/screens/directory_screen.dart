@@ -283,7 +283,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16,
-                                color: AppCupertinoTheme.primaryBlue,
+                                color: AppCupertinoTheme.brandAccent,
                               ),
                             ),
                           ),
@@ -305,7 +305,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                                 title: const Text('Only Favorites'),
                                 trailing: CupertinoSwitch(
                                   value: tempFavoriteOnly,
-                                  activeTrackColor: AppCupertinoTheme.primaryBlue,
+                                  activeTrackColor: AppCupertinoTheme.brandAccent,
                                   onChanged: (val) {
                                     setSheetState(() => tempFavoriteOnly = val);
                                   },
@@ -361,12 +361,12 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                                     decoration: BoxDecoration(
                                       color: isSelected
-                                          ? AppCupertinoTheme.primaryBlue
+                                          ? AppCupertinoTheme.brandAccent
                                           : AppCupertinoTheme.cardBackground.resolveFrom(context),
                                       borderRadius: BorderRadius.circular(18),
                                       border: Border.all(
                                         color: isSelected
-                                            ? AppCupertinoTheme.primaryBlue
+                                            ? AppCupertinoTheme.brandAccent
                                             : AppCupertinoTheme.cardBorder.resolveFrom(context),
                                         width: 0.8,
                                       ),
@@ -420,12 +420,12 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                                     alignment: Alignment.center,
                                     decoration: BoxDecoration(
                                       color: isSelected
-                                          ? AppCupertinoTheme.primaryBlue
+                                          ? AppCupertinoTheme.brandAccent
                                           : AppCupertinoTheme.cardBackground.resolveFrom(context),
                                       borderRadius: BorderRadius.circular(10),
                                       border: Border.all(
                                         color: isSelected
-                                            ? AppCupertinoTheme.primaryBlue
+                                            ? AppCupertinoTheme.brandAccent
                                             : AppCupertinoTheme.cardBorder.resolveFrom(context),
                                         width: 0.8,
                                       ),
@@ -464,7 +464,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                               width: double.infinity,
                               child: CupertinoSegmentedControl<String>(
                                 groupValue: tempVisibility,
-                                selectedColor: AppCupertinoTheme.primaryBlue,
+                                selectedColor: AppCupertinoTheme.brandAccent,
                                 unselectedColor: AppCupertinoTheme.cardBackground.resolveFrom(context),
                                 borderColor: AppCupertinoTheme.cardBorder.resolveFrom(context),
                                 children: const {
@@ -499,7 +499,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
     return CupertinoListTile(
       title: Text(title),
       trailing: isSelected
-          ? const Icon(CupertinoIcons.checkmark, color: AppCupertinoTheme.primaryBlue, size: 18)
+          ? const Icon(CupertinoIcons.checkmark, color: AppCupertinoTheme.brandAccent, size: 18)
           : null,
       onTap: () {
         HapticFeedback.selectionClick();
@@ -576,14 +576,10 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                         height: 44,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF007AFF), Color(0xFF6366F1)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
+                          gradient: AppCupertinoTheme.brandGradient,
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF007AFF).withValues(alpha: 0.32),
+                              color: AppCupertinoTheme.brandAccent.withValues(alpha: 0.32),
                               offset: const Offset(0, 3),
                               blurRadius: 10,
                             ),
@@ -656,11 +652,11 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                         height: 50,
                         decoration: BoxDecoration(
                           color: _hasActiveFilters
-                              ? AppCupertinoTheme.primaryBlue.withValues(alpha: 0.12)
+                              ? AppCupertinoTheme.brandAccent.withValues(alpha: 0.12)
                               : AppCupertinoTheme.subtleFill.resolveFrom(context),
                           borderRadius: BorderRadius.circular(14),
                           border: _hasActiveFilters
-                              ? Border.all(color: AppCupertinoTheme.primaryBlue, width: 1.2)
+                              ? Border.all(color: AppCupertinoTheme.brandAccent, width: 1.2)
                               : null,
                         ),
                         alignment: Alignment.center,
@@ -668,7 +664,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                           CupertinoIcons.slider_horizontal_3,
                           size: 20,
                           color: _hasActiveFilters
-                              ? AppCupertinoTheme.primaryBlue
+                              ? AppCupertinoTheme.brandAccent
                               : CupertinoColors.label,
                         ),
                       ),
@@ -710,12 +706,12 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
                           color: _hasActiveFilters
-                              ? AppCupertinoTheme.primaryBlue.withValues(alpha: 0.12)
+                              ? AppCupertinoTheme.brandAccent.withValues(alpha: 0.12)
                               : AppCupertinoTheme.subtleFill.resolveFrom(context),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                             color: _hasActiveFilters
-                                ? AppCupertinoTheme.primaryBlue
+                                ? AppCupertinoTheme.brandAccent
                                 : AppCupertinoTheme.cardBorder.resolveFrom(context),
                             width: 0.8,
                           ),
@@ -727,7 +723,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                               CupertinoIcons.slider_horizontal_3,
                               size: 13,
                               color: _hasActiveFilters
-                                  ? AppCupertinoTheme.primaryBlue
+                                  ? AppCupertinoTheme.brandAccent
                                   : CupertinoColors.label,
                             ),
                             const SizedBox(width: 4),
@@ -737,7 +733,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 color: _hasActiveFilters
-                                    ? AppCupertinoTheme.primaryBlue
+                                    ? AppCupertinoTheme.brandAccent
                                     : CupertinoColors.label,
                               ),
                             ),

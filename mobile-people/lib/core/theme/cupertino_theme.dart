@@ -4,16 +4,23 @@ class AppCupertinoTheme {
   // Brand / Tint Colors
   static const Color primaryPurple = Color(0xFF8B5CF6);
   static const Color primaryBlue = Color(0xFF007AFF);
-  static const Color brandAccent = Color(0xFF007AFF);
+  static const Color brandAccent = Color(0xFF8B5CF6);
   static const Color accentRose = Color(0xFFEC4899);
   static const Color favoriteGold = Color(0xFFF59E0B);
   static const Color statusGreen = CupertinoColors.systemGreen;
   static const Color statusRed = CupertinoColors.systemRed;
 
+  // Signature Brand Gradient (Purple-to-Pink)
+  static const LinearGradient brandGradient = LinearGradient(
+    colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
   // Cupertino Theme Factory
   static CupertinoThemeData get dynamicTheme {
     return const CupertinoThemeData(
-      primaryColor: primaryBlue,
+      primaryColor: brandAccent,
       applyThemeToAll: true,
       scaffoldBackgroundColor: CupertinoColors.systemGroupedBackground,
       barBackgroundColor: CupertinoDynamicColor.withBrightness(

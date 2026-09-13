@@ -19,7 +19,11 @@ class PersonFormModal extends StatefulWidget {
     required this.onSuccess,
   });
 
-  static Future<void> show(BuildContext context, {PersonRecord? personToEdit, required VoidCallback onSuccess}) {
+  static Future<void> show(
+    BuildContext context, {
+    PersonRecord? personToEdit,
+    required VoidCallback onSuccess,
+  }) {
     return Navigator.of(context).push(
       CupertinoPageRoute(
         fullscreenDialog: true,
@@ -80,6 +84,8 @@ class _PersonFormModalState extends State<PersonFormModal> {
   void initState() {
     super.initState();
     _populateFields();
+    _displayNameController.addListener(_onDisplayNameChanged);
+    _customRelationshipController.addListener(_onCustomRelationshipChanged);
   }
 
   void _populateFields() {
@@ -112,12 +118,11 @@ class _PersonFormModalState extends State<PersonFormModal> {
       _favorite = p.favorite;
       _importantDates = List.from(p.importantDates);
       _isAutoSlug = false;
-    } else {
-      _displayNameController.addListener(_onDisplayNameChanged);
     }
   }
 
   void _onDisplayNameChanged() {
+    setState(() {}); // Dynamically update person header
     if (_isAutoSlug) {
       final text = _displayNameController.text.trim().toLowerCase();
       final slug = text
@@ -128,9 +133,147 @@ class _PersonFormModalState extends State<PersonFormModal> {
     }
   }
 
+  void _onCustomRelationshipChanged() {
+    if (_relationshipType == 'Custom') {
+      setState(() {}); // Dynamically update relationship subtitle in header
+    }
+  }
+
+  String _getInitials() {
+    final name = _displayNameController.text.trim();
+    if (name.isEmpty) {
+      return widget.personToEdit?.initials ?? '';
+    }
+    final parts = name.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '';
+    if (parts.length == 1) {
+      return parts[0].substring(0, 1).toUpperCase();
+    }
+    return '${parts[0].substring(0, 1)}${parts[1].substring(0, 1)}'.toUpperCase();
+  }
+
+  // Interests Chip List Helpers
+  List<String> get _interestsList {
+    return _interestsController.text
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+  }
+
+  void _addInterest(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return;
+    final current = _interestsList;
+    if (!current.contains(trimmed)) {
+      current.add(trimmed);
+      setState(() {
+        _interestsController.text = current.join(', ');
+      });
+    }
+  }
+
+  void _removeInterest(String value) {
+    final current = _interestsList;
+    current.remove(value);
+    setState(() {
+      _interestsController.text = current.join(', ');
+    });
+  }
+
+  // Tags Chip List Helpers
+  List<String> get _tagsList {
+    return _tagsController.text
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+  }
+
+  void _addTag(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return;
+    final current = _tagsList;
+    if (!current.contains(trimmed)) {
+      current.add(trimmed);
+      setState(() {
+        _tagsController.text = current.join(', ');
+      });
+    }
+  }
+
+  void _removeTag(String value) {
+    final current = _tagsList;
+    current.remove(value);
+    setState(() {
+      _tagsController.text = current.join(', ');
+    });
+  }
+
+  void _showAddChipDialog({
+    required String title,
+    required String placeholder,
+    required ValueChanged<String> onAdd,
+  }) {
+    final textController = TextEditingController();
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: Text(title),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: CupertinoTextField(
+            controller: textController,
+            autofocus: true,
+            placeholder: placeholder,
+            onSubmitted: (val) {
+              Navigator.pop(ctx);
+              onAdd(val);
+            },
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(ctx),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            child: const Text('Add'),
+            onPressed: () {
+              Navigator.pop(ctx);
+              onAdd(textController.text);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatDisplayDate(String dateStr) {
+    if (dateStr.isEmpty) return 'Pick Date';
+    try {
+      final dt = DateTime.parse(dateStr);
+      return DateFormat('MMM d, yyyy').format(dt);
+    } catch (_) {
+      return dateStr;
+    }
+  }
+
+  static String _formatTimestamp(String? ts) {
+    if (ts == null || ts.isEmpty) return '—';
+    try {
+      final dt = DateTime.parse(ts).toLocal();
+      return DateFormat('MMM d, yyyy').format(dt);
+    } catch (_) {
+      return ts;
+    }
+  }
+
   @override
   void dispose() {
     _displayNameController.removeListener(_onDisplayNameChanged);
+    _customRelationshipController.removeListener(_onCustomRelationshipChanged);
     _displayNameController.dispose();
     _firstNameController.dispose();
     _lastNameController.dispose();
@@ -180,7 +323,7 @@ class _PersonFormModalState extends State<PersonFormModal> {
     showCupertinoModalPopup<void>(
       context: context,
       builder: (ctx) => CupertinoActionSheet(
-        title: const Text('Change Avatar Photo'),
+        title: const Text('Change Photo'),
         actions: [
           CupertinoActionSheetAction(
             onPressed: () {
@@ -310,17 +453,8 @@ class _PersonFormModalState extends State<PersonFormModal> {
             : 'Contact')
         : _relationshipType;
 
-    final interestsList = _interestsController.text
-        .split(',')
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
-
-    final tagsList = _tagsController.text
-        .split(',')
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
+    final interestsList = _interestsList;
+    final tagsList = _tagsList;
 
     final socialLinksMap = {
       'instagram': _instagramController.text.trim(),
@@ -380,9 +514,144 @@ class _PersonFormModalState extends State<PersonFormModal> {
     }
   }
 
+  void _confirmDelete() {
+    if (widget.personToEdit == null) return;
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Delete Contact'),
+        content: Text('Are you sure you want to delete ${widget.personToEdit!.displayName}?'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Cancel'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            child: const Text('Delete'),
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              try {
+                await ApiService.deletePerson(widget.personToEdit!.id);
+              } catch (_) {
+                await SyncService.queueMutation(
+                  type: 'delete_person',
+                  entityId: widget.personToEdit!.id,
+                  payload: {},
+                );
+              }
+              if (mounted) {
+                widget.onSuccess();
+                Navigator.of(context).pop();
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChipRow({
+    required List<String> items,
+    required ValueChanged<String> onRemove,
+    required VoidCallback onAdd,
+    required String addLabel,
+  }) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        ...items.map((item) {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: AppCupertinoTheme.subtleFill.resolveFrom(context),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  item,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: CupertinoColors.label,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    onRemove(item);
+                  },
+                  child: const Icon(
+                    CupertinoIcons.xmark,
+                    size: 12,
+                    color: CupertinoColors.secondaryLabel,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+        GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onAdd();
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: AppCupertinoTheme.brandAccent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppCupertinoTheme.brandAccent.withValues(alpha: 0.35),
+                width: 0.8,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  CupertinoIcons.plus,
+                  size: 12,
+                  color: AppCupertinoTheme.brandAccent,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  addLabel,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppCupertinoTheme.brandAccent,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = AppCupertinoTheme.isDark(context);
+
+    final rawName = _displayNameController.text.trim();
+    final headerName = rawName.isNotEmpty
+        ? rawName
+        : (widget.personToEdit != null ? widget.personToEdit!.displayName : 'New Contact');
+
+    final headerRelationship = _relationshipType == 'Custom'
+        ? (_customRelationshipController.text.trim().isNotEmpty
+            ? _customRelationshipController.text.trim()
+            : 'Custom')
+        : _relationshipType;
+
+    final initials = _getInitials();
 
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground,
@@ -398,7 +667,10 @@ class _PersonFormModalState extends State<PersonFormModal> {
           onPressed: _isSaving ? null : _handleSave,
           child: _isSaving
               ? const CupertinoActivityIndicator()
-              : const Text('Save', style: TextStyle(fontWeight: FontWeight.bold)),
+              : const Text(
+                  'Save',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
         ),
       ),
       child: SafeArea(
@@ -408,7 +680,7 @@ class _PersonFormModalState extends State<PersonFormModal> {
             // Error banner
             if (_errorMessage != null)
               Container(
-                margin: const EdgeInsets.all(16),
+                margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: CupertinoColors.systemRed.withValues(alpha: 0.12),
@@ -421,74 +693,108 @@ class _PersonFormModalState extends State<PersonFormModal> {
                 ),
               ),
 
-            // Top Avatar Photo Selector
-            const SizedBox(height: 16),
-            Center(
-              child: Stack(
+            // Profile Header: Focal Initials/Photo, Name, Relationship, Action
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+              child: Column(
                 children: [
                   GestureDetector(
                     onTap: _showAvatarOptions,
-                    child: Container(
-                      width: 86,
-                      height: 86,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF007AFF), Color(0xFF6366F1)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF007AFF).withValues(alpha: 0.35),
-                            blurRadius: 16,
-                            offset: const Offset(0, 4),
+                    child: Stack(
+                      children: [
+                        Container(
+                          width: 86,
+                          height: 86,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: AppCupertinoTheme.brandGradient,
                           ),
-                        ],
-                      ),
-                      child: _avatarUrlController.text.isNotEmpty
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(43),
-                              child: Image.network(
-                                _avatarUrlController.text,
-                                width: 86,
-                                height: 86,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => const Icon(
-                                  CupertinoIcons.person_fill,
-                                  color: CupertinoColors.white,
-                                  size: 44,
+                          child: _avatarUrlController.text.isNotEmpty
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(43),
+                                  child: Image.network(
+                                    _avatarUrlController.text,
+                                    width: 86,
+                                    height: 86,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => Center(
+                                      child: Text(
+                                        initials.isNotEmpty ? initials : '?',
+                                        style: const TextStyle(
+                                          color: CupertinoColors.white,
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : Center(
+                                  child: initials.isNotEmpty
+                                      ? Text(
+                                          initials,
+                                          style: const TextStyle(
+                                            color: CupertinoColors.white,
+                                            fontSize: 28,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        )
+                                      : const Icon(
+                                          CupertinoIcons.camera_fill,
+                                          color: CupertinoColors.white,
+                                          size: 34,
+                                        ),
                                 ),
+                        ),
+                        if (_isUploadingAvatar)
+                          Positioned.fill(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: CupertinoColors.black.withValues(alpha: 0.5),
                               ),
-                            )
-                          : const Icon(
-                              CupertinoIcons.camera_fill,
-                              color: CupertinoColors.white,
-                              size: 34,
+                              child: const Center(
+                                child: CupertinoActivityIndicator(color: CupertinoColors.white),
+                              ),
                             ),
+                          ),
+                      ],
                     ),
                   ),
-                  if (_isUploadingAvatar)
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: CupertinoColors.black.withValues(alpha: 0.5),
-                        ),
-                        child: const Center(
-                          child: CupertinoActivityIndicator(color: CupertinoColors.white),
-                        ),
+                  const SizedBox(height: 12),
+                  Text(
+                    headerName,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.4,
+                      color: CupertinoColors.label,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    headerRelationship,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: _showAvatarOptions,
+                    child: Text(
+                      _avatarUrlController.text.isNotEmpty ? 'Change Photo' : 'Add Photo',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppCupertinoTheme.brandAccent,
                       ),
                     ),
+                  ),
                 ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: CupertinoButton(
-                padding: EdgeInsets.zero,
-                onPressed: _showAvatarOptions,
-                child: const Text('Add / Change Photo', style: TextStyle(fontSize: 13)),
               ),
             ),
 
@@ -498,49 +804,35 @@ class _PersonFormModalState extends State<PersonFormModal> {
               children: [
                 CupertinoTextFormFieldRow(
                   controller: _displayNameController,
-                  prefix: const Text('Display Name *', style: TextStyle(fontSize: 15)),
-                  placeholder: 'Full name or callsign',
+                  prefix: const Text('Display name', style: TextStyle(fontSize: 15)),
+                  placeholder: 'Required',
                 ),
                 CupertinoTextFormFieldRow(
                   controller: _firstNameController,
-                  prefix: const Text('First Name', style: TextStyle(fontSize: 15)),
+                  prefix: const Text('First name', style: TextStyle(fontSize: 15)),
                   placeholder: 'Given name',
                 ),
                 CupertinoTextFormFieldRow(
                   controller: _lastNameController,
-                  prefix: const Text('Last Name', style: TextStyle(fontSize: 15)),
+                  prefix: const Text('Last name', style: TextStyle(fontSize: 15)),
                   placeholder: 'Family name',
                 ),
                 CupertinoTextFormFieldRow(
                   controller: _nicknameController,
                   prefix: const Text('Nickname', style: TextStyle(fontSize: 15)),
-                  placeholder: 'Alias / pet name',
-                ),
-                CupertinoTextFormFieldRow(
-                  controller: _slugController,
-                  prefix: const Text('URL Slug', style: TextStyle(fontSize: 15)),
-                  placeholder: 'john-doe',
-                  onChanged: (_) => _isAutoSlug = false,
+                  placeholder: '—',
                 ),
               ],
             ),
 
-            // Section 2: Relationship & Visibility
+            // Section 2: Relationship
             CupertinoListSection.insetGrouped(
-              header: const Text('RELATIONSHIP & VISIBILITY'),
+              header: const Text('RELATIONSHIP'),
               children: [
-                // Relationship Preset Selector
                 CupertinoListTile(
-                  title: const Text('Relationship'),
+                  title: const Text('Relationship', style: TextStyle(fontSize: 15)),
                   trailing: CupertinoButton(
                     padding: EdgeInsets.zero,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(_relationshipType, style: const TextStyle(fontSize: 15)),
-                        const Icon(CupertinoIcons.chevron_up_chevron_down, size: 14),
-                      ],
-                    ),
                     onPressed: () {
                       showCupertinoModalPopup(
                         context: context,
@@ -560,61 +852,116 @@ class _PersonFormModalState extends State<PersonFormModal> {
                         ),
                       );
                     },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _relationshipType,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            color: CupertinoColors.secondaryLabel,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(
+                          CupertinoIcons.chevron_right,
+                          size: 14,
+                          color: CupertinoColors.tertiaryLabel,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 if (_relationshipType == 'Custom')
                   CupertinoTextFormFieldRow(
                     controller: _customRelationshipController,
-                    prefix: const Text('Custom Label', style: TextStyle(fontSize: 15)),
+                    prefix: const Text('Custom label', style: TextStyle(fontSize: 15)),
                     placeholder: 'e.g. Bandmate, Gym Buddy',
                   ),
-
-                // Visibility Selector
                 CupertinoListTile(
-                  title: const Text('Visibility'),
-                  trailing: CupertinoSlidingSegmentedControl<String>(
-                    groupValue: _visibility,
-                    onValueChanged: (val) {
-                      if (val != null) setState(() => _visibility = val);
-                    },
-                    children: const {
-                      'private': Text('Private', style: TextStyle(fontSize: 11)),
-                      'unlisted': Text('Unlisted', style: TextStyle(fontSize: 11)),
-                      'public': Text('Public', style: TextStyle(fontSize: 11)),
-                    },
-                  ),
-                ),
-
-                // Favorite Switch
-                CupertinoListTile(
-                  title: const Text('Favorite Contact'),
                   leading: Icon(
                     CupertinoIcons.star_fill,
-                    color: _favorite ? const Color(0xFFF59E0B) : CupertinoColors.systemGrey,
+                    size: 20,
+                    color: _favorite ? AppCupertinoTheme.favoriteGold : CupertinoColors.systemGrey3,
                   ),
+                  title: const Text('Favorite', style: TextStyle(fontSize: 15)),
                   trailing: CupertinoSwitch(
                     value: _favorite,
+                    activeTrackColor: AppCupertinoTheme.favoriteGold,
                     onChanged: (val) => setState(() => _favorite = val),
                   ),
                 ),
               ],
             ),
 
-            // Section 3: Important Dates & Reminders
+            // Section 3: Privacy
+            CupertinoListSection.insetGrouped(
+              header: const Text('PRIVACY'),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Who can see this?',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: CupertinoColors.secondaryLabel,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: CupertinoSlidingSegmentedControl<String>(
+                          groupValue: _visibility,
+                          onValueChanged: (val) {
+                            if (val != null) setState(() => _visibility = val);
+                          },
+                          children: const {
+                            'private': Padding(
+                              padding: EdgeInsets.symmetric(vertical: 6),
+                              child: Text('Private', style: TextStyle(fontSize: 13)),
+                            ),
+                            'unlisted': Padding(
+                              padding: EdgeInsets.symmetric(vertical: 6),
+                              child: Text('Unlisted', style: TextStyle(fontSize: 13)),
+                            ),
+                            'public': Padding(
+                              padding: EdgeInsets.symmetric(vertical: 6),
+                              child: Text('Public', style: TextStyle(fontSize: 13)),
+                            ),
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            // Section 4: Important Dates
             CupertinoListSection.insetGrouped(
               header: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('IMPORTANT DATES & REMINDERS'),
+                  const Text('IMPORTANT DATES'),
                   CupertinoButton(
                     padding: EdgeInsets.zero,
                     onPressed: _addImportantDate,
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(CupertinoIcons.plus_circle_fill, size: 16),
+                        Icon(CupertinoIcons.plus_circle_fill, size: 15, color: AppCupertinoTheme.brandAccent),
                         SizedBox(width: 4),
-                        Text('Add Date', style: TextStyle(fontSize: 13)),
+                        Text(
+                          'Add Date',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppCupertinoTheme.brandAccent,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -623,15 +970,15 @@ class _PersonFormModalState extends State<PersonFormModal> {
               children: _importantDates.isEmpty
                   ? [
                       const CupertinoListTile(
-                        title: Text('No dates added', style: TextStyle(color: CupertinoColors.secondaryLabel)),
-                        subtitle: Text('Tap "Add Date" to register birthdays or anniversaries', style: TextStyle(fontSize: 12)),
+                        title: Text('No dates added', style: TextStyle(color: CupertinoColors.secondaryLabel, fontSize: 14)),
+                        subtitle: Text('Tap "Add Date" to register birthdays or anniversaries', style: TextStyle(fontSize: 12, color: CupertinoColors.tertiaryLabel)),
                       ),
                     ]
                   : _importantDates.asMap().entries.map((entry) {
                       final idx = entry.key;
                       final dateItem = entry.value;
                       return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -639,7 +986,7 @@ class _PersonFormModalState extends State<PersonFormModal> {
                               children: [
                                 Expanded(
                                   child: CupertinoTextField(
-                                    placeholder: 'Title (e.g. Birthday, Anniversary)',
+                                    placeholder: 'Title (e.g. Birthday)',
                                     controller: TextEditingController(text: dateItem.title)
                                       ..selection = TextSelection.collapsed(offset: dateItem.title.length),
                                     onChanged: (val) {
@@ -652,25 +999,27 @@ class _PersonFormModalState extends State<PersonFormModal> {
                                       );
                                     },
                                     decoration: BoxDecoration(
-                                      color: isDark ? const Color(0x25FFFFFF) : const Color(0x10000000),
+                                      color: AppCupertinoTheme.subtleFill.resolveFrom(context),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                    style: const TextStyle(fontSize: 14),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 CupertinoButton(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  color: isDark ? const Color(0x35FFFFFF) : const Color(0x15000000),
+                                  color: AppCupertinoTheme.subtleFill.resolveFrom(context),
                                   borderRadius: BorderRadius.circular(8),
                                   onPressed: () => _pickDateForIndex(idx),
                                   child: Text(
-                                    dateItem.date.isNotEmpty ? dateItem.date : 'Pick Date',
-                                    style: const TextStyle(fontSize: 13, color: CupertinoColors.label),
+                                    _formatDisplayDate(dateItem.date),
+                                    style: const TextStyle(fontSize: 13, color: CupertinoColors.label, fontWeight: FontWeight.w500),
                                   ),
                                 ),
+                                const SizedBox(width: 4),
                                 CupertinoButton(
-                                  padding: EdgeInsets.zero,
+                                  padding: const EdgeInsets.all(4),
                                   onPressed: () {
                                     setState(() => _importantDates.removeAt(idx));
                                   },
@@ -678,15 +1027,16 @@ class _PersonFormModalState extends State<PersonFormModal> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 8),
                             Row(
                               children: [
-                                const Icon(CupertinoIcons.bell, size: 14, color: Color(0xFFEC4899)),
+                                const Icon(CupertinoIcons.bell, size: 14, color: AppCupertinoTheme.accentRose),
                                 const SizedBox(width: 6),
-                                const Text('Device Notification', style: TextStyle(fontSize: 12)),
+                                const Text('Device Notification', style: TextStyle(fontSize: 13)),
                                 const Spacer(),
                                 CupertinoSwitch(
                                   value: dateItem.reminderEnabled,
+                                  activeTrackColor: AppCupertinoTheme.brandAccent,
                                   onChanged: (val) {
                                     setState(() {
                                       _importantDates[idx] = ImportantDate(
@@ -702,51 +1052,98 @@ class _PersonFormModalState extends State<PersonFormModal> {
                               ],
                             ),
                             if (idx < _importantDates.length - 1)
-                              Container(height: 0.5, color: CupertinoColors.separator, margin: const EdgeInsets.only(top: 8)),
+                              Container(
+                                height: 0.5,
+                                color: AppCupertinoTheme.cardBorder.resolveFrom(context),
+                                margin: const EdgeInsets.only(top: 10),
+                              ),
                           ],
                         ),
                       );
                     }).toList(),
             ),
 
-            // Section 4: Notes & Interests
+            // Section 5: Things to Remember
             CupertinoListSection.insetGrouped(
-              header: const Text('MEMORIES & TOPICS'),
+              header: const Text('THINGS TO REMEMBER'),
               children: [
                 Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Personal Notes (Markdown)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 6),
+                      const Text(
+                        'Personal notes',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: CupertinoColors.label,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       CupertinoTextField(
                         controller: _notesController,
-                        placeholder: 'Write personal gift ideas, stories, or memories...',
-                        maxLines: 4,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          color: isDark ? const Color(0x25FFFFFF) : const Color(0x10000000),
+                        placeholder: "Write something you'll want to remember later...",
+                        placeholderStyle: TextStyle(
+                          fontSize: 14,
+                          color: isDark ? CupertinoColors.systemGrey : CupertinoColors.systemGrey2,
                         ),
-                        padding: const EdgeInsets.all(10),
+                        style: const TextStyle(fontSize: 14, color: CupertinoColors.label),
+                        maxLines: 4,
+                        minLines: 3,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppCupertinoTheme.subtleFill.resolveFrom(context),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Interests',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: CupertinoColors.label,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildChipRow(
+                        items: _interestsList,
+                        onRemove: _removeInterest,
+                        onAdd: () => _showAddChipDialog(
+                          title: 'Add Interest',
+                          placeholder: 'e.g. Photography, Hiking, Coffee',
+                          onAdd: _addInterest,
+                        ),
+                        addLabel: 'Add',
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Tags',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: CupertinoColors.label,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildChipRow(
+                        items: _tagsList,
+                        onRemove: _removeTag,
+                        onAdd: () => _showAddChipDialog(
+                          title: 'Add Tag',
+                          placeholder: 'e.g. VIP, High school, Travel',
+                          onAdd: _addTag,
+                        ),
+                        addLabel: 'Add',
                       ),
                     ],
                   ),
                 ),
-                CupertinoTextFormFieldRow(
-                  controller: _interestsController,
-                  prefix: const Text('Interests', style: TextStyle(fontSize: 15)),
-                  placeholder: 'e.g. Photography, Hiking, Coffee',
-                ),
-                CupertinoTextFormFieldRow(
-                  controller: _tagsController,
-                  prefix: const Text('Tags', style: TextStyle(fontSize: 15)),
-                  placeholder: 'e.g. vip, highschool, travel',
-                ),
               ],
             ),
 
-            // Section 5: Social Profiles
+            // Section 6: Social Profiles
             CupertinoListSection.insetGrouped(
               header: const Text('SOCIAL PROFILES'),
               children: [
@@ -777,6 +1174,55 @@ class _PersonFormModalState extends State<PersonFormModal> {
                 ),
               ],
             ),
+
+            // Section 7: Advanced
+            CupertinoListSection.insetGrouped(
+              header: const Text('ADVANCED'),
+              children: [
+                CupertinoTextFormFieldRow(
+                  controller: _slugController,
+                  prefix: const Text('URL slug', style: TextStyle(fontSize: 15)),
+                  placeholder: 'john-doe',
+                  onChanged: (_) => _isAutoSlug = false,
+                ),
+                if (widget.personToEdit != null) ...[
+                  CupertinoListTile(
+                    title: const Text('Created', style: TextStyle(fontSize: 15)),
+                    trailing: Text(
+                      _formatTimestamp(widget.personToEdit!.createdAt),
+                      style: const TextStyle(fontSize: 14, color: CupertinoColors.secondaryLabel),
+                    ),
+                  ),
+                  CupertinoListTile(
+                    title: const Text('Last updated', style: TextStyle(fontSize: 15)),
+                    trailing: Text(
+                      _formatTimestamp(widget.personToEdit!.updatedAt),
+                      style: const TextStyle(fontSize: 14, color: CupertinoColors.secondaryLabel),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+
+            // Destructive Action: Delete Contact (when editing)
+            if (widget.personToEdit != null)
+              CupertinoListSection.insetGrouped(
+                children: [
+                  CupertinoListTile(
+                    title: const Center(
+                      child: Text(
+                        'Delete Contact',
+                        style: TextStyle(
+                          color: CupertinoColors.systemRed,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    onTap: _confirmDelete,
+                  ),
+                ],
+              ),
           ],
         ),
       ),

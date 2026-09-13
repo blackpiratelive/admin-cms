@@ -214,7 +214,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               header: const Text('SERVER CONNECTION'),
               children: [
                 CupertinoListTile(
-                  leading: _buildIconTile(CupertinoIcons.globe, AppCupertinoTheme.primaryBlue),
+                  leading: _buildIconTile(CupertinoIcons.globe, AppCupertinoTheme.brandAccent),
                   title: const Text('Server URL'),
                   subtitle: Text(
                     _serverUrl.isNotEmpty ? _serverUrl : 'Not configured',

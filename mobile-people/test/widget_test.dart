@@ -15,6 +15,7 @@ import 'package:mobile_people/widgets/person_card.dart';
 import 'package:mobile_people/screens/directory_screen.dart';
 import 'package:mobile_people/screens/settings_screen.dart';
 import 'package:mobile_people/screens/main_navigation_screen.dart';
+import 'package:mobile_people/screens/person_form_modal.dart';
 import 'package:mobile_people/main.dart';
 
 void main() {
@@ -545,6 +546,119 @@ void main() {
       // Verify Settings screen is shown
       expect(find.text('SERVER CONNECTION'), findsOneWidget);
       expect(find.text('Server URL'), findsOneWidget);
+    });
+  });
+
+  group('PersonFormModal Widget Tests', () {
+    testWidgets('renders redesigned New Contact modal with clean profile header and all sections', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1200, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        CupertinoApp(
+          home: PersonFormModal(
+            onSuccess: () {},
+          ),
+        ),
+      );
+
+      // Top navigation
+      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.text('New Contact'), findsWidgets);
+      expect(find.text('Save'), findsOneWidget);
+
+      // Profile Header & Action
+      expect(find.text('Friend'), findsWidgets);
+      expect(find.text('Add Photo'), findsOneWidget);
+
+      // Sections
+      expect(find.text('BASIC INFORMATION'), findsOneWidget);
+      expect(find.text('Display name'), findsOneWidget);
+      expect(find.text('First name'), findsOneWidget);
+      expect(find.text('Last name'), findsOneWidget);
+      expect(find.text('Nickname'), findsOneWidget);
+
+      expect(find.text('RELATIONSHIP'), findsOneWidget);
+      expect(find.text('Relationship'), findsOneWidget);
+      expect(find.text('Favorite'), findsOneWidget);
+
+      expect(find.text('PRIVACY'), findsOneWidget);
+      expect(find.text('Who can see this?'), findsOneWidget);
+      expect(find.text('Private'), findsOneWidget);
+      expect(find.text('Unlisted'), findsOneWidget);
+      expect(find.text('Public'), findsOneWidget);
+
+      expect(find.text('IMPORTANT DATES'), findsOneWidget);
+      expect(find.text('Add Date'), findsOneWidget);
+      expect(find.text('No dates added'), findsOneWidget);
+
+      expect(find.text('THINGS TO REMEMBER'), findsOneWidget);
+      expect(find.text('Personal notes'), findsOneWidget);
+      expect(find.text('Interests'), findsOneWidget);
+      expect(find.text('Tags'), findsOneWidget);
+
+      expect(find.text('SOCIAL PROFILES'), findsOneWidget);
+      expect(find.text('Instagram'), findsOneWidget);
+      expect(find.text('Facebook'), findsOneWidget);
+      expect(find.text('GitHub'), findsOneWidget);
+      expect(find.text('LinkedIn'), findsOneWidget);
+      expect(find.text('Website'), findsOneWidget);
+
+      expect(find.text('ADVANCED'), findsOneWidget);
+      expect(find.text('URL slug'), findsOneWidget);
+    });
+
+    testWidgets('renders Edit Contact modal with existing contact details and technical metadata', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1200, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const person = PersonRecord(
+        id: 'p_prince',
+        displayName: 'Prince Kumar',
+        firstName: 'Prince',
+        lastName: 'Kumar',
+        slug: 'prince-kumar',
+        relationshipType: 'Friend',
+        avatarUrl: 'https://example.com/prince.jpg',
+        favorite: true,
+        interests: ['photography', 'hiking'],
+        tags: ['vip'],
+        createdAt: '2026-01-15T10:00:00.000Z',
+        updatedAt: '2026-09-13T12:00:00.000Z',
+      );
+
+      await tester.pumpWidget(
+        CupertinoApp(
+          home: PersonFormModal(
+            personToEdit: person,
+            onSuccess: () {},
+          ),
+        ),
+      );
+
+      // Top navigation
+      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.text('Edit Contact'), findsOneWidget);
+      expect(find.text('Save'), findsOneWidget);
+
+      // Profile Header displays name dynamically
+      expect(find.text('Prince Kumar'), findsWidgets);
+      expect(find.text('Change Photo'), findsOneWidget);
+
+      // Interactive chips for interests and tags
+      expect(find.text('photography'), findsOneWidget);
+      expect(find.text('hiking'), findsOneWidget);
+      expect(find.text('vip'), findsOneWidget);
+
+      // Technical Advanced metadata and Delete Contact
+      expect(find.text('ADVANCED'), findsOneWidget);
+      expect(find.text('Created'), findsOneWidget);
+      expect(find.text('Last updated'), findsOneWidget);
+      expect(find.text('Delete Contact'), findsOneWidget);
     });
   });
 

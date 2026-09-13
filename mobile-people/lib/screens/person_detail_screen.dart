@@ -405,9 +405,9 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(8),
-                              color: const Color(0xFF007AFF).withValues(alpha: 0.16),
+                              color: AppCupertinoTheme.brandAccent.withValues(alpha: 0.16),
                               border: Border.all(
-                                color: const Color(0xFF007AFF).withValues(alpha: 0.35),
+                                color: AppCupertinoTheme.brandAccent.withValues(alpha: 0.35),
                                 width: 0.8,
                               ),
                             ),
@@ -416,7 +416,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                               style: const TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xFF007AFF),
+                                color: AppCupertinoTheme.brandAccent,
                               ),
                             ),
                           ),
@@ -1129,11 +1129,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
       height: size,
       decoration: const BoxDecoration(
         shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [Color(0xFF007AFF), Color(0xFF6366F1)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: AppCupertinoTheme.brandGradient,
       ),
       alignment: Alignment.center,
       child: Text(

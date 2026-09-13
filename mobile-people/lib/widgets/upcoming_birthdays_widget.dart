@@ -109,7 +109,7 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: AppCupertinoTheme.primaryBlue.withValues(alpha: 0.12),
+                    color: AppCupertinoTheme.brandAccent.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -121,7 +121,7 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: AppCupertinoTheme.primaryBlue,
+                      color: AppCupertinoTheme.brandAccent,
                     ),
                   ),
                 ),
@@ -177,14 +177,14 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: AppCupertinoTheme.primaryBlue,
+                        color: AppCupertinoTheme.brandAccent,
                       ),
                     ),
                     SizedBox(width: 2),
                     Icon(
                       CupertinoIcons.chevron_right,
                       size: 13,
-                      color: AppCupertinoTheme.primaryBlue,
+                      color: AppCupertinoTheme.brandAccent,
                     ),
                   ],
                 ),
@@ -325,7 +325,7 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                color: AppCupertinoTheme.brandAccent.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -334,7 +334,7 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
                   const Icon(
                     CupertinoIcons.gift_fill,
                     size: 12,
-                    color: Color(0xFF6366F1),
+                    color: AppCupertinoTheme.brandAccent,
                   ),
                   const SizedBox(width: 4),
                   Text(
@@ -342,7 +342,7 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF6366F1),
+                      color: AppCupertinoTheme.brandAccent,
                     ),
                   ),
                 ],
@@ -376,11 +376,7 @@ class UpcomingBirthdaysWidget extends StatelessWidget {
       height: size,
       decoration: const BoxDecoration(
         shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [Color(0xFF007AFF), Color(0xFF6366F1)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: AppCupertinoTheme.brandGradient,
       ),
       alignment: Alignment.center,
       child: Text(

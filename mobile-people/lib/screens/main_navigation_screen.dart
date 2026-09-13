@@ -29,7 +29,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     return CupertinoTabScaffold(
       controller: _tabController,
       tabBar: CupertinoTabBar(
-        activeColor: AppCupertinoTheme.primaryBlue,
+        activeColor: AppCupertinoTheme.brandAccent,
         inactiveColor: CupertinoColors.systemGrey,
         backgroundColor: CupertinoDynamicColor.resolve(
           AppCupertinoTheme.barBackground,

@@ -72,7 +72,7 @@ mobile-people/
 │       ├── person_card.dart               # Clean Cupertino person list row with subtle metadata & star action
 │       └── upcoming_birthdays_widget.dart # Compact Coming up cards with date badges & countdown pills
 └── test/
-    └── widget_test.dart                   # 22 comprehensive unit & widget tests (100% passing)
+    └── widget_test.dart                   # 24 comprehensive unit & widget tests (100% passing)
 ```
 
 ---
@@ -230,7 +230,7 @@ Run all automated checks prior to committing:
 cd mobile-people
 export PATH="/home/dog/flutter/bin:$PATH"
 flutter analyze    # Must report 0 issues
-flutter test       # Must pass 100% of tests (20/20 tests passing)
+flutter test       # Must pass 100% of tests (24/24 tests passing)
 
 # 2. Mobile Microblog App (verify no regression)
 cd mobile-microblog
@@ -263,6 +263,32 @@ git status android/ # Must remain completely clean!
 ---
 
 ## 9. Recent Updates & Architectural Changelog
+
+### Version 1.3.0 — Native Personal Relationship Manager UI Redesign & Edit Contact Revamp (September 2026)
+
+1. **Brand Accent & Restrained Personality**:
+   - Re-anchored brand accent to signature purple (`#8B5CF6`) and pink (`#EC4899`) palette with `AppCupertinoTheme.brandGradient`.
+   - Selected navigation tab in `MainNavigationScreen` uses the purple brand accent; inactive tab is muted gray.
+   - Restrained styling: applied purple/pink accent strictly to primary actions, selected navigation, filter controls, initials avatars, and subtle interactive highlights, avoiding full-screen purple washes or glowing shadows.
+
+2. **Complete Profile-Oriented Edit Contact Redesign (`PersonFormModal`)**:
+   - **Person Header**: Replaced the isolated camera button with a profile-oriented header featuring a central initials/photo avatar on the brand gradient, dynamic display name and relationship subtitle, and clean "Change Photo" / "Add Photo" action.
+   - **Basic Information**: Clean iOS grouped form with Display name, First name, Last name, and Nickname with subtle dividers.
+   - **Relationship Section**: Dedicated section with native picker disclosure sheet and Favorite star switch.
+   - **Privacy Section**: Visually separated section with "Who can see this?" prompt and refined sliding segmented control (`private`, `unlisted`, `public`).
+   - **Important Dates Section**: Renamed to "Important dates", displaying formatted dates, notification reminders, and fast add modal.
+   - **Things to Remember Section**: Renamed from "Memories & Topics" with personal notebook-styled multiline notes, and interactive chip lists for Interests and Tags with one-tap add and removal.
+   - **Social Profiles Section**: Compact iOS inset-grouped rows for Instagram, Facebook, GitHub, LinkedIn, and Website.
+   - **Advanced Technical Section**: Demoted URL slug to a lower-level advanced section with Created and Last updated timestamps, and clearly separated destructive Delete Contact action.
+
+3. **Settings Screen Refinements (`SettingsScreen`)**:
+   - Re-aligned icon tiles to brand accent and iOS system colors.
+
+4. **Verification & Quality Gates**:
+   - `flutter analyze` reports 0 issues.
+   - 24/24 unit and widget tests passing in `test/widget_test.dart` (added comprehensive test coverage for `PersonFormModal` in both new and edit modes).
+   - 100% passing across `mobile-microblog` (13/13) and Vitest (67/67).
+   - `android/` directory remains strictly untouched and clean.
 
 ### Version 1.2.0 — Native iOS Design System & Homepage Redesign (September 2026)
 

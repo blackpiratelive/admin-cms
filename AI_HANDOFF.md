@@ -359,7 +359,12 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
   - `GET /api/people/birthdays`: Upcoming birthdays within 60 days with age calculation and daysRemaining.
   - `GET /api/people/pickers`: Fast aggregated picker endpoint returning locations, trips, projects, microblogs, photos, collections.
 - **CI/CD Automation**: Configured dual GitHub Actions (`.github/workflows/build-people-apk.yml`) and CircleCI (`.circleci/config.yml`) workflows for automated analyze, test, release keystore signing, and ARM64 APK build artifacts.
-- **Quality Gates**: All 22 Flutter unit/widget tests pass (100%), 0 linter issues in `flutter analyze`, and all 67 Vitest backend tests pass cleanly. `android/` legacy client remained 100% clean and untouched.
+- **Quality Gates**: All 24 Flutter unit/widget tests pass (100%), 0 linter issues in `flutter analyze`, and all 67 Vitest backend tests pass cleanly. `android/` legacy client remained 100% clean and untouched.
+
+### September 2026: Mobile People v1.3.0 (Native Personal Relationship Manager UI Redesign)
+- **Brand Accent & Restrained Personality**: Re-anchored to purple (`#8B5CF6`) and pink (`#EC4899`) signature palette with `brandGradient`; selected navigation tab and filter states use the purple brand accent without excessive full-screen washes or glowing shadows.
+- **Profile-Oriented Edit Contact Redesign**: Transformed `PersonFormModal` from a database form into a profile editor featuring dynamic initials/photo header, clean inset-grouped Basic Information, dedicated Relationship section with disclosure picker, visually separated Privacy section with segmented control, human "Things to remember" section with notebook notes and interactive chips for Interests/Tags, compact Social Profiles, and low-priority Advanced section with URL slug and timestamps.
+- **Quality Gates**: 24/24 Flutter unit and widget tests pass (100%), 0 issues in `flutter analyze`. `android/` legacy client remained 100% clean and untouched.
 
 ### September 2026: Mobile Microblog v1.2.0 (Apple Liquid Glass Design System)
 - **Living Aurora Canvas**: Replaced static backgrounds with `AmbientMeshBackground`, rendering soft, dynamic glowing radial gradient auroras (Electric Indigo, Royal Violet, and Cyan in Dark Mode; Sky Blue, Lavender, Peach, and Mint in Light Mode) with real-time scroll parallax tracking.
