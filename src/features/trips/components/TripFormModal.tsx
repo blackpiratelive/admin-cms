@@ -136,7 +136,7 @@ export function TripFormModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ overflowY: "auto", flex: 1, padding: "20px" }}>
+        <form onSubmit={handleSubmit} className="modal-form" style={{ overflowY: "auto", flex: 1, padding: "20px" }}>
           {error && (
             <div style={{ backgroundColor: "rgba(239,68,68,0.1)", color: "#ef4444", padding: "10px", borderRadius: "4px", fontSize: "13px", marginBottom: "14px" }}>
               {error}

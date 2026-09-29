@@ -226,6 +226,7 @@ The database consists of **52 SQLite tables** managed via Drizzle ORM:
 - **Overflow-Safe App Shell**: `.app-container` and `.main-content` (`src/app/globals.css`) use `max-width: 100%` + `overflow-x: clip` so a stray wide child can never introduce horizontal page scrolling. `.main-content` padding tightens to `16px 12px` on mobile.
 - **Non-Overflowing Sticky Header**: `.top-header` is a flex row with `gap` and a shrinkable left cluster (`min-width: 0; overflow: hidden`). The brand label truncates with ellipsis; `.header-right` is `flex-shrink: 0` so action buttons stay intact.
 - **Adaptive Header Controls (`Header.tsx` + `@media (max-width: 768px)`)**: On phones the `HUGO + TURSO` brand badge, the "Search Everything..." label + `Ctrl+K` kbd hint (`.header-search-label` / `.header-search-kbd`), and the "Logout" label (`.header-logout-label`) are hidden, collapsing the Command Palette trigger and logout to icon-only buttons that fit narrow viewports.
+- **Form Modal Mobile Optimization**: Defined the previously-missing shared `.form-input` control (`width: 100%; box-sizing: border-box; min-width: 0`) so inputs/selects/textareas in `PersonFormModal`, `LocationFormModal`, `TripFormModal` (and everywhere else the class is used) stretch to their container instead of overflowing at intrinsic browser width. Each form carries the `modal-form` class, and `@media (max-width: 640px) .modal-form [style*="grid-template-columns"]` collapses all inline two/three-column field grids to a single column on phones.
 
 ---
 

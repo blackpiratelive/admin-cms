@@ -315,7 +315,7 @@ export function PersonFormModal({
         </div>
 
         {/* Modal Content Form */}
-        <form onSubmit={handleSubmit} style={{ overflowY: "auto", flex: 1, padding: "20px" }}>
+        <form onSubmit={handleSubmit} className="modal-form" style={{ overflowY: "auto", flex: 1, padding: "20px" }}>
           {error && (
             <div
               style={{

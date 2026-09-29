@@ -620,6 +620,46 @@ a:hover {
   font-weight: 600;
 }
 
+/* Shared form control used across all entity form modals (person, location,
+   trip, etc.). Was previously undefined, so inputs fell back to intrinsic
+   browser widths and overflowed narrow modal columns on mobile. */
+.form-input {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.4;
+  border-radius: 4px;
+  outline: none;
+}
+
+.form-input:focus {
+  border-color: var(--accent);
+}
+
+textarea.form-input {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+select.form-input {
+  cursor: pointer;
+}
+
+/* Collapse inline two/three-column grids inside form modals to a single
+   column on phones so fields are never cramped or clipped. */
+@media (max-width: 640px) {
+  .modal-form [style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 /* Todo module */
 .todo-layout {
   display: grid;
