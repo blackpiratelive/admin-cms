@@ -55,6 +55,8 @@ export function Header({ onToggleSidebar, sidebarOpen }: HeaderProps) {
         <div className="header-right" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <button
             onClick={() => setPaletteOpen(true)}
+            className="header-search-btn"
+            aria-label="Search everything"
             style={{
               display: "flex",
               alignItems: "center",
@@ -69,8 +71,9 @@ export function Header({ onToggleSidebar, sidebarOpen }: HeaderProps) {
             }}
           >
             <Search size={13} style={{ color: "var(--text-muted)" }} />
-            <span>Search Everything...</span>
+            <span className="header-search-label">Search Everything...</span>
             <kbd
+              className="header-search-kbd"
               style={{
                 fontSize: "10px",
                 padding: "1px 4px",
@@ -89,7 +92,7 @@ export function Header({ onToggleSidebar, sidebarOpen }: HeaderProps) {
           <form action={logoutAction}>
             <button type="submit" className="btn btn-sm" title="Log out">
               <LogOut size={14} />
-              <span>Logout</span>
+              <span className="header-logout-label">Logout</span>
             </button>
           </form>
         </div>
