@@ -13,6 +13,7 @@ import {
 } from "@/features/trips/actions";
 import { getLocations, removeLocationTripConnection } from "@/features/locations/actions";
 import { TripFormModal } from "@/features/trips/components/TripFormModal";
+import { TripItineraryTab } from "@/features/trips/components/TripItineraryTab";
 import {
   ArrowLeft,
   Compass,
@@ -30,6 +31,7 @@ import {
   EyeOff,
   ChevronRight,
   Globe,
+  CalendarDays,
 } from "lucide-react";
 import { getBrowserCache, setBrowserCache } from "@/lib/client-cache";
 
@@ -47,7 +49,7 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedLocToConnect, setSelectedLocToConnect] = useState("");
   const [connectingLoc, setConnectingLoc] = useState(false);
-  const [activeTab, setActiveTab] = useState<"locations" | "photos" | "microblogs" | "movies" | "people">("locations");
+  const [activeTab, setActiveTab] = useState<"itinerary" | "locations" | "photos" | "microblogs" | "movies" | "people">("itinerary");
 
   const loadTripData = useCallback(async () => {
     const cacheKey = `swr_trip_detail_${slug}`;
@@ -204,6 +206,26 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
       {/* Tabs Switcher */}
       <div style={{ display: "flex", borderBottom: "1px solid var(--border-color)", gap: "16px" }}>
         <button
+          onClick={() => setActiveTab("itinerary")}
+          style={{
+            background: "none",
+            border: "none",
+            borderBottom: activeTab === "itinerary" ? "2px solid var(--accent)" : "2px solid transparent",
+            color: activeTab === "itinerary" ? "var(--accent)" : "var(--text-muted)",
+            fontWeight: activeTab === "itinerary" ? 700 : 500,
+            padding: "8px 12px",
+            cursor: "pointer",
+            fontSize: "14px",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+          }}
+        >
+          <CalendarDays size={16} />
+          <span>Itinerary</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab("locations")}
           style={{
             background: "none",
@@ -303,6 +325,9 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
           <span>People Joined ({entities?.people.length || 0})</span>
         </button>
       </div>
+
+      {/* TAB 0: ITINERARY (day-by-day journal) */}
+      {activeTab === "itinerary" && <TripItineraryTab trip={trip} />}
 
       {/* TAB 1: LOCATIONS VISITED */}
       {activeTab === "locations" && (

@@ -372,6 +372,26 @@ export async function ensureDbInitialized(): Promise<void> {
           updated_at TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS trip_days (
+          id TEXT PRIMARY KEY,
+          trip_id TEXT NOT NULL,
+          day_number INTEGER NOT NULL,
+          date TEXT,
+          title TEXT,
+          primary_location_id TEXT,
+          primary_location_name TEXT,
+          transport_json TEXT NOT NULL DEFAULT '[]',
+          meals_json TEXT NOT NULL DEFAULT '[]',
+          activities_json TEXT NOT NULL DEFAULT '[]',
+          accommodation_json TEXT NOT NULL DEFAULT '{}',
+          photos_json TEXT NOT NULL DEFAULT '[]',
+          weather TEXT,
+          mood INTEGER,
+          notes_markdown TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS persons (
           id TEXT PRIMARY KEY,
           display_name TEXT NOT NULL,

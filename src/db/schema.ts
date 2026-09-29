@@ -136,6 +136,26 @@ export const trips = sqliteTable("trips", {
   updatedAt: text("updated_at").notNull(),
 });
 
+export const tripDays = sqliteTable("trip_days", {
+  id: text("id").primaryKey(),
+  tripId: text("trip_id").notNull(),
+  dayNumber: integer("day_number").notNull(),
+  date: text("date"),
+  title: text("title"),
+  primaryLocationId: text("primary_location_id"),
+  primaryLocationName: text("primary_location_name"),
+  transportJson: text("transport_json").notNull().default("[]"),
+  mealsJson: text("meals_json").notNull().default("[]"),
+  activitiesJson: text("activities_json").notNull().default("[]"),
+  accommodationJson: text("accommodation_json").notNull().default("{}"),
+  photosJson: text("photos_json").notNull().default("[]"),
+  weather: text("weather"),
+  mood: integer("mood"),
+  notesMarkdown: text("notes_markdown"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 export const persons = sqliteTable("persons", {
   id: text("id").primaryKey(),
   displayName: text("display_name").notNull(),
@@ -513,6 +533,8 @@ export type LocationRecord = typeof locations.$inferSelect;
 export type NewLocation = typeof locations.$inferInsert;
 export type TripRecord = typeof trips.$inferSelect;
 export type NewTrip = typeof trips.$inferInsert;
+export type TripDayRecord = typeof tripDays.$inferSelect;
+export type NewTripDay = typeof tripDays.$inferInsert;
 export type PersonRecord = typeof persons.$inferSelect;
 export type NewPerson = typeof persons.$inferInsert;
 export type TagRecord = typeof tags.$inferSelect;

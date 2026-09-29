@@ -71,7 +71,7 @@ admin-cms/
 │   │   ├── search/              # Universal fuzzy multi-table search engine (search_index)
 │   │   ├── people/              # Personal relationship server actions, Memory Hub & parallel batch query engine
 │   │   ├── locations/           # Location CRUD actions, detail hub & trip associations
-│   │   ├── trips/               # Trip management server actions & location linkage
+│   │   ├── trips/               # Trip management server actions, location linkage & day-by-day journal (day-actions.ts, day-helpers.ts)
 │   │   ├── auth/                # Session cookies, password check, login server actions
 │   │   ├── microblog/           # Microblog actions, Zod validation, Editor & List
 │   │   ├── libraries/           # Personal media libraries & metadata preservation
@@ -84,7 +84,7 @@ admin-cms/
 │   │   ├── event-bus.ts         # Internal event pub-sub bus
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
-├── tests/                       # Vitest unit test suite (73 unit tests)
+├── tests/                       # Vitest unit test suite (77 unit tests)
 ├── freshrss.md                  # FreshRSS Sync Provider feature specification
 ├── android-journal.md           # Native Android Journal Application specification
 ├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
@@ -96,11 +96,12 @@ admin-cms/
 
 ## 3. Database Schema Reference (`src/db/schema.ts`)
 
-The database consists of **52 SQLite tables** managed via Drizzle ORM:
+The database consists of **53 SQLite tables** managed via Drizzle ORM:
 
 ### 3.1 Core Entity Tables
 - **`locations`**: Stores geographical locations. `id` (`loc_${ts}_${rand}`), `name`, `slug`, `country`, `state`, `city`, `latitude`, `longitude`, `elevation`, `timezone`, `firstVisited`, `lastVisited`, `visitCount`, `privateNotes`, `publicDescription`, `tags` (JSON string array), `visibility` (`public` | `private` | `unlisted`), `favorite`, `photographyNotes`, `parkingNotes`, `walkingDifficulty`, `weatherNotes`, `bestSeason`, `bestTimeOfDay`, `cameraRecommendations`, `personalRating`.
 - **`trips`**: Travel itineraries and trip groupings. `id` (`trip_${ts}_${rand}`), `title`, `slug`, `description`, `startDate`, `endDate`, `status` (`planned` | `ongoing` | `completed` | `cancelled`), `visibility`, `favorite`, `tags`.
+- **`trip_days`**: Per-day travel journal entries for a trip (one row per day). `id` (`tripday_${ts}_${rand}`), `tripId`, `dayNumber` (1-based ordering), `date` (ISO `YYYY-MM-DD`), `title`, `primaryLocationId` (→ `locations`) / `primaryLocationName` (free-text fallback), `transportJson` (legs: mode `walk`|`bike`|`bus`|`train`|`flight`|`car`|`taxi`|`boat`|`other`, from/to, times, cost+currency), `mealsJson` (type `breakfast`|`lunch`|`dinner`|`snack`|`drinks`, place, dishes, rating, cost), `activitiesJson`, `accommodationJson`, `photosJson` (Cloudinary URLs), `weather`, `mood` (1–5), `notesMarkdown`. Cost roll-ups are computed at read time and grouped by currency.
 - **`persons`**: Personal relationship contacts & Memory Hub. `id` (`person_${ts}_${rand}`), `displayName`, `name` (legacy fallback), `firstName`, `lastName`, `nickname`, `slug`, `avatarUrl`, `relationshipType` (`Family`, `Friend`, `Partner`, `Relative`, `Colleague`, `Classmate`, `Neighbor`, `Mentor`), `importantDatesJson` (JSON array), `notesMarkdown`, `interests`, `socialLinksJson` (JSON object including Facebook, Twitter, Instagram, LinkedIn), `visibility`, `favorite`, `tags`.
 - **`tags`** & **`entity_tags`**: Tag registry (`id`, `name`, `description`, `color`) and generic entity tag linkages (`id`, `tagId`, `entityType`, `entityId`).
 - **`relationships`**: Generic Relationship Engine table. `id` (`rel_${ts}_${rand}`), `sourceType`, `sourceId`, `targetType`, `targetId`, `relationship` (`taken_at`, `watched_at`, `belongs_to`, `mentions`, `contains`, `related_to`, `references`, `includes_location`).
@@ -232,6 +233,12 @@ The database consists of **52 SQLite tables** managed via Drizzle ORM:
 ### 4.7 Location Search & Autocomplete (Mapbox Geocoding)
 - **Server-Side Geocoding Proxy (`/api/geocode`)**: `GET /api/geocode?q=...` proxies Mapbox Geocoding API v6 forward geocoding server-side so `MAPBOX_TOKEN` is never exposed to the client. Returns a normalized flat `GeocodeResult[]` (`id`, `name`, `label`, `city`, `state`, `country`, `latitude`, `longitude`). Bounded by a 4s `AbortController` timeout; returns `501` when `MAPBOX_TOKEN` is unset, `502` on upstream errors, `504` on timeout, and an empty result set for queries under 2 characters.
 - **Live Autocomplete in `LocationFormModal`**: A "Search for a place" field at the top of the Add/Edit Location modal debounces input (300ms), cancels in-flight requests via `AbortController`, and renders a keyboard-navigable dropdown (↑/↓/Enter/Esc). Selecting a result auto-fills name, city, state, country, latitude, and longitude — all fields remain manually editable afterward. Requires `MAPBOX_TOKEN` in the environment; when absent, manual entry still works and the UI surfaces a clear message.
+
+### 4.8 Trip Day-by-Day Travel Journal (`src/features/trips/`)
+- **Data model**: A single `trip_days` table (see §3.1) holds one row per day with structured repeatable lists stored as JSON columns (transport legs, meals, activities), following the codebase's established JSON-column idiom. Days link to the trip by `tripId` and are ordered by `dayNumber` then `date`.
+- **Server actions (`day-actions.ts`)**: `getTripDaysAction`, `generateTripDaysFromDatesAction` (idempotently creates one empty day per date in `[startDate, endDate]`, filling only gaps), `addTripDayAction`, `updateTripDayAction` (structured payload → JSON server-side), and `deleteTripDayAction`. Writes purge `trips-list`/`trip-${id}`/`trip-${slug}` and `revalidatePath('/trips/${slug}')`. Days are lazy-loaded in the Itinerary tab rather than bloating the cached trip-hub batch.
+- **Pure helpers (`day-helpers.ts`)**: Non-server module holding the entry interfaces, `TRANSPORT_MODES`/`MEAL_TYPES`, `parseTripDay`, `enumerateDateRange`, and cost roll-up helpers (`computeDayCost`, `computeTripCostSummary`, `formatCostTotals`) — spend is grouped by currency and computed at read time (e.g. `₹4,500 + $30`). Reused by both the UI and unit tests.
+- **UI**: A new first "Itinerary" tab on `/trips/[slug]` renders `TripItineraryTab` — a spend summary + day-count header with "Auto-generate days" (shown when the trip has dates) and "Add day" buttons, and a vertical timeline of day cards. `TripDayEditorModal` edits a day (title/date/primary location, repeatable transport/meals/activities rows, accommodation, weather/mood, Cloudinary photos, markdown notes) with a reusable select-or-custom `LocationPickerField`, saving via a background `notify.bg(...)` toast. Day details follow the trip's visibility; publishing day-by-day to the public Hugo site is a noted follow-up.
 
 ---
 
