@@ -52,6 +52,7 @@ admin-cms/
 │   │   │   ├── gallery/         # Public REST API for gallery photos
 │   │   │   ├── movies/          # Public REST API for movies
 │   │   │   ├── people/          # People & Memory Hub REST API (CRUD, /birthdays, /pickers, /[id]/favorite, /[id]/connections)
+│   │   │   ├── geocode/         # Mapbox forward-geocoding proxy for Location search autocomplete (keeps MAPBOX_TOKEN server-side)
 │   │   │   └── journal/         # Journal Sync & E2EE API (/status, /keys, /settings, /entries, /sync, /assets)
 │   │   ├── globals.css          # Design tokens, themes (HN Orange, Dark, Mono, Teal)
 │   │   └── layout.tsx           # Root layout & ThemeProvider
@@ -83,7 +84,7 @@ admin-cms/
 │   │   ├── event-bus.ts         # Internal event pub-sub bus
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
-├── tests/                       # Vitest unit test suite (69 unit tests)
+├── tests/                       # Vitest unit test suite (73 unit tests)
 ├── freshrss.md                  # FreshRSS Sync Provider feature specification
 ├── android-journal.md           # Native Android Journal Application specification
 ├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
@@ -227,6 +228,10 @@ The database consists of **52 SQLite tables** managed via Drizzle ORM:
 - **Non-Overflowing Sticky Header**: `.top-header` is a flex row with `gap` and a shrinkable left cluster (`min-width: 0; overflow: hidden`). The brand label truncates with ellipsis; `.header-right` is `flex-shrink: 0` so action buttons stay intact.
 - **Adaptive Header Controls (`Header.tsx` + `@media (max-width: 768px)`)**: On phones the `HUGO + TURSO` brand badge, the "Search Everything..." label + `Ctrl+K` kbd hint (`.header-search-label` / `.header-search-kbd`), and the "Logout" label (`.header-logout-label`) are hidden, collapsing the Command Palette trigger and logout to icon-only buttons that fit narrow viewports.
 - **Form Modal Mobile Optimization**: Defined the previously-missing shared `.form-input` control (`width: 100%; box-sizing: border-box; min-width: 0`) so inputs/selects/textareas in `PersonFormModal`, `LocationFormModal`, `TripFormModal` (and everywhere else the class is used) stretch to their container instead of overflowing at intrinsic browser width. Each form carries the `modal-form` class, and `@media (max-width: 640px) .modal-form [style*="grid-template-columns"]` collapses all inline two/three-column field grids to a single column on phones.
+
+### 4.7 Location Search & Autocomplete (Mapbox Geocoding)
+- **Server-Side Geocoding Proxy (`/api/geocode`)**: `GET /api/geocode?q=...` proxies Mapbox Geocoding API v6 forward geocoding server-side so `MAPBOX_TOKEN` is never exposed to the client. Returns a normalized flat `GeocodeResult[]` (`id`, `name`, `label`, `city`, `state`, `country`, `latitude`, `longitude`). Bounded by a 4s `AbortController` timeout; returns `501` when `MAPBOX_TOKEN` is unset, `502` on upstream errors, `504` on timeout, and an empty result set for queries under 2 characters.
+- **Live Autocomplete in `LocationFormModal`**: A "Search for a place" field at the top of the Add/Edit Location modal debounces input (300ms), cancels in-flight requests via `AbortController`, and renders a keyboard-navigable dropdown (↑/↓/Enter/Esc). Selecting a result auto-fills name, city, state, country, latitude, and longitude — all fields remain manually editable afterward. Requires `MAPBOX_TOKEN` in the environment; when absent, manual entry still works and the UI surfaces a clear message.
 
 ---
 

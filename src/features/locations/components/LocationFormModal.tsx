@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { LocationRecord } from "@/db/schema";
 import { createLocation, updateLocation } from "@/features/locations/actions";
 import { notify } from "@/lib/notifications";
-import { X } from "lucide-react";
+import { X, Search, Loader2, MapPin } from "lucide-react";
+import type { GeocodeResult } from "@/app/api/geocode/route";
 
 interface LocationFormModalProps {
   isOpen: boolean;
@@ -38,6 +39,98 @@ export function LocationFormModal({
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // --- Location search (Mapbox forward geocoding via /api/geocode) ---
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<GeocodeResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const searchAbortRef = useRef<AbortController | null>(null);
+  const searchBoxRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (query.length < 2) {
+      setSearchResults([]);
+      setSearchError(null);
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      searchAbortRef.current?.abort();
+      const controller = new AbortController();
+      searchAbortRef.current = controller;
+      try {
+        const res = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`, {
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setSearchError(data?.error || "Location search failed");
+          setSearchResults([]);
+        } else {
+          setSearchResults(data.results || []);
+          setSearchError(null);
+          setSearchOpen(true);
+          setActiveIndex(-1);
+        }
+      } catch (err: any) {
+        if (err?.name !== "AbortError") {
+          setSearchError("Location search failed");
+          setSearchResults([]);
+        }
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Close the results dropdown when clicking outside the search box.
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const applyGeocodeResult = (result: GeocodeResult) => {
+    if (result.name) setName(result.name);
+    if (result.city) setCity(result.city);
+    if (result.state) setState(result.state);
+    if (result.country) setCountry(result.country);
+    if (typeof result.latitude === "number") setLat(String(result.latitude));
+    if (typeof result.longitude === "number") setLng(String(result.longitude));
+    setSearchOpen(false);
+    setSearchResults([]);
+    setSearchQuery("");
+    setActiveIndex(-1);
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!searchOpen || searchResults.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => (i + 1) % searchResults.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => (i <= 0 ? searchResults.length - 1 : i - 1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const pick = searchResults[activeIndex] ?? searchResults[0];
+      if (pick) applyGeocodeResult(pick);
+    } else if (e.key === "Escape") {
+      setSearchOpen(false);
+    }
+  };
 
   useEffect(() => {
     if (locationToEdit) {
@@ -76,6 +169,11 @@ export function LocationFormModal({
       setFavorite(false);
     }
     setError(null);
+    setSearchQuery("");
+    setSearchResults([]);
+    setSearchOpen(false);
+    setSearchError(null);
+    setActiveIndex(-1);
   }, [locationToEdit, isOpen]);
 
   if (!isOpen) return null;
@@ -174,6 +272,92 @@ export function LocationFormModal({
               {error}
             </div>
           )}
+
+          {/* Search a place to auto-fill the fields below */}
+          <div ref={searchBoxRef} style={{ position: "relative", marginBottom: "16px" }}>
+            <label className="form-label">Search for a place</label>
+            <div style={{ position: "relative" }}>
+              <Search
+                size={15}
+                style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }}
+              />
+              <input
+                type="text"
+                className="form-input"
+                style={{ paddingLeft: "32px" }}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => searchResults.length > 0 && setSearchOpen(true)}
+                onKeyDown={handleSearchKeyDown}
+                placeholder="e.g. Victoria Memorial, Kolkata"
+                autoComplete="off"
+              />
+              {searching && (
+                <Loader2
+                  size={15}
+                  className="spin"
+                  style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }}
+                />
+              )}
+            </div>
+            <small style={{ color: "var(--text-muted)", fontSize: "11px" }}>
+              Pick a result to auto-fill name, city, state, country, and coordinates. You can still edit everything below.
+            </small>
+
+            {searchError && (
+              <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>{searchError}</div>
+            )}
+
+            {searchOpen && searchResults.length > 0 && (
+              <ul
+                style={{
+                  listStyle: "none",
+                  margin: "4px 0 0",
+                  padding: "4px",
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  zIndex: 20,
+                  background: "var(--bg-card)",
+                  border: "1px solid var(--border-color)",
+                  borderRadius: "6px",
+                  boxShadow: "0 12px 24px rgba(0,0,0,0.25)",
+                  maxHeight: "260px",
+                  overflowY: "auto",
+                }}
+              >
+                {searchResults.map((result, index) => (
+                  <li key={result.id}>
+                    <button
+                      type="button"
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onClick={() => applyGeocodeResult(result)}
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "8px",
+                        width: "100%",
+                        textAlign: "left",
+                        background: index === activeIndex ? "var(--bg-hover)" : "transparent",
+                        border: "none",
+                        borderRadius: "4px",
+                        padding: "8px 10px",
+                        cursor: "pointer",
+                        color: "var(--text-primary)",
+                        fontSize: "13px",
+                      }}
+                    >
+                      <MapPin size={14} style={{ color: "var(--accent)", marginTop: "2px", flexShrink: 0 }} />
+                      <span style={{ minWidth: 0 }}>
+                        <span style={{ fontWeight: 600, display: "block" }}>{result.name}</span>
+                        <span style={{ color: "var(--text-muted)", fontSize: "12px" }}>{result.label}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "12px", marginBottom: "12px" }}>
             <div>
