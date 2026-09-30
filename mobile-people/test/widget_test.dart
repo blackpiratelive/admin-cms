@@ -20,6 +20,7 @@ import 'package:mobile_people/screens/settings_screen.dart';
 import 'package:mobile_people/screens/main_navigation_screen.dart';
 import 'package:mobile_people/screens/person_form_modal.dart';
 import 'package:mobile_people/screens/photo_picker_modal.dart';
+import 'package:mobile_people/core/network/api_service.dart';
 import 'package:mobile_people/main.dart';
 
 void main() {
@@ -902,6 +903,196 @@ void main() {
       expect(find.text('Alice Anderson'), findsOneWidget);
       expect(find.text('Bob Barker'), findsOneWidget);
       expect(find.text('Charlie Chaplin'), findsOneWidget);
+    });
+  });
+
+  group('Real-Time Birthday Derivation & Auto-Update Tests', () {
+    test('computeUpcomingBirthdays derives and sorts upcoming birthdays from PersonRecord list within maxDays', () {
+      final now = DateTime.now();
+      final in2Days = now.add(const Duration(days: 2));
+      final dateStr2 = '1995-${in2Days.month.toString().padLeft(2, '0')}-${in2Days.day.toString().padLeft(2, '0')}';
+
+      final in10Days = now.add(const Duration(days: 10));
+      final dateStr10 = '1990-${in10Days.month.toString().padLeft(2, '0')}-${in10Days.day.toString().padLeft(2, '0')}';
+
+      final in75Days = now.add(const Duration(days: 75));
+      final dateStr75 = '1988-${in75Days.month.toString().padLeft(2, '0')}-${in75Days.day.toString().padLeft(2, '0')}';
+
+      final people = [
+        PersonRecord(
+          id: 'p1',
+          displayName: 'Person Ten',
+          slug: 'ten',
+          relationshipType: 'Friend',
+          importantDates: [
+            ImportantDate(id: 'd1', title: 'Birthday', date: dateStr10),
+          ],
+        ),
+        PersonRecord(
+          id: 'p2',
+          displayName: 'Person Two',
+          slug: 'two',
+          relationshipType: 'Family',
+          importantDates: [
+            ImportantDate(id: 'd2', title: 'Birthday', date: dateStr2),
+          ],
+        ),
+        PersonRecord(
+          id: 'p3',
+          displayName: 'Person Far',
+          slug: 'far',
+          relationshipType: 'Colleague',
+          importantDates: [
+            ImportantDate(id: 'd3', title: 'Birthday', date: dateStr75),
+          ],
+        ),
+        const PersonRecord(
+          id: 'p4',
+          displayName: 'Person No Dates',
+          slug: 'nodates',
+          relationshipType: 'Other',
+          importantDates: [],
+        ),
+      ];
+
+      final results = LocalStore.computeUpcomingBirthdays(people, limit: 10, maxDays: 60);
+
+      expect(results.length, 2);
+      expect(results[0].personId, 'p2');
+      expect(results[0].displayName, 'Person Two');
+      expect(results[0].daysRemaining, 2);
+
+      expect(results[1].personId, 'p1');
+      expect(results[1].displayName, 'Person Ten');
+      expect(results[1].daysRemaining, 10);
+    });
+
+    test('upsertCachedPerson updates cached birthdays immediately', () async {
+      final now = DateTime.now();
+      final tomorrow = now.add(const Duration(days: 1));
+      final dateStr = '1992-${tomorrow.month.toString().padLeft(2, '0')}-${tomorrow.day.toString().padLeft(2, '0')}';
+
+      final person = PersonRecord(
+        id: 'p_sync',
+        displayName: 'Sync Tester',
+        slug: 'sync-tester',
+        relationshipType: 'Friend',
+        importantDates: [
+          ImportantDate(id: 'd_sync', title: 'Birthday', date: dateStr),
+        ],
+      );
+
+      await LocalStore.upsertCachedPerson(person);
+
+      final cachedBirthdays = await LocalStore.getCachedBirthdays();
+      expect(cachedBirthdays.length, 1);
+      expect(cachedBirthdays.first.personId, 'p_sync');
+      expect(cachedBirthdays.first.displayName, 'Sync Tester');
+      expect(cachedBirthdays.first.daysRemaining, 1);
+    });
+
+    test('deleteCachedPerson removes contact from cached birthdays immediately', () async {
+      final now = DateTime.now();
+      final tomorrow = now.add(const Duration(days: 1));
+      final dateStr = '1992-${tomorrow.month.toString().padLeft(2, '0')}-${tomorrow.day.toString().padLeft(2, '0')}';
+
+      final person = PersonRecord(
+        id: 'p_delete',
+        displayName: 'Delete Tester',
+        slug: 'delete-tester',
+        relationshipType: 'Friend',
+        importantDates: [
+          ImportantDate(id: 'd_delete', title: 'Birthday', date: dateStr),
+        ],
+      );
+
+      await LocalStore.upsertCachedPerson(person);
+      expect((await LocalStore.getCachedBirthdays()).length, 1);
+
+      await LocalStore.deleteCachedPerson('p_delete');
+
+      final cachedBirthdays = await LocalStore.getCachedBirthdays();
+      expect(cachedBirthdays.isEmpty, isTrue);
+    });
+  });
+
+  group('Offline Mutation Queue & Temp ID Remapping Tests', () {
+    test('replaceMutationEntityId updates entityId and payload id of queued mutations', () async {
+      await LocalStore.clearOfflineQueue();
+
+      await LocalStore.enqueueMutation(
+        OfflineMutation(
+          id: 'mut_1',
+          type: 'update_person',
+          entityId: 'temp_create_123',
+          payload: const {'id': 'temp_create_123', 'displayName': 'Updated Temp'},
+          timestamp: DateTime.now().toIso8601String(),
+        ),
+      );
+      await LocalStore.enqueueMutation(
+        OfflineMutation(
+          id: 'mut_2',
+          type: 'add_connection',
+          entityId: 'temp_create_123',
+          payload: const {'personId': 'temp_create_123', 'targetId': 'real_target'},
+          timestamp: DateTime.now().toIso8601String(),
+        ),
+      );
+      await LocalStore.enqueueMutation(
+        OfflineMutation(
+          id: 'mut_3',
+          type: 'delete_person',
+          entityId: 'unrelated_id',
+          payload: const {'id': 'unrelated_id'},
+          timestamp: DateTime.now().toIso8601String(),
+        ),
+      );
+
+      await LocalStore.replaceMutationEntityId('temp_create_123', 'server_real_id_999');
+
+      final queue = await LocalStore.getOfflineQueue();
+      expect(queue.length, 3);
+
+      expect(queue[0].entityId, 'server_real_id_999');
+      expect(queue[0].payload['id'], 'server_real_id_999');
+
+      expect(queue[1].entityId, 'server_real_id_999');
+      expect(queue[1].payload['personId'], 'server_real_id_999');
+
+      expect(queue[2].entityId, 'unrelated_id');
+      expect(queue[2].payload['id'], 'unrelated_id');
+    });
+  });
+
+  group('ApiException Tests', () {
+    test('ApiException stores statusCode and message and formats toString', () {
+      const ex = ApiException(404, 'Person record not found');
+      expect(ex.statusCode, 404);
+      expect(ex.message, 'Person record not found');
+      expect(ex.toString(), 'ApiException(404): Person record not found');
+    });
+  });
+
+  group('DirectoryScreen Pull-To-Refresh Architecture Tests', () {
+    testWidgets('DirectoryScreen includes CupertinoSliverRefreshControl with custom trigger pull distance and AlwaysScrollableScrollPhysics', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        CupertinoApp(
+          home: DirectoryScreen(
+            onLogout: () {},
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final scrollable = tester.widget<CustomScrollView>(find.byType(CustomScrollView));
+      expect(scrollable.physics, isA<AlwaysScrollableScrollPhysics>());
+
+      final refreshControls = scrollable.slivers.whereType<CupertinoSliverRefreshControl>().toList();
+      expect(refreshControls.isNotEmpty, isTrue);
+      expect(refreshControls.first.refreshTriggerPullDistance, 80.0);
+      expect(refreshControls.first.refreshIndicatorExtent, 60.0);
+      expect(scrollable.slivers.whereType<SliverSafeArea>().isNotEmpty, isTrue);
     });
   });
 

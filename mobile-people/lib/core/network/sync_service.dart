@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:uuid/uuid.dart';
 import '../storage/local_store.dart';
 import '../models/offline_mutation.dart';
@@ -6,6 +7,21 @@ import 'api_service.dart';
 class SyncService {
   static const _uuid = Uuid();
   static bool _isSyncing = false;
+  static Timer? _syncTimer;
+
+  /// Start periodic background auto-sync worker
+  static void startPeriodicSync({Duration interval = const Duration(seconds: 30)}) {
+    _syncTimer?.cancel();
+    _syncTimer = Timer.periodic(interval, (_) {
+      processQueue();
+    });
+  }
+
+  /// Stop periodic background auto-sync worker
+  static void stopPeriodicSync() {
+    _syncTimer?.cancel();
+    _syncTimer = null;
+  }
 
   /// Enqueue an offline mutation and attempt background sync if online
   static Future<void> queueMutation({
@@ -22,8 +38,8 @@ class SyncService {
     );
 
     await LocalStore.enqueueMutation(mutation);
-    // Fire background sync attempt
-    processQueue();
+    // Fire background sync attempt immediately
+    unawaited(processQueue());
   }
 
   /// Process all queued offline mutations sequentially
@@ -44,7 +60,12 @@ class SyncService {
         try {
           switch (mutation.type) {
             case 'create_person':
-              await ApiService.savePerson(mutation.payload);
+              final savedPerson = await ApiService.savePerson(mutation.payload);
+              // If the created person had a temporary ID, purge it and remap remaining queue
+              if (mutation.entityId.startsWith('temp_') && savedPerson.id != mutation.entityId) {
+                await LocalStore.deleteCachedPerson(mutation.entityId);
+                await LocalStore.replaceMutationEntityId(mutation.entityId, savedPerson.id);
+              }
               success = true;
               break;
             case 'update_person':
@@ -76,8 +97,17 @@ class SyncService {
               success = true;
               break;
           }
-        } catch (e) {
-          // If network error, stop processing and keep remaining queue
+        } on ApiException catch (e) {
+          // If fatal client error (400 Bad Request, 404 Not Found, 422 Unprocessable),
+          // evict the malformed/orphaned mutation so it does not permanently wedge the queue
+          if (e.statusCode == 400 || e.statusCode == 404 || e.statusCode == 422) {
+            await LocalStore.removeMutation(mutation.id);
+            continue;
+          }
+          // Server errors (5xx) or auth errors: stop and retry later
+          break;
+        } catch (_) {
+          // Network errors (SocketException, TimeoutException, etc.): stop processing and keep remaining queue
           break;
         }
 

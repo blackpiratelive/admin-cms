@@ -24,7 +24,7 @@ class DirectoryScreen extends StatefulWidget {
   State<DirectoryScreen> createState() => _DirectoryScreenState();
 }
 
-class _DirectoryScreenState extends State<DirectoryScreen> {
+class _DirectoryScreenState extends State<DirectoryScreen> with WidgetsBindingObserver {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
 
@@ -62,7 +62,19 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    SyncService.startPeriodicSync();
     _bootstrap();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      SyncService.processQueue().then((_) async {
+        final q = await LocalStore.getOfflineQueue();
+        if (mounted) setState(() => _pendingSyncCount = q.length);
+      });
+    }
   }
 
   /// 100% Client-Side In-Memory Filtering and Sorting (0ms latency, works fully offline)
@@ -146,7 +158,10 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
   Future<void> _bootstrap() async {
     // 1. Instant paint from cache (0ms perceived latency)
     final cachedPeople = await LocalStore.getCachedPeople();
-    final cachedBirthdays = await LocalStore.getCachedBirthdays();
+    final derivedBirthdays = LocalStore.computeUpcomingBirthdays(cachedPeople);
+    final cachedBirthdays = derivedBirthdays.isNotEmpty
+        ? derivedBirthdays
+        : await LocalStore.getCachedBirthdays();
     final queue = await LocalStore.getOfflineQueue();
 
     if (mounted) {
@@ -189,11 +204,16 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
       final birthdaysList = birthdaysRes as List<UpcomingBirthdayItem>;
       final queue = await LocalStore.getOfflineQueue();
 
+      // Real-time derivation from fetched contacts, merged with server list
+      final derivedBirthdays = LocalStore.computeUpcomingBirthdays(peopleResult.items);
+      final finalBirthdays = derivedBirthdays.isNotEmpty ? derivedBirthdays : birthdaysList;
+      await LocalStore.saveCachedBirthdays(finalBirthdays);
+
       if (mounted) {
         setState(() {
           _allPeople = peopleResult.items;
           _filteredPeople = _applyFiltersAndSort(peopleResult.items);
-          _birthdays = birthdaysList;
+          _birthdays = finalBirthdays;
           _pendingSyncCount = queue.length;
           _isLoading = false;
         });
@@ -209,7 +229,8 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
   /// Instant local refresh when returning from modals or detail changes
   Future<void> _onLocalDataChanged() async {
     final cached = await LocalStore.getCachedPeople();
-    final birthdays = await LocalStore.getCachedBirthdays();
+    final birthdays = LocalStore.computeUpcomingBirthdays(cached);
+    await LocalStore.saveCachedBirthdays(birthdays);
     final queue = await LocalStore.getOfflineQueue();
     if (mounted) {
       setState(() {
@@ -219,10 +240,20 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
         _pendingSyncCount = queue.length;
       });
     }
+
+    // Trigger background queue sync if pending mutations exist
+    if (queue.isNotEmpty) {
+      SyncService.processQueue().then((_) async {
+        final q = await LocalStore.getOfflineQueue();
+        if (mounted) setState(() => _pendingSyncCount = q.length);
+      });
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    SyncService.stopPeriodicSync();
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -244,7 +275,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
           onPersonChanged: _onLocalDataChanged,
         ),
       ),
-    );
+    ).then((_) => _onLocalDataChanged());
   }
 
   void _openAddPerson() {
@@ -284,9 +315,13 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
   Future<void> _handleDeletePerson(PersonRecord person) async {
     // 1. Optimistic instant local removal
     await LocalStore.deleteCachedPerson(person.id);
+    final updatedPeople = List<PersonRecord>.from(_allPeople)..removeWhere((p) => p.id == person.id);
+    final updatedBirthdays = LocalStore.computeUpcomingBirthdays(updatedPeople);
+    await LocalStore.saveCachedBirthdays(updatedBirthdays);
     setState(() {
-      _allPeople.removeWhere((p) => p.id == person.id);
+      _allPeople = updatedPeople;
       _filteredPeople = _applyFiltersAndSort(_allPeople);
+      _birthdays = updatedBirthdays;
     });
 
     // 2. Background sync
@@ -765,24 +800,30 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
 
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground,
-      child: SafeArea(
-        bottom: false,
-        child: CustomScrollView(
-          controller: _scrollController,
-          physics: const BouncingScrollPhysics(
-            parent: AlwaysScrollableScrollPhysics(),
+      child: CustomScrollView(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        slivers: [
+          // Pull-to-refresh: forces fresh sync from backend and flushes queue
+          CupertinoSliverRefreshControl(
+            refreshTriggerPullDistance: 80.0,
+            refreshIndicatorExtent: 60.0,
+            onRefresh: () async {
+              HapticFeedback.mediumImpact();
+              await SyncService.processQueue();
+              await _fetchData(forceRefresh: true);
+              final q = await LocalStore.getOfflineQueue();
+              if (mounted) setState(() => _pendingSyncCount = q.length);
+            },
           ),
-          slivers: [
-            // Pull-to-refresh: forces fresh sync from backend and flushes queue
-            CupertinoSliverRefreshControl(
-              onRefresh: () async {
-                await SyncService.processQueue();
-                await _fetchData(forceRefresh: true);
-              },
-            ),
 
-            // Header Section: "People" + Count + Primary Add Button
-            SliverToBoxAdapter(
+          // Header Section: "People" + Count + Primary Add Button
+          SliverSafeArea(
+            top: true,
+            bottom: false,
+            sliver: SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
                 child: Row(
@@ -847,6 +888,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
                 ),
               ),
             ),
+          ),
 
             // Search & Filter Row
             SliverToBoxAdapter(
@@ -1116,7 +1158,6 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 }

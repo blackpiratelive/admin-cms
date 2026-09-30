@@ -255,7 +255,7 @@ Run all automated checks prior to committing:
 cd mobile-people
 export PATH="/home/dog/flutter/bin:$PATH"
 flutter analyze    # Must report 0 issues
-flutter test       # Must pass 100% of tests (35/35 tests passing)
+flutter test       # Must pass 100% of tests (41/41 tests passing)
 
 # 2. Mobile Microblog App (verify no regression)
 cd mobile-microblog
@@ -264,7 +264,7 @@ flutter analyze    # Must report 0 issues
 flutter test       # Must pass 100% of tests (13/13 tests passing)
 
 # 3. Next.js & Backend CMS Vitest Suite
-npm test           # Must pass 100% of Vitest suites (69/69 tests passing)
+npm test           # Must pass 100% of Vitest suites (87/87 tests passing across 16 files)
 
 # 4. Strict Subsystem Isolation Check
 git status android/ # Must remain completely clean!
@@ -288,6 +288,37 @@ git status android/ # Must remain completely clean!
 ---
 
 ## 9. Recent Updates & Architectural Changelog
+
+### Version 1.6.0 — Sync Queue Unblocking, Temp ID Remapping, Real-Time Birthday Derivation & Android Pull-to-Refresh (September 2026)
+
+1. **Robust Offline Sync Queue & Temp ID Remapping Engine**:
+   - **Root Cause Resolution**: Previously, when an entity was created offline, temporary optimistic IDs (`temp_...`) caused subsequent queued mutations targeting the new entity to fail with HTTP 404. Furthermore, `ApiService` boolean methods returned `false` instead of throwing exceptions on server failures, causing mutation catch-blocks to miss errors. The queue processor loop would also hit a permanent freeze upon any non-network HTTP 4xx error.
+   - **Temp ID Remapping (`LocalStore.replaceMutationEntityId`)**: When `create_person` completes successfully on the backend, the optimistic cache is pruned (`LocalStore.deleteCachedPerson(tempId)`), and all subsequent mutations in the queue targeting that `tempId` have their `entityId` and payload `id`/`personId` remapped to the actual backend ID (`savedPerson.id`).
+   - **Fatal Error Eviction**: Distinguishes fatal client errors (`ApiException` with status codes like 400, 404, 422) from transient network failures. Fatal mutations are evicted with clear warning logs instead of freezing the synchronization pipeline.
+   - **Periodic Auto-Sync**: Added background timer sync (`SyncService.startPeriodicSync` / `stopPeriodicSync`) running every 60 seconds, and hooked `WidgetsBindingObserver.didChangeAppLifecycleState` to automatically flush pending mutations when the app returns from background (`AppLifecycleState.resumed`).
+
+2. **Android & iOS Native Pull-to-Refresh Architecture**:
+   - **Root Cause Resolution**: The directory screen was previously wrapped in an outer `SafeArea`, preventing `CupertinoSliverRefreshControl` from calculating the top overscroll geometry. Furthermore, Android's default scroll physics (`ClampingScrollPhysics`) prevented the overscroll gesture needed to arm Cupertino pull-to-refresh.
+   - **Sliver Hierarchy Fix**: Replaced outer `SafeArea` with `CustomScrollView` and wrapped internal header contents in `SliverSafeArea(top: true, bottom: false)`.
+   - **Physics & Gestures**: Configured `AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics())` to guarantee fluid overscroll drag physics on Android devices.
+   - Set trigger pull distance to 80px and extent to 60px with `HapticFeedback.mediumImpact()` when triggered, simultaneously processing the offline queue and force-refreshing backend data.
+
+3. **Real-Time Client-Side Birthday Derivation & Auto-Updating**:
+   - **Root Cause Resolution**: Upcoming birthdays were previously fetched solely from `/api/people/birthdays` on network success, leaving the tray stale under the 7-day TTL and failing to reflect newly added, edited, or deleted contacts.
+   - **Client Derivation Algorithm (`LocalStore.computeUpcomingBirthdays`)**: Computes `daysRemaining` accurately for all contact important dates within a 60-day window, handling current year vs next year calendar rollovers and sorting by countdown proximity.
+   - **Automatic Local Sync**: Hooked `computeUpcomingBirthdays` directly into `upsertCachedPerson`, `deleteCachedPerson`, and `toggleCachedPersonFavorite`, immediately refreshing cached birthdays and triggering instant UI re-renders on local changes.
+   - Directory screen listens for modal dismissals via `.then((_) => _onLocalDataChanged())` to guarantee instant synchronization.
+
+4. **Payload Sanitization & Exception Architecture**:
+   - Introduced strongly-typed `ApiException` containing HTTP status code and response body message.
+   - Sanitized `PersonFormModal` important dates payloads, filtering out empty titles or dates before dispatch.
+   - Pruned temporary optimistic records immediately when creation succeeds synchronously.
+
+5. **Quality Gates & Test Coverage**:
+   - `flutter analyze` reports 0 issues.
+   - 41/41 unit and widget tests pass (100%), including 6 new tests covering real-time birthday calculation, optimistic CRUD birthday synchronization, offline mutation queue temp ID remapping, `ApiException` diagnostics, and pull-to-refresh sliver architecture.
+   - 100% passing across `mobile-microblog` (13/13) and Vitest backend (87/87 across 16 files).
+   - Strict subsystem isolation: `android/` directory remains 100% untouched.
 
 ### Version 1.5.0 — Offline-First Architecture, 7-Day TTL Caching, Instant Search & Persistent Disk Image Caching (September 2026)
 

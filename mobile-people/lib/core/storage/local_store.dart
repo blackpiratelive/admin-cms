@@ -174,6 +174,40 @@ class LocalStore {
     }
   }
 
+  // --- Real-Time Client-Side Birthday Derivation ---
+
+  /// Real-time client-side derivation of upcoming birthdays from contact circle
+  static List<UpcomingBirthdayItem> computeUpcomingBirthdays(
+    List<PersonRecord> people, {
+    int limit = 10,
+    int maxDays = 60,
+  }) {
+    final List<UpcomingBirthdayItem> items = [];
+
+    for (final person in people) {
+      for (final dateItem in person.importantDates) {
+        final days = dateItem.daysRemaining;
+        if (days >= 0 && days <= maxDays) {
+          items.add(
+            UpcomingBirthdayItem(
+              personId: person.id,
+              displayName: person.displayName,
+              slug: person.slug,
+              avatarUrl: person.avatarUrl,
+              relationshipType: person.relationshipType,
+              title: dateItem.title,
+              dateStr: dateItem.date,
+              daysRemaining: days,
+            ),
+          );
+        }
+      }
+    }
+
+    items.sort((a, b) => a.daysRemaining.compareTo(b.daysRemaining));
+    return items.take(limit).toList();
+  }
+
   // --- Optimistic Local Mutations ---
 
   static Future<void> upsertCachedPerson(PersonRecord person) async {
@@ -185,6 +219,10 @@ class LocalStore {
       current.insert(0, person);
     }
     await saveCachedPeople(current, updateTimestamp: false);
+
+    // Auto-recalculate upcoming birthdays immediately
+    final updatedBirthdays = computeUpcomingBirthdays(current);
+    await saveCachedBirthdays(updatedBirthdays, updateTimestamp: true);
 
     // Also update cached single person detail if available
     final cachedDetail = await getCachedPersonDetail(person.id);
@@ -201,6 +239,10 @@ class LocalStore {
     final current = await getCachedPeople();
     current.removeWhere((p) => p.id == id);
     await saveCachedPeople(current, updateTimestamp: false);
+
+    // Auto-recalculate upcoming birthdays immediately
+    final updatedBirthdays = computeUpcomingBirthdays(current);
+    await saveCachedBirthdays(updatedBirthdays, updateTimestamp: true);
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('$_keyDetailPrefix$id');
@@ -325,6 +367,37 @@ class LocalStore {
     queue.removeWhere((m) => m.id == mutationId);
     final jsonList = queue.map((m) => m.toJson()).toList();
     await prefs.setString(_keyOfflineQueue, jsonEncode(jsonList));
+  }
+
+  static Future<void> replaceMutationEntityId(String oldId, String newId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final queue = await getOfflineQueue();
+    bool changed = false;
+    final updatedQueue = queue.map((m) {
+      if (m.entityId == oldId) {
+        changed = true;
+        final updatedPayload = Map<String, dynamic>.from(m.payload);
+        if (updatedPayload['id'] == oldId) {
+          updatedPayload['id'] = newId;
+        }
+        if (updatedPayload['personId'] == oldId) {
+          updatedPayload['personId'] = newId;
+        }
+        return OfflineMutation(
+          id: m.id,
+          type: m.type,
+          entityId: newId,
+          payload: updatedPayload,
+          timestamp: m.timestamp,
+        );
+      }
+      return m;
+    }).toList();
+
+    if (changed) {
+      final jsonList = updatedQueue.map((m) => m.toJson()).toList();
+      await prefs.setString(_keyOfflineQueue, jsonEncode(jsonList));
+    }
   }
 
   static Future<void> clearOfflineQueue() async {

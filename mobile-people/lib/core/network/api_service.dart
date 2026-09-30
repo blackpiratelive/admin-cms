@@ -34,6 +34,16 @@ class PeopleFetchResult {
   });
 }
 
+class ApiException implements Exception {
+  final int statusCode;
+  final String message;
+
+  const ApiException(this.statusCode, this.message);
+
+  @override
+  String toString() => 'ApiException($statusCode): $message';
+}
+
 class ApiService {
   static const Duration timeoutDuration = Duration(seconds: 30);
   static const Duration uploadTimeoutDuration = Duration(seconds: 120);
@@ -293,7 +303,7 @@ class ApiService {
         final err = jsonDecode(response.body);
         if (err['error'] != null) msg = err['error'];
       } catch (_) {}
-      throw Exception(msg);
+      throw ApiException(response.statusCode, msg);
     }
   }
 
@@ -325,7 +335,7 @@ class ApiService {
         final err = jsonDecode(response.body);
         if (err['error'] != null) msg = err['error'];
       } catch (_) {}
-      throw Exception(msg);
+      throw ApiException(response.statusCode, msg);
     }
   }
 
@@ -339,8 +349,14 @@ class ApiService {
     if (response.statusCode == 200) {
       await LocalStore.deleteCachedPerson(id);
       return true;
+    } else {
+      String msg = 'Failed to delete person (${response.statusCode})';
+      try {
+        final err = jsonDecode(response.body);
+        if (err['error'] != null) msg = err['error'];
+      } catch (_) {}
+      throw ApiException(response.statusCode, msg);
     }
-    return false;
   }
 
   // Toggle Favorite with Cache Update
@@ -355,8 +371,14 @@ class ApiService {
       final isFav = data['favorite'] == true;
       await LocalStore.toggleCachedPersonFavorite(id, isFav);
       return isFav;
+    } else {
+      String msg = 'Failed to toggle favorite (${response.statusCode})';
+      try {
+        final err = jsonDecode(response.body);
+        if (err['error'] != null) msg = err['error'];
+      } catch (_) {}
+      throw ApiException(response.statusCode, msg);
     }
-    return false;
   }
 
   // Upcoming Birthdays (Cache-first with 7-day TTL)
@@ -445,7 +467,16 @@ class ApiService {
         )
         .timeout(timeoutDuration);
 
-    return response.statusCode == 200 || response.statusCode == 201;
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return true;
+    } else {
+      String msg = 'Failed to add connection (${response.statusCode})';
+      try {
+        final err = jsonDecode(response.body);
+        if (err['error'] != null) msg = err['error'];
+      } catch (_) {}
+      throw ApiException(response.statusCode, msg);
+    }
   }
 
   // Connect Photos in Batch
@@ -469,7 +500,16 @@ class ApiService {
         )
         .timeout(timeoutDuration);
 
-    return response.statusCode == 200 || response.statusCode == 201;
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return true;
+    } else {
+      String msg = 'Failed to connect photos (${response.statusCode})';
+      try {
+        final err = jsonDecode(response.body);
+        if (err['error'] != null) msg = err['error'];
+      } catch (_) {}
+      throw ApiException(response.statusCode, msg);
+    }
   }
 
   // Fetch Cloudinary Photos
@@ -501,7 +541,16 @@ class ApiService {
     final headers = await _getHeaders();
 
     final response = await http.delete(uri, headers: headers).timeout(timeoutDuration);
-    return response.statusCode == 200;
+    if (response.statusCode == 200) {
+      return true;
+    } else {
+      String msg = 'Failed to remove connection (${response.statusCode})';
+      try {
+        final err = jsonDecode(response.body);
+        if (err['error'] != null) msg = err['error'];
+      } catch (_) {}
+      throw ApiException(response.statusCode, msg);
+    }
   }
 
   // Upload Avatar to Cloudinary via server

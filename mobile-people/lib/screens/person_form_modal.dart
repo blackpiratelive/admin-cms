@@ -468,6 +468,10 @@ class _PersonFormModalState extends State<PersonFormModal> {
       'website': _websiteController.text.trim(),
     };
 
+    final validImportantDates = _importantDates
+        .where((d) => d.title.trim().isNotEmpty && d.date.trim().isNotEmpty)
+        .toList();
+
     final payload = {
       if (widget.personToEdit != null) 'id': widget.personToEdit!.id,
       'displayName': displayName,
@@ -477,7 +481,7 @@ class _PersonFormModalState extends State<PersonFormModal> {
       'slug': _slugController.text.trim(),
       'avatarUrl': _avatarUrlController.text.trim(),
       'relationshipType': finalRelationship,
-      'importantDates': _importantDates.map((d) => d.toJson()).toList(),
+      'importantDates': validImportantDates.map((d) => d.toJson()).toList(),
       'notesMarkdown': _notesController.text.trim(),
       'interests': interestsList,
       'tags': tagsList,
@@ -502,7 +506,7 @@ class _PersonFormModalState extends State<PersonFormModal> {
       notesMarkdown: _notesController.text.trim(),
       interests: interestsList,
       tags: tagsList,
-      importantDates: _importantDates,
+      importantDates: validImportantDates,
       socialLinks: SocialLinks.fromJson(socialLinksMap),
       createdAt: widget.personToEdit?.createdAt ?? DateTime.now().toIso8601String(),
       updatedAt: DateTime.now().toIso8601String(),
@@ -519,6 +523,10 @@ class _PersonFormModalState extends State<PersonFormModal> {
         savedPerson = await ApiService.updatePerson(widget.personToEdit!.id, payload);
       } else {
         savedPerson = await ApiService.savePerson(payload);
+        // If creating succeeded immediately, clean up the optimistic temp person
+        if (tempId != savedPerson.id) {
+          await LocalStore.deleteCachedPerson(tempId);
+        }
       }
 
       // Schedule reminders
