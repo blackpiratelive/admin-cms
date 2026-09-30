@@ -55,10 +55,32 @@ describe("Microblog Schema & Slugs", () => {
     expect(parsed.images).toEqual(["https://media.com/1.jpg", "https://media.com/2.jpg"]);
   });
 
-  it("fails validation when content markdown is empty", () => {
+  it("allows saving an empty draft", () => {
+    const parsed = microblogInputSchema.parse({ contentMarkdown: "", status: "draft", tags: [] });
+    expect(parsed.contentMarkdown).toBe("");
+    expect(parsed.status).toBe("draft");
+  });
+
+  it("defaults to an empty draft when no content or status is given", () => {
+    const parsed = microblogInputSchema.parse({ tags: [] });
+    expect(parsed.contentMarkdown).toBe("");
+    expect(parsed.status).toBe("draft");
+  });
+
+  it("rejects a published post with neither text nor images", () => {
     expect(() => {
-      microblogInputSchema.parse({ contentMarkdown: "" });
+      microblogInputSchema.parse({ contentMarkdown: "   ", status: "published", tags: [] });
     }).toThrow();
+  });
+
+  it("allows a published image-only post with no text", () => {
+    const parsed = microblogInputSchema.parse({
+      contentMarkdown: "",
+      status: "published",
+      tags: [],
+      images: ["https://example.com/photo.jpg"],
+    });
+    expect(parsed.images).toHaveLength(1);
   });
 });
 

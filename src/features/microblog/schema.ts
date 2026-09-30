@@ -5,7 +5,9 @@ export const microblogStatusSchema = z.enum(["draft", "published", "scheduled", 
 export const microblogInputSchema = z.object({
   id: z.string().optional(),
   slug: z.string().optional(),
-  contentMarkdown: z.string().min(1, "Content cannot be empty"),
+  // Drafts may be saved empty; published/scheduled posts must have text or an image
+  // (enforced by the superRefine below).
+  contentMarkdown: z.string().default(""),
   status: microblogStatusSchema.default("draft"),
   createdAt: z.string().nullable().optional(),
   publishedAt: z.string().nullable().optional(),
@@ -41,6 +43,20 @@ export const microblogInputSchema = z.object({
     }
     return [];
   }).default([]),
+}).superRefine((data, ctx) => {
+  // A live post (published or scheduled) needs something to show: text or an image.
+  const needsContent = data.status === "published" || data.status === "scheduled";
+  if (needsContent) {
+    const hasText = data.contentMarkdown.trim().length > 0;
+    const hasImages = Array.isArray(data.images) && data.images.length > 0;
+    if (!hasText && !hasImages) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["contentMarkdown"],
+        message: "A published post needs text or at least one image",
+      });
+    }
+  }
 });
 
 export type MicroblogFormInput = z.input<typeof microblogInputSchema>;
