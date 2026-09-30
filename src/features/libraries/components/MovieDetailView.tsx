@@ -6,9 +6,10 @@ import { getTmdbImageUrl } from "../utils/images";
 import { updateMovieMetadataAction } from "../actions/movies";
 import { addItemToCollectionAction, removeItemFromCollectionAction } from "../actions/collections";
 import { notify } from "@/lib/notifications";
-import { getLocations } from "@/features/locations/actions";
-import { getTrips } from "@/features/trips/actions";
-import { CollectionRecord, LocationRecord, TripRecord } from "@/db/schema";
+import { getLocationPickerData, getTripPickerData } from "@/features/pickers/actions";
+import type { LocationPickerOption, TripPickerOption } from "@/features/pickers/types";
+import { EntityCombobox } from "@/components/EntityCombobox";
+import { CollectionRecord } from "@/db/schema";
 import { Heart, Star, Tag, Eye, ArrowLeft, ExternalLink, FolderPlus, Save, Check, MapPin, Compass, Loader2 } from "lucide-react";
 import Link from "next/link";
 
@@ -37,24 +38,27 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
   const [locationId, setLocationId] = useState(metadata?.locationId || "");
   const [tripId, setTripId] = useState(metadata?.tripId || "");
 
-  const [locationsList, setLocationsList] = useState<LocationRecord[]>([]);
-  const [tripsList, setTripsList] = useState<TripRecord[]>([]);
-  const [isLoadingEntities, setIsLoadingEntities] = useState(false);
+  const [locationsList, setLocationsList] = useState<LocationPickerOption[]>([]);
+  const [tripsList, setTripsList] = useState<TripPickerOption[]>([]);
+  const [locationRecentIds, setLocationRecentIds] = useState<string[]>([]);
+  const [tripRecentIds, setTripRecentIds] = useState<string[]>([]);
+  const [entitiesLoaded, setEntitiesLoaded] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const loadEntities = async () => {
-    if (locationsList.length > 0 && tripsList.length > 0) return;
-    setIsLoadingEntities(true);
+    if (entitiesLoaded) return;
+    setEntitiesLoaded(true);
     try {
-      const [locs, trps] = await Promise.all([getLocations(), getTrips()]);
-      setLocationsList(locs);
-      setTripsList(trps);
+      const [locData, tripData] = await Promise.all([getLocationPickerData(), getTripPickerData()]);
+      setLocationsList(locData.options);
+      setLocationRecentIds(locData.recentIds);
+      setTripsList(tripData.options);
+      setTripRecentIds(tripData.recentIds);
     } catch (err) {
       console.error("Failed to load locations or trips:", err);
-    } finally {
-      setIsLoadingEntities(false);
+      setEntitiesLoaded(false);
     }
   };
 
@@ -291,42 +295,44 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
               <label className="label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <MapPin size={13} style={{ color: "var(--accent-color)" }} />
                 <span>Associated Location</span>
-                {isLoadingEntities && <Loader2 size={12} className="animate-spin" />}
               </label>
-              <select
-                className="select-input"
-                value={locationId}
-                onFocus={loadEntities}
-                onChange={(e) => setLocationId(e.target.value)}
-              >
-                <option value="">-- None (No Location) --</option>
-                {locationsList.map((loc) => (
-                  <option key={loc.id} value={loc.id}>
-                    {loc.name} {[loc.city, loc.country].filter(Boolean).length ? `(${[loc.city, loc.country].filter(Boolean).join(", ")})` : ""}
-                  </option>
-                ))}
-              </select>
+              <EntityCombobox
+                ariaLabel="Associated Location"
+                placeholder="Search locations…"
+                noneLabel="-- None (No Location) --"
+                value={locationId || null}
+                onChange={(id) => setLocationId(id || "")}
+                onOpen={loadEntities}
+                recentIds={locationRecentIds}
+                options={locationsList.map((loc) => ({
+                  id: loc.id,
+                  label: loc.name,
+                  sublabel: [loc.city, loc.country].filter(Boolean).join(", ") || undefined,
+                  favorite: loc.favorite,
+                }))}
+              />
             </div>
 
             <div>
               <label className="label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <Compass size={13} style={{ color: "var(--accent-color)" }} />
                 <span>Associated Trip</span>
-                {isLoadingEntities && <Loader2 size={12} className="animate-spin" />}
               </label>
-              <select
-                className="select-input"
-                value={tripId}
-                onFocus={loadEntities}
-                onChange={(e) => setTripId(e.target.value)}
-              >
-                <option value="">-- None (No Trip) --</option>
-                {tripsList.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.title} ({t.status})
-                  </option>
-                ))}
-              </select>
+              <EntityCombobox
+                ariaLabel="Associated Trip"
+                placeholder="Search trips…"
+                noneLabel="-- None (No Trip) --"
+                value={tripId || null}
+                onChange={(id) => setTripId(id || "")}
+                onOpen={loadEntities}
+                recentIds={tripRecentIds}
+                options={tripsList.map((t) => ({
+                  id: t.id,
+                  label: t.title,
+                  sublabel: t.startDate ? t.startDate.slice(0, 10) : undefined,
+                  favorite: t.favorite,
+                }))}
+              />
             </div>
           </div>
 

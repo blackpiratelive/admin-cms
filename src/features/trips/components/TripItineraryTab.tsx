@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { TripRecord, LocationRecord, TripDayRecord } from "@/db/schema";
+import { TripRecord, TripDayRecord } from "@/db/schema";
+import type { LocationPickerOption } from "@/features/pickers/types";
 import {
   getTripDaysAction,
   generateTripDaysFromDatesAction,
@@ -13,7 +14,7 @@ import {
   computeTripCostSummary,
   formatCostTotals,
 } from "@/features/trips/day-helpers";
-import { getLocations } from "@/features/locations/actions";
+import { getLocationPickerData } from "@/features/pickers/actions";
 import { TripDayEditorModal } from "@/features/trips/components/TripDayEditorModal";
 import { notify } from "@/lib/notifications";
 import {
@@ -30,15 +31,17 @@ const cardStyle: React.CSSProperties = {
 
 export function TripItineraryTab({ trip }: { trip: TripRecord }) {
   const [days, setDays] = useState<TripDayRecord[]>([]);
-  const [locations, setLocations] = useState<LocationRecord[]>([]);
+  const [locations, setLocations] = useState<LocationPickerOption[]>([]);
+  const [locationRecentIds, setLocationRecentIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [editingDay, setEditingDay] = useState<TripDayRecord | null>(null);
 
   const load = useCallback(async () => {
-    const [d, locs] = await Promise.all([getTripDaysAction(trip.id), getLocations()]);
+    const [d, locData] = await Promise.all([getTripDaysAction(trip.id), getLocationPickerData()]);
     setDays(d);
-    setLocations(locs);
+    setLocations(locData.options);
+    setLocationRecentIds(locData.recentIds);
     setLoading(false);
   }, [trip.id]);
 
@@ -139,6 +142,7 @@ export function TripItineraryTab({ trip }: { trip: TripRecord }) {
         isOpen={editingDay !== null}
         day={editingDay}
         locations={locations}
+        locationRecentIds={locationRecentIds}
         onClose={() => setEditingDay(null)}
         onSaved={load}
       />

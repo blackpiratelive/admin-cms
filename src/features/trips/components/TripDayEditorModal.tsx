@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { LocationRecord, TripDayRecord } from "@/db/schema";
+import { TripDayRecord } from "@/db/schema";
+import type { LocationPickerOption } from "@/features/pickers/types";
+import { EntityCombobox } from "@/components/EntityCombobox";
 import { updateTripDayAction } from "@/features/trips/day-actions";
 import {
   TransportLeg,
@@ -20,7 +22,8 @@ import { X, Plus, Trash2 } from "lucide-react";
 interface TripDayEditorModalProps {
   isOpen: boolean;
   day: TripDayRecord | null;
-  locations: LocationRecord[];
+  locations: LocationPickerOption[];
+  locationRecentIds?: string[];
   onClose: () => void;
   onSaved?: () => void;
 }
@@ -29,53 +32,41 @@ function rowId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 }
 
-// Select an existing Location, or type a free-text place name as a fallback.
+// Search an existing Location, or type a free-text place name as a fallback.
 function LocationPickerField({
   locations,
+  recentIds,
   locationId,
   name,
   onChange,
   placeholder,
 }: {
-  locations: LocationRecord[];
+  locations: LocationPickerOption[];
+  recentIds?: string[];
   locationId?: string;
   name?: string;
   onChange: (next: { locationId?: string; name?: string }) => void;
   placeholder?: string;
 }) {
-  const isCustom = !locationId;
   return (
-    <div style={{ display: "flex", gap: "6px" }}>
-      <select
-        className="form-input"
-        style={{ flex: "0 0 46%" }}
-        value={locationId || ""}
-        onChange={(e) =>
-          onChange(
-            e.target.value
-              ? { locationId: e.target.value, name: undefined }
-              : { locationId: undefined, name }
-          )
-        }
-      >
-        <option value="">Custom…</option>
-        {locations.map((l) => (
-          <option key={l.id} value={l.id}>
-            {l.name}
-          </option>
-        ))}
-      </select>
-      {isCustom && (
-        <input
-          type="text"
-          className="form-input"
-          style={{ flex: 1 }}
-          value={name || ""}
-          onChange={(e) => onChange({ locationId: undefined, name: e.target.value })}
-          placeholder={placeholder || "Type a place"}
-        />
-      )}
-    </div>
+    <EntityCombobox
+      ariaLabel="Primary location"
+      placeholder={placeholder || "Search or type a place…"}
+      noneLabel="Custom / none"
+      value={locationId || null}
+      recentIds={recentIds}
+      allowCustom
+      customValue={name}
+      customPlaceholder={placeholder || "Type a place"}
+      onChange={(id) => onChange(id ? { locationId: id, name: undefined } : { locationId: undefined, name })}
+      onCustomChange={(text) => onChange({ locationId: undefined, name: text })}
+      options={locations.map((l) => ({
+        id: l.id,
+        label: l.name,
+        sublabel: [l.city, l.country].filter(Boolean).join(", ") || undefined,
+        favorite: l.favorite,
+      }))}
+    />
   );
 }
 
@@ -100,7 +91,7 @@ const rowStyle: React.CSSProperties = {
   gap: "8px",
 };
 
-export function TripDayEditorModal({ isOpen, day, locations, onClose, onSaved }: TripDayEditorModalProps) {
+export function TripDayEditorModal({ isOpen, day, locations, locationRecentIds, onClose, onSaved }: TripDayEditorModalProps) {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [primaryLocationId, setPrimaryLocationId] = useState<string | undefined>(undefined);
@@ -202,6 +193,7 @@ export function TripDayEditorModal({ isOpen, day, locations, onClose, onSaved }:
             <label className="form-label">Primary Location</label>
             <LocationPickerField
               locations={locations}
+              recentIds={locationRecentIds}
               locationId={primaryLocationId}
               name={primaryLocationName}
               onChange={(next) => {

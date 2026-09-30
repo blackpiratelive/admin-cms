@@ -56,7 +56,7 @@ admin-cms/
 │   │   │   └── journal/         # Journal Sync & E2EE API (/status, /keys, /settings, /entries, /sync, /assets)
 │   │   ├── globals.css          # Design tokens, themes (HN Orange, Dark, Mono, Teal)
 │   │   └── layout.tsx           # Root layout & ThemeProvider
-│   ├── components/              # Shared UI (Header, Sidebar, CommandPalette, DeployWidget, ToastNotification)
+│   ├── components/              # Shared UI (Header, Sidebar, CommandPalette, DeployWidget, ToastNotification, EntityCombobox)
 │   ├── db/
 │   │   ├── schema.ts            # Drizzle table schemas for all 52 database entities
 │   │   └── index.ts             # Turso / libSQL client & auto-initializer DDL
@@ -72,6 +72,7 @@ admin-cms/
 │   │   ├── people/              # Personal relationship server actions, Memory Hub & parallel batch query engine
 │   │   ├── locations/           # Location CRUD actions, detail hub & trip associations
 │   │   ├── trips/               # Trip management server actions, location linkage & day-by-day journal (day-actions.ts, day-helpers.ts)
+│   │   ├── pickers/             # Shared Location/Trip picker data: light option projections + server-derived recents (actions.ts, types.ts)
 │   │   ├── auth/                # Session cookies, password check, login server actions
 │   │   ├── microblog/           # Microblog actions, Zod validation, Editor & List
 │   │   ├── libraries/           # Personal media libraries & metadata preservation
@@ -84,7 +85,7 @@ admin-cms/
 │   │   ├── event-bus.ts         # Internal event pub-sub bus
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
-├── tests/                       # Vitest unit test suite (77 unit tests)
+├── tests/                       # Vitest unit test suite (81 unit tests)
 ├── freshrss.md                  # FreshRSS Sync Provider feature specification
 ├── android-journal.md           # Native Android Journal Application specification
 ├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
@@ -238,7 +239,15 @@ The database consists of **53 SQLite tables** managed via Drizzle ORM:
 - **Data model**: A single `trip_days` table (see §3.1) holds one row per day with structured repeatable lists stored as JSON columns (transport legs, meals, activities), following the codebase's established JSON-column idiom. Days link to the trip by `tripId` and are ordered by `dayNumber` then `date`.
 - **Server actions (`day-actions.ts`)**: `getTripDaysAction`, `generateTripDaysFromDatesAction` (idempotently creates one empty day per date in `[startDate, endDate]`, filling only gaps), `addTripDayAction`, `updateTripDayAction` (structured payload → JSON server-side), and `deleteTripDayAction`. Writes purge `trips-list`/`trip-${id}`/`trip-${slug}` and `revalidatePath('/trips/${slug}')`. Days are lazy-loaded in the Itinerary tab rather than bloating the cached trip-hub batch.
 - **Pure helpers (`day-helpers.ts`)**: Non-server module holding the entry interfaces, `TRANSPORT_MODES`/`MEAL_TYPES`, `parseTripDay`, `enumerateDateRange`, and cost roll-up helpers (`computeDayCost`, `computeTripCostSummary`, `formatCostTotals`) — spend is grouped by currency and computed at read time (e.g. `₹4,500 + $30`). Reused by both the UI and unit tests.
-- **UI**: A new first "Itinerary" tab on `/trips/[slug]` renders `TripItineraryTab` — a spend summary + day-count header with "Auto-generate days" (shown when the trip has dates) and "Add day" buttons, and a vertical timeline of day cards. `TripDayEditorModal` edits a day (title/date/primary location, repeatable transport/meals/activities rows, accommodation, weather/mood, Cloudinary photos, markdown notes) with a reusable select-or-custom `LocationPickerField`, saving via a background `notify.bg(...)` toast. Day details follow the trip's visibility; publishing day-by-day to the public Hugo site is a noted follow-up.
+- **UI**: A new first "Itinerary" tab on `/trips/[slug]` renders `TripItineraryTab` — a spend summary + day-count header with "Auto-generate days" (shown when the trip has dates) and "Add day" buttons, and a vertical timeline of day cards. `TripDayEditorModal` edits a day (title/date/primary location, repeatable transport/meals/activities rows, accommodation, weather/mood, Cloudinary photos, markdown notes) with a reusable select-or-custom `LocationPickerField` (now backed by the shared `EntityCombobox`, see §4.9), saving via a background `notify.bg(...)` toast. Day details follow the trip's visibility; publishing day-by-day to the public Hugo site is a noted follow-up.
+
+### 4.9 Searchable Entity Pickers (`EntityCombobox`) & Server-Derived Recents
+- **Problem addressed**: Every Location/Trip association control was a native `<select>` that dumped the entire table into `<option>`s and shipped full entity rows just to render labels. This is unusable and payload-heavy as Locations/Trips scale into the 100–200+ range.
+- **Shared component (`src/components/EntityCombobox.tsx`)**: A `"use client"` type-ahead combobox reused by every location/trip picker. Search icon input, keyboard navigation (↑/↓/Enter/Esc), outside-click close, a clear (✕) button, and a capped result list (8). When the search box is empty it orders **recents first (⏱ icon) → favorites (★) → the rest**, preserving the caller's incoming order within each bucket. Optional `allowCustom` enables a free-text fallback (used by the trip-day primary location field), and `onOpen` supports lazy-loading option data on first focus (used by the movie & gallery editors). It consumes a generic `ComboOption[]` (`id`, `label`, `sublabel?`, `favorite?`), so each editor adapts its own data.
+- **Light option projections (`src/features/pickers/actions.ts` + `types.ts`)**: `getLocationPickerData()` / `getTripPickerData()` return `{ options, recentIds }`. `options` is a narrow projection (location: `id, name, city, country, latitude, longitude, favorite`; trip: `id, title, startDate, favorite`) cached under the existing `locations-list` / `trips-list` tags (already purged on location/trip mutations), replacing the old full-table `getLocations()` / `getTrips()` fetches in the pickers.
+- **Server-derived recents**: "Recently used" is computed at read time by scanning every table that references a location/trip (`microblogs`, `gallery`, `trip_days.primaryLocationId`, `movie_metadata`, `tv_show_metadata`, `journal_entries`), keeping the max `updatedAt` per id (ISO timestamps compare lexicographically), and taking the newest few. Runs uncached (cheap, always fresh) via `Promise.all` over small `limit`-bounded per-source scans; `recentIds` are filtered to ids that still resolve to a live option. Standalone `getLocationRecentIds()` / `getTripRecentIds()` are exported for callers that already own an option list.
+- **Wired into all five web pickers**: `MicroblogEditor`, `GalleryUploader` (kills the per-queued-photo full selects; still auto-fills GPS from the chosen location via the projected `latitude`/`longitude`), `MovieDetailView` (lazy `onOpen` load), `JournalConnectionsPanel`, and the trip-day `LocationPickerField`.
+- **Tests**: `tests/pickers.test.ts` seeds locations/trips + usage rows with future timestamps and asserts option projection (favorite flag, coordinates), recents ordering (most-recently-used first), and that recents only surface live option ids.
 
 ---
 

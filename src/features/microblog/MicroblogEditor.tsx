@@ -4,9 +4,10 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { saveMicroblog, deleteMicroblog, recalculateRelatedAction } from "./actions";
 import { notify } from "@/lib/notifications";
-import { getLocations } from "@/features/locations/actions";
-import { getTrips } from "@/features/trips/actions";
-import { type LocationRecord, type TripRecord, type Microblog } from "@/db/schema";
+import { getLocationPickerData, getTripPickerData } from "@/features/pickers/actions";
+import type { LocationPickerOption, TripPickerOption } from "@/features/pickers/types";
+import { EntityCombobox } from "@/components/EntityCombobox";
+import { type Microblog } from "@/db/schema";
 import { CloudinaryImageUploader } from "@/features/media/CloudinaryImageUploader";
 import {
   Save,
@@ -66,8 +67,10 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
   const [coverImageUrl, setCoverImageUrl] = useState<string>(initialData?.coverImageUrl || "");
   const [locationId, setLocationId] = useState<string>(initialData?.locationId || "");
   const [tripId, setTripId] = useState<string>(initialData?.tripId || "");
-  const [locationsList, setLocationsList] = useState<LocationRecord[]>([]);
-  const [tripsList, setTripsList] = useState<TripRecord[]>([]);
+  const [locationsList, setLocationsList] = useState<LocationPickerOption[]>([]);
+  const [tripsList, setTripsList] = useState<TripPickerOption[]>([]);
+  const [locationRecentIds, setLocationRecentIds] = useState<string[]>([]);
+  const [tripRecentIds, setTripRecentIds] = useState<string[]>([]);
   const [isLoadingEntities, setIsLoadingEntities] = useState(true);
   const [images, setImages] = useState<string[]>(
     initialData?.images ? JSON.parse(initialData.images) : []
@@ -81,9 +84,11 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
     async function loadEntities() {
       setIsLoadingEntities(true);
       try {
-        const [locs, trps] = await Promise.all([getLocations(), getTrips()]);
-        setLocationsList(locs);
-        setTripsList(trps);
+        const [locData, tripData] = await Promise.all([getLocationPickerData(), getTripPickerData()]);
+        setLocationsList(locData.options);
+        setLocationRecentIds(locData.recentIds);
+        setTripsList(tripData.options);
+        setTripRecentIds(tripData.recentIds);
       } catch (err) {
         console.error("Failed to load locations or trips:", err);
       } finally {
@@ -617,18 +622,20 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
                     <span>Associated Location</span>
                     {isLoadingEntities && <Loader2 size={12} className="animate-spin" />}
                   </label>
-                  <select
-                    className="select-input"
-                    value={locationId}
-                    onChange={(e) => setLocationId(e.target.value)}
-                  >
-                    <option value="">-- None (No Location) --</option>
-                    {locationsList.map((loc) => (
-                      <option key={loc.id} value={loc.id}>
-                        {loc.name} {[loc.city, loc.country].filter(Boolean).length ? `(${[loc.city, loc.country].filter(Boolean).join(", ")})` : ""}
-                      </option>
-                    ))}
-                  </select>
+                  <EntityCombobox
+                    ariaLabel="Associated Location"
+                    placeholder="Search locations…"
+                    noneLabel="-- None (No Location) --"
+                    value={locationId || null}
+                    onChange={(id) => setLocationId(id || "")}
+                    recentIds={locationRecentIds}
+                    options={locationsList.map((loc) => ({
+                      id: loc.id,
+                      label: loc.name,
+                      sublabel: [loc.city, loc.country].filter(Boolean).join(", ") || undefined,
+                      favorite: loc.favorite,
+                    }))}
+                  />
                 </div>
 
                 <div className="form-group">
@@ -637,18 +644,20 @@ export function MicroblogEditor({ initialData, initialRelatedPosts = [] }: Micro
                     <span>Associated Trip</span>
                     {isLoadingEntities && <Loader2 size={12} className="animate-spin" />}
                   </label>
-                  <select
-                    className="select-input"
-                    value={tripId}
-                    onChange={(e) => setTripId(e.target.value)}
-                  >
-                    <option value="">-- None (No Trip) --</option>
-                    {tripsList.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.title} ({t.status})
-                      </option>
-                    ))}
-                  </select>
+                  <EntityCombobox
+                    ariaLabel="Associated Trip"
+                    placeholder="Search trips…"
+                    noneLabel="-- None (No Trip) --"
+                    value={tripId || null}
+                    onChange={(id) => setTripId(id || "")}
+                    recentIds={tripRecentIds}
+                    options={tripsList.map((t) => ({
+                      id: t.id,
+                      label: t.title,
+                      sublabel: t.startDate ? t.startDate.slice(0, 10) : undefined,
+                      favorite: t.favorite,
+                    }))}
+                  />
                 </div>
 
                 <div className="form-group">

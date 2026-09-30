@@ -2,6 +2,9 @@
 
 import React, { useEffect, useState } from "react";
 import { getJournalContextualData, getEntityPickersData } from "../actions";
+import { getLocationPickerData, getTripPickerData } from "@/features/pickers/actions";
+import type { LocationPickerData, TripPickerData } from "@/features/pickers/types";
+import { EntityCombobox } from "@/components/EntityCombobox";
 import { MapPin, Compass, Users, Folder, Film, Music, Image, MessageSquare, Plus, X } from "lucide-react";
 
 interface PickersData {
@@ -43,18 +46,24 @@ export function JournalConnectionsPanel({
 }: JournalConnectionsPanelProps) {
   const [pickers, setPickers] = useState<PickersData | null>(null);
   const [contextData, setContextData] = useState<ContextualData | null>(null);
+  const [locationPicker, setLocationPicker] = useState<LocationPickerData>({ options: [], recentIds: [] });
+  const [tripPicker, setTripPicker] = useState<TripPickerData>({ options: [], recentIds: [] });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const loadAll = async () => {
       setLoading(true);
       try {
-        const [pData, cData] = await Promise.all([
+        const [pData, cData, locData, tripData] = await Promise.all([
           getEntityPickersData(),
           getJournalContextualData(entryDate),
+          getLocationPickerData(),
+          getTripPickerData(),
         ]);
         setPickers(pData);
         setContextData(cData);
+        setLocationPicker(locData);
+        setTripPicker(tripData);
       } catch (err) {
         console.error("Error loading contextual data:", err);
       } finally {
@@ -88,27 +97,20 @@ export function JournalConnectionsPanel({
           <MapPin size={14} style={{ color: "var(--accent)" }} />
           <span>Location</span>
         </div>
-        <select
-          value={locationId || ""}
-          onChange={(e) => onLocationChange?.(e.target.value || null)}
-          style={{
-            width: "100%",
-            padding: "8px 10px",
-            backgroundColor: "var(--bg-input)",
-            border: "1px solid var(--border-color)",
-            borderRadius: "6px",
-            color: "var(--text-primary)",
-            fontSize: "13px",
-            outline: "none",
-          }}
-        >
-          <option value="">No location linked</option>
-          {pickers?.locations.map((loc) => (
-            <option key={loc.id} value={loc.id}>
-              {loc.name} {loc.city ? `(${loc.city})` : ""}
-            </option>
-          ))}
-        </select>
+        <EntityCombobox
+          ariaLabel="Location"
+          placeholder="Search locations…"
+          noneLabel="No location linked"
+          value={locationId || null}
+          onChange={(id) => onLocationChange?.(id)}
+          recentIds={locationPicker.recentIds}
+          options={locationPicker.options.map((loc) => ({
+            id: loc.id,
+            label: loc.name,
+            sublabel: [loc.city, loc.country].filter(Boolean).join(", ") || undefined,
+            favorite: loc.favorite,
+          }))}
+        />
       </div>
 
       {/* Trip Picker */}
@@ -117,27 +119,20 @@ export function JournalConnectionsPanel({
           <Compass size={14} style={{ color: "var(--accent)" }} />
           <span>Trip</span>
         </div>
-        <select
-          value={tripId || ""}
-          onChange={(e) => onTripChange?.(e.target.value || null)}
-          style={{
-            width: "100%",
-            padding: "8px 10px",
-            backgroundColor: "var(--bg-input)",
-            border: "1px solid var(--border-color)",
-            borderRadius: "6px",
-            color: "var(--text-primary)",
-            fontSize: "13px",
-            outline: "none",
-          }}
-        >
-          <option value="">No trip linked</option>
-          {pickers?.trips.map((tr) => (
-            <option key={tr.id} value={tr.id}>
-              {tr.title} {tr.startDate ? `(${tr.startDate})` : ""}
-            </option>
-          ))}
-        </select>
+        <EntityCombobox
+          ariaLabel="Trip"
+          placeholder="Search trips…"
+          noneLabel="No trip linked"
+          value={tripId || null}
+          onChange={(id) => onTripChange?.(id)}
+          recentIds={tripPicker.recentIds}
+          options={tripPicker.options.map((tr) => ({
+            id: tr.id,
+            label: tr.title,
+            sublabel: tr.startDate ? tr.startDate.slice(0, 10) : undefined,
+            favorite: tr.favorite,
+          }))}
+        />
       </div>
 
       {/* People Picker */}

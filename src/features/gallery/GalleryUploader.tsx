@@ -5,9 +5,9 @@ import { processImageWithWorker, type ProcessedDerivatives } from "./worker/imag
 import { extractExifMetadata, type ExtractedExif } from "./exif";
 import { getPresignedGalleryUrls, saveGalleryPhoto, type PresignedUrlsResult } from "./actions";
 import { generatePhotoSlug } from "./schema";
-import { LocationRecord, TripRecord } from "@/db/schema";
-import { getLocations } from "@/features/locations/actions";
-import { getTrips } from "@/features/trips/actions";
+import { getLocationPickerData, getTripPickerData } from "@/features/pickers/actions";
+import type { LocationPickerOption, TripPickerOption } from "@/features/pickers/types";
+import { EntityCombobox } from "@/components/EntityCombobox";
 import {
   UploadCloud,
   X,
@@ -91,21 +91,24 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const [locationsList, setLocationsList] = useState<LocationRecord[]>([]);
-  const [tripsList, setTripsList] = useState<TripRecord[]>([]);
-  const [isLoadingEntities, setIsLoadingEntities] = useState(false);
+  const [locationsList, setLocationsList] = useState<LocationPickerOption[]>([]);
+  const [tripsList, setTripsList] = useState<TripPickerOption[]>([]);
+  const [locationRecentIds, setLocationRecentIds] = useState<string[]>([]);
+  const [tripRecentIds, setTripRecentIds] = useState<string[]>([]);
+  const [entitiesLoaded, setEntitiesLoaded] = useState(false);
 
   const loadEntities = async () => {
-    if (locationsList.length > 0 && tripsList.length > 0) return;
-    setIsLoadingEntities(true);
+    if (entitiesLoaded) return;
+    setEntitiesLoaded(true);
     try {
-      const [locs, trps] = await Promise.all([getLocations(), getTrips()]);
-      setLocationsList(locs);
-      setTripsList(trps);
+      const [locData, tripData] = await Promise.all([getLocationPickerData(), getTripPickerData()]);
+      setLocationsList(locData.options);
+      setLocationRecentIds(locData.recentIds);
+      setTripsList(tripData.options);
+      setTripRecentIds(tripData.recentIds);
     } catch (err) {
       console.error("Failed to load locations or trips:", err);
-    } finally {
-      setIsLoadingEntities(false);
+      setEntitiesLoaded(false);
     }
   };
 
@@ -1009,60 +1012,61 @@ export function GalleryUploader({ onUploadSuccess }: GalleryUploaderProps) {
                     <label className="form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                       <MapPin size={13} style={{ color: "var(--accent)" }} />
                       <span>Associated Location</span>
-                      {isLoadingEntities && <Loader2 size={12} className="animate-spin" />}
                     </label>
-                    <select
-                      className="select-input"
-                      value={activeItem.form.locationId}
-                      onFocus={loadEntities}
-                      onChange={(e) => {
-                        const selectedId = e.target.value;
-                        const foundLoc = locationsList.find((l) => l.id === selectedId);
+                    <EntityCombobox
+                      ariaLabel="Associated Location"
+                      placeholder="Search locations…"
+                      noneLabel="-- None (No Location) --"
+                      value={activeItem.form.locationId || null}
+                      onOpen={loadEntities}
+                      recentIds={locationRecentIds}
+                      options={locationsList.map((loc) => ({
+                        id: loc.id,
+                        label: loc.name,
+                        sublabel: [loc.city, loc.country].filter(Boolean).join(", ") || undefined,
+                        favorite: loc.favorite,
+                      }))}
+                      onChange={(selectedId) => {
+                        const foundLoc = selectedId ? locationsList.find((l) => l.id === selectedId) : undefined;
                         updateItem(activeItem.id, (prev) => ({
                           ...prev,
                           form: {
                             ...prev.form,
-                            locationId: selectedId,
+                            locationId: selectedId || "",
                             locationName: foundLoc ? foundLoc.name : "",
                             latitude: foundLoc && foundLoc.latitude ? String(foundLoc.latitude) : prev.form.latitude,
                             longitude: foundLoc && foundLoc.longitude ? String(foundLoc.longitude) : prev.form.longitude,
                           },
                         }));
                       }}
-                    >
-                      <option value="">-- None (No Location) --</option>
-                      {locationsList.map((loc) => (
-                        <option key={loc.id} value={loc.id}>
-                          {loc.name} {[loc.city, loc.country].filter(Boolean).length ? `(${[loc.city, loc.country].filter(Boolean).join(", ")})` : ""}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
 
                   <div className="form-group">
                     <label className="form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                       <Compass size={13} style={{ color: "var(--accent)" }} />
                       <span>Associated Trip</span>
-                      {isLoadingEntities && <Loader2 size={12} className="animate-spin" />}
                     </label>
-                    <select
-                      className="select-input"
-                      value={activeItem.form.tripId}
-                      onFocus={loadEntities}
-                      onChange={(e) =>
+                    <EntityCombobox
+                      ariaLabel="Associated Trip"
+                      placeholder="Search trips…"
+                      noneLabel="-- None (No Trip) --"
+                      value={activeItem.form.tripId || null}
+                      onOpen={loadEntities}
+                      recentIds={tripRecentIds}
+                      options={tripsList.map((t) => ({
+                        id: t.id,
+                        label: t.title,
+                        sublabel: t.startDate ? t.startDate.slice(0, 10) : undefined,
+                        favorite: t.favorite,
+                      }))}
+                      onChange={(id) =>
                         updateItem(activeItem.id, (prev) => ({
                           ...prev,
-                          form: { ...prev.form, tripId: e.target.value },
+                          form: { ...prev.form, tripId: id || "" },
                         }))
                       }
-                    >
-                      <option value="">-- None (No Trip) --</option>
-                      {tripsList.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.title} ({t.status})
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", minWidth: 0 }}>
