@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { TripRecord, TripDayRecord } from "@/db/schema";
 import type { LocationPickerOption } from "@/features/pickers/types";
 import {
@@ -14,12 +14,21 @@ import {
   computeTripCostSummary,
   formatCostTotals,
 } from "@/features/trips/day-helpers";
-import { getLocationPickerData } from "@/features/pickers/actions";
+import { getLocationPickerData, getTripLocationIds } from "@/features/pickers/actions";
 import { TripDayEditorModal } from "@/features/trips/components/TripDayEditorModal";
 import { notify } from "@/lib/notifications";
 import {
-  CalendarDays, Plus, Sparkles, MapPin, Edit2, Trash2, Bed, Utensils,
-  Navigation, Camera, CloudSun,
+  CalendarDays,
+  Plus,
+  Sparkles,
+  MapPin,
+  Edit2,
+  Trash2,
+  Bed,
+  Utensils,
+  Navigation,
+  Camera,
+  CloudSun,
 } from "lucide-react";
 
 const cardStyle: React.CSSProperties = {
@@ -33,15 +42,21 @@ export function TripItineraryTab({ trip }: { trip: TripRecord }) {
   const [days, setDays] = useState<TripDayRecord[]>([]);
   const [locations, setLocations] = useState<LocationPickerOption[]>([]);
   const [locationRecentIds, setLocationRecentIds] = useState<string[]>([]);
+  const [tripLocationIds, setTripLocationIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [editingDay, setEditingDay] = useState<TripDayRecord | null>(null);
 
   const load = useCallback(async () => {
-    const [d, locData] = await Promise.all([getTripDaysAction(trip.id), getLocationPickerData()]);
+    const [d, locData, tripLocIds] = await Promise.all([
+      getTripDaysAction(trip.id),
+      getLocationPickerData(),
+      getTripLocationIds(trip.id),
+    ]);
     setDays(d);
     setLocations(locData.options);
     setLocationRecentIds(locData.recentIds);
+    setTripLocationIds(tripLocIds);
     setLoading(false);
   }, [trip.id]);
 
@@ -51,12 +66,14 @@ export function TripItineraryTab({ trip }: { trip: TripRecord }) {
 
   const summary = computeTripCostSummary(days);
   const hasDates = Boolean(trip.startDate && trip.endDate);
+  const locationsMap = useMemo(() => new Map(locations.map((l) => [l.id, l])), [locations]);
 
   const handleGenerate = async () => {
     setBusy(true);
     try {
       const next = await generateTripDaysFromDatesAction(trip.id);
       setDays(next);
+      await load();
     } finally {
       setBusy(false);
     }
@@ -130,6 +147,7 @@ export function TripItineraryTab({ trip }: { trip: TripRecord }) {
             <DayCard
               key={day.id}
               day={day}
+              locationsMap={locationsMap}
               costLabel={formatCostTotals(summary.perDay[day.id] || {})}
               onEdit={() => setEditingDay(day)}
               onDelete={() => handleDelete(day)}
@@ -142,6 +160,7 @@ export function TripItineraryTab({ trip }: { trip: TripRecord }) {
         isOpen={editingDay !== null}
         day={editingDay}
         locations={locations}
+        tripLocationIds={tripLocationIds}
         locationRecentIds={locationRecentIds}
         onClose={() => setEditingDay(null)}
         onSaved={load}
@@ -151,21 +170,35 @@ export function TripItineraryTab({ trip }: { trip: TripRecord }) {
 }
 
 function DayCard({
-  day, costLabel, onEdit, onDelete,
+  day,
+  locationsMap,
+  costLabel,
+  onEdit,
+  onDelete,
 }: {
   day: TripDayRecord;
+  locationsMap: Map<string, LocationPickerOption>;
   costLabel: string;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const parsed = parseTripDay(day);
-  const place = day.primaryLocationName || "";
+
+  const resolveLocName = (locId?: string | null, fallback?: string | null): string => {
+    if (locId && locationsMap.has(locId)) return locationsMap.get(locId)!.name;
+    return fallback || "";
+  };
+
+  const place = resolveLocName(day.primaryLocationId, day.primaryLocationName);
+
   return (
     <div style={cardStyle}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px" }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--accent)", textTransform: "uppercase" }}>Day {day.dayNumber}</span>
+            <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--accent)", textTransform: "uppercase" }}>
+              Day {day.dayNumber}
+            </span>
             {day.date && <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>{day.date}</span>}
           </div>
           <div style={{ fontSize: "15px", fontWeight: 700, marginTop: "2px" }}>{day.title || "Untitled day"}</div>
@@ -177,42 +210,83 @@ function DayCard({
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           {costLabel && <span style={{ fontSize: "13px", fontWeight: 700 }}>{costLabel}</span>}
-          <button onClick={onEdit} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}><Edit2 size={15} /></button>
-          <button onClick={onDelete} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}><Trash2 size={15} /></button>
+          <button onClick={onEdit} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>
+            <Edit2 size={15} />
+          </button>
+          <button onClick={onDelete} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}>
+            <Trash2 size={15} />
+          </button>
         </div>
       </div>
 
-      {(parsed.transport.length > 0 || parsed.meals.length > 0 || parsed.activities.length > 0 ||
-        parsed.accommodation.name || day.weather || day.mood || parsed.photos.length > 0) && (
+      {(parsed.transport.length > 0 ||
+        parsed.meals.length > 0 ||
+        parsed.activities.length > 0 ||
+        parsed.accommodation.name ||
+        parsed.accommodation.locationId ||
+        day.weather ||
+        day.mood ||
+        parsed.photos.length > 0) && (
         <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "10px", fontSize: "13px", color: "var(--text-secondary)" }}>
-          {parsed.transport.map((leg) => (
-            <div key={leg.id} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <Navigation size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-              <span>{leg.mode}{(leg.fromName || leg.toName) ? `: ${leg.fromName || "?"} → ${leg.toName || "?"}` : ""}{typeof leg.cost === "number" ? ` · ${leg.currency || ""}${leg.cost}` : ""}</span>
-            </div>
-          ))}
-          {parsed.meals.map((meal) => (
-            <div key={meal.id} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <Utensils size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-              <span>{meal.type}{meal.place ? ` @ ${meal.place}` : ""}{meal.rating ? ` · ${"★".repeat(meal.rating)}` : ""}{typeof meal.cost === "number" ? ` · ${meal.currency || ""}${meal.cost}` : ""}</span>
-            </div>
-          ))}
-          {parsed.activities.map((act) => (
-            <div key={act.id} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <MapPin size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-              <span>{act.title || "Activity"}{act.time ? ` · ${act.time}` : ""}{typeof act.cost === "number" ? ` · ${act.currency || ""}${act.cost}` : ""}</span>
-            </div>
-          ))}
-          {parsed.accommodation.name && (
+          {parsed.transport.map((leg) => {
+            const fromName = resolveLocName(leg.fromLocationId, leg.fromName);
+            const toName = resolveLocName(leg.toLocationId, leg.toName);
+            return (
+              <div key={leg.id} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <Navigation size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+                <span>
+                  {leg.mode}
+                  {fromName || toName ? `: ${fromName || "?"} → ${toName || "?"}` : ""}
+                  {typeof leg.cost === "number" ? ` · ${leg.currency || ""}${leg.cost}` : ""}
+                </span>
+              </div>
+            );
+          })}
+          {parsed.meals.map((meal) => {
+            const mealPlace = resolveLocName(meal.placeLocationId, meal.place);
+            return (
+              <div key={meal.id} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <Utensils size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+                <span>
+                  {meal.type}
+                  {mealPlace ? ` @ ${mealPlace}` : ""}
+                  {meal.rating ? ` · ${"★".repeat(meal.rating)}` : ""}
+                  {typeof meal.cost === "number" ? ` · ${meal.currency || ""}${meal.cost}` : ""}
+                </span>
+              </div>
+            );
+          })}
+          {parsed.activities.map((act) => {
+            const actLocation = resolveLocName(act.locationId, act.locationName);
+            return (
+              <div key={act.id} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <MapPin size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+                <span>
+                  {act.title || "Activity"}
+                  {actLocation ? ` (${actLocation})` : ""}
+                  {act.time ? ` · ${act.time}` : ""}
+                  {typeof act.cost === "number" ? ` · ${act.currency || ""}${act.cost}` : ""}
+                </span>
+              </div>
+            );
+          })}
+          {(parsed.accommodation.name || parsed.accommodation.locationId) && (
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <Bed size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-              <span>{parsed.accommodation.name}{typeof parsed.accommodation.cost === "number" ? ` · ${parsed.accommodation.currency || ""}${parsed.accommodation.cost}` : ""}</span>
+              <span>
+                {resolveLocName(parsed.accommodation.locationId, parsed.accommodation.name || parsed.accommodation.locationName)}
+                {typeof parsed.accommodation.cost === "number" ? ` · ${parsed.accommodation.currency || ""}${parsed.accommodation.cost}` : ""}
+              </span>
             </div>
           )}
           {(day.weather || day.mood) && (
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <CloudSun size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-              <span>{day.weather || ""}{day.weather && day.mood ? " · " : ""}{day.mood ? "★".repeat(day.mood) : ""}</span>
+              <span>
+                {day.weather || ""}
+                {day.weather && day.mood ? " · " : ""}
+                {day.mood ? "★".repeat(day.mood) : ""}
+              </span>
             </div>
           )}
           {parsed.photos.length > 0 && (
@@ -220,7 +294,12 @@ function DayCard({
               <Camera size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
               <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                 {parsed.photos.slice(0, 6).map((p) => (
-                  <img key={p.id} src={p.url} alt={p.caption || ""} style={{ width: "44px", height: "44px", objectFit: "cover", borderRadius: "4px", border: "1px solid var(--border-color)" }} />
+                  <img
+                    key={p.id}
+                    src={p.url}
+                    alt={p.caption || ""}
+                    style={{ width: "44px", height: "44px", objectFit: "cover", borderRadius: "4px", border: "1px solid var(--border-color)" }}
+                  />
                 ))}
               </div>
             </div>

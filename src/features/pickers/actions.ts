@@ -10,8 +10,9 @@ import {
   movieMetadata,
   tvShowMetadata,
   journalEntries,
+  relationships,
 } from "@/db/schema";
-import { asc, desc, isNotNull } from "drizzle-orm";
+import { asc, desc, isNotNull, eq, or, and } from "drizzle-orm";
 import { createCachedQuery } from "@/lib/server-cache";
 import type {
   LocationPickerData,
@@ -149,4 +150,24 @@ export async function getTripRecentIds(validIds?: string[]): Promise<string[]> {
   if (!validIds) return recent;
   const valid = new Set(validIds);
   return recent.filter((id) => valid.has(id));
+}
+
+/** Location IDs associated with a specific trip via the relationships engine. */
+export async function getTripLocationIds(tripId: string): Promise<string[]> {
+  await ensureDbInitialized();
+  const rels = await db
+    .select({
+      targetId: relationships.targetId,
+      sourceId: relationships.sourceId,
+      sourceType: relationships.sourceType,
+    })
+    .from(relationships)
+    .where(
+      or(
+        and(eq(relationships.sourceType, "trip"), eq(relationships.sourceId, tripId), eq(relationships.targetType, "location")),
+        and(eq(relationships.sourceType, "location"), eq(relationships.targetType, "trip"), eq(relationships.targetId, tripId))
+      )
+    );
+
+  return rels.map((r) => (r.sourceType === "trip" ? r.targetId : r.sourceId));
 }

@@ -1,7 +1,5 @@
-"use client";
-
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, X, Star, Clock } from "lucide-react";
+import { Search, X, Star, Clock, MapPin, Plus } from "lucide-react";
 
 export interface ComboOption {
   id: string;
@@ -10,11 +8,21 @@ export interface ComboOption {
   favorite?: boolean;
 }
 
+export interface ComboAction {
+  id: string;
+  label: string;
+  sublabel?: string;
+  icon?: React.ReactNode;
+  onSelect: () => void;
+}
+
 interface EntityComboboxProps {
   options: ComboOption[];
   /** Currently selected option id, or null when nothing / a custom value is set. */
   value: string | null;
   onChange: (id: string | null) => void;
+  /** Option ids to prioritize at the very top (e.g. current trip's locations). */
+  priorityIds?: string[];
   /** Option ids ordered most-recently-used first; floated to the top when the search box is empty. */
   recentIds?: string[];
   placeholder?: string;
@@ -29,6 +37,10 @@ interface EntityComboboxProps {
   ariaLabel?: string;
   /** Fired when the dropdown opens; use for lazy-loading option data on first focus. */
   onOpen?: () => void;
+  /** Optional extra interactive action items (e.g. geocoded quick-create suggestions). */
+  extraActions?: ComboAction[];
+  /** Notified when user types query */
+  onQueryChange?: (query: string) => void;
 }
 
 const MAX_RESULTS = 8;
@@ -37,6 +49,7 @@ export function EntityCombobox({
   options,
   value,
   onChange,
+  priorityIds = [],
   recentIds = [],
   placeholder = "Search…",
   noneLabel = "None",
@@ -47,6 +60,8 @@ export function EntityCombobox({
   customPlaceholder = "Type a custom name",
   ariaLabel,
   onOpen,
+  extraActions = [],
+  onQueryChange,
 }: EntityComboboxProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -58,34 +73,39 @@ export function EntityCombobox({
   const selected = value ? byId.get(value) : undefined;
   const hasCustom = allowCustom && !value && !!customValue?.trim();
 
-  // Ordering when the query is empty: recents (in recency order) → favorites →
-  // everything else, preserving the caller's incoming order within each bucket.
+  // Ordering when the query is empty: priority (e.g. trip locations) → recents → favorites → rest
   const baseOrder = useMemo(() => {
+    const prioritySet = new Set(priorityIds);
     const recentSet = new Set(recentIds);
-    const recent = recentIds.map((id) => byId.get(id)).filter((o): o is ComboOption => !!o);
-    const favorites = options.filter((o) => o.favorite && !recentSet.has(o.id));
+    const priority = priorityIds.map((id) => byId.get(id)).filter((o): o is ComboOption => !!o);
+    const recent = recentIds.filter((id) => !prioritySet.has(id)).map((id) => byId.get(id)).filter((o): o is ComboOption => !!o);
+    const favorites = options.filter((o) => o.favorite && !prioritySet.has(o.id) && !recentSet.has(o.id));
     const favSet = new Set(favorites.map((o) => o.id));
-    const rest = options.filter((o) => !recentSet.has(o.id) && !favSet.has(o.id));
-    return { recent, favorites, rest };
-  }, [options, recentIds, byId]);
+    const rest = options.filter((o) => !prioritySet.has(o.id) && !recentSet.has(o.id) && !favSet.has(o.id));
+    return { priority, recent, favorites, rest };
+  }, [options, priorityIds, recentIds, byId]);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) {
-      return [...baseOrder.recent, ...baseOrder.favorites, ...baseOrder.rest].slice(0, MAX_RESULTS);
+      return [...baseOrder.priority, ...baseOrder.recent, ...baseOrder.favorites, ...baseOrder.rest].slice(0, MAX_RESULTS);
     }
+    const prioritySet = new Set(priorityIds);
     const matches = options.filter((o) => {
       const hay = `${o.label} ${o.sublabel ?? ""}`.toLowerCase();
       return hay.includes(q);
     });
-    // Prefix matches on the label rank above mid-string matches.
+    // Priority matches first, then prefix matches on label, then substring
     matches.sort((a, b) => {
+      const aPri = prioritySet.has(a.id) ? 0 : 1;
+      const bPri = prioritySet.has(b.id) ? 0 : 1;
+      if (aPri !== bPri) return aPri - bPri;
       const ap = a.label.toLowerCase().startsWith(q) ? 0 : 1;
       const bp = b.label.toLowerCase().startsWith(q) ? 0 : 1;
       return ap - bp;
     });
     return matches.slice(0, MAX_RESULTS);
-  }, [query, options, baseOrder]);
+  }, [query, options, priorityIds, baseOrder]);
 
   useEffect(() => setHighlight(0), [query, open]);
 
@@ -125,18 +145,36 @@ export function EntityCombobox({
   // Build the interactive row list (used for keyboard navigation + rendering).
   type Row =
     | { kind: "none" }
-    | { kind: "option"; option: ComboOption; recent: boolean }
+    | { kind: "option"; option: ComboOption; priority: boolean; recent: boolean }
+    | { kind: "action"; action: ComboAction }
     | { kind: "custom"; text: string };
+
   const rows: Row[] = [];
   rows.push({ kind: "none" });
   const recentSet = new Set(recentIds);
-  for (const o of results) rows.push({ kind: "option", option: o, recent: recentSet.has(o.id) });
+  const prioritySet = new Set(priorityIds);
+  for (const o of results) {
+    rows.push({
+      kind: "option",
+      option: o,
+      priority: prioritySet.has(o.id),
+      recent: !prioritySet.has(o.id) && recentSet.has(o.id),
+    });
+  }
+  if (extraActions && extraActions.length > 0) {
+    for (const a of extraActions) rows.push({ kind: "action", action: a });
+  }
   if (allowCustom && query.trim()) rows.push({ kind: "custom", text: query.trim() });
 
   const activateRow = (row: Row) => {
     if (row.kind === "none") commitOption(null);
     else if (row.kind === "option") commitOption(row.option.id);
-    else commitCustom();
+    else if (row.kind === "action") {
+      row.action.onSelect();
+      setOpen(false);
+      setQuery("");
+      inputRef.current?.blur();
+    } else commitCustom();
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -187,6 +225,7 @@ export function EntityCombobox({
           onChange={(e) => {
             setOpen(true);
             setQuery(e.target.value);
+            onQueryChange?.(e.target.value);
           }}
           onKeyDown={onKeyDown}
         />
@@ -229,11 +268,27 @@ export function EntityCombobox({
                 </button>
               );
             }
+            if (row.kind === "action") {
+              return (
+                <button key={`act_${row.action.id}`} type="button" style={base}
+                  onMouseEnter={() => setHighlight(i)} onClick={() => activateRow(row)}>
+                  {row.action.icon || <Plus size={13} style={{ color: "var(--accent, #f97316)", flexShrink: 0 }} />}
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {row.action.label}
+                    {row.action.sublabel && (
+                      <span style={{ color: "var(--text-muted)", marginLeft: "6px", fontSize: "12px" }}>
+                        {row.action.sublabel}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            }
             if (row.kind === "custom") {
               return (
                 <button key="custom" type="button" style={base}
                   onMouseEnter={() => setHighlight(i)} onClick={() => activateRow(row)}>
-                  <Search size={13} style={{ color: "var(--text-muted)" }} />
+                  <Search size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
                   <span>Use “{row.text}”</span>
                 </button>
               );
@@ -242,7 +297,9 @@ export function EntityCombobox({
             return (
               <button key={o.id} type="button" style={base}
                 onMouseEnter={() => setHighlight(i)} onClick={() => activateRow(row)}>
-                {row.recent ? (
+                {row.priority ? (
+                  <MapPin size={13} style={{ color: "var(--accent, #f97316)", flexShrink: 0 }} />
+                ) : row.recent ? (
                   <Clock size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
                 ) : o.favorite ? (
                   <Star size={13} style={{ color: "#f5a623", fill: "#f5a623", flexShrink: 0 }} />

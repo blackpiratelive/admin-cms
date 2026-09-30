@@ -1,10 +1,11 @@
 "use server";
 
 import { db, ensureDbInitialized } from "@/db";
-import { tripDays, trips, TripDayRecord, NewTripDay } from "@/db/schema";
+import { tripDays, trips, TripDayRecord, NewTripDay, locations } from "@/db/schema";
 import { asc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/features/activity/actions";
+import { addRelationship } from "@/features/relationships/actions";
 import { purgeTag } from "@/lib/server-cache";
 import { enumerateDateRange, type TripDayUpdate } from "@/features/trips/day-helpers";
 
@@ -14,6 +15,7 @@ function genDayId(): string {
 
 async function purgeTripCaches(tripId: string): Promise<void> {
   purgeTag("trips-list");
+  purgeTag("locations-list");
   purgeTag(`trip-${tripId}`);
   const tr = await db.select().from(trips).where(eq(trips.id, tripId)).limit(1);
   if (tr[0]) {
@@ -111,8 +113,16 @@ export async function updateTripDayAction(
 
   if (payload.date !== undefined) updates.date = payload.date || null;
   if (payload.title !== undefined) updates.title = payload.title || null;
-  if (payload.primaryLocationId !== undefined) updates.primaryLocationId = payload.primaryLocationId || null;
-  if (payload.primaryLocationName !== undefined) updates.primaryLocationName = payload.primaryLocationName || null;
+  if (payload.primaryLocationId !== undefined) {
+    updates.primaryLocationId = payload.primaryLocationId || null;
+    if (payload.primaryLocationId && !payload.primaryLocationName) {
+      const loc = (await db.select({ name: locations.name }).from(locations).where(eq(locations.id, payload.primaryLocationId)).limit(1))[0];
+      if (loc) updates.primaryLocationName = loc.name;
+    }
+  }
+  if (payload.primaryLocationName !== undefined && updates.primaryLocationName === undefined) {
+    updates.primaryLocationName = payload.primaryLocationName || null;
+  }
   if (payload.weather !== undefined) updates.weather = payload.weather || null;
   if (payload.mood !== undefined) updates.mood = payload.mood ?? null;
   if (payload.notesMarkdown !== undefined) updates.notesMarkdown = payload.notesMarkdown || null;
@@ -123,6 +133,38 @@ export async function updateTripDayAction(
   if (payload.photos !== undefined) updates.photosJson = JSON.stringify(payload.photos);
 
   await db.update(tripDays).set(updates).where(eq(tripDays.id, dayId));
+
+  // Auto-link all referenced locations to the trip via the Relationship Engine
+  const referencedLocIds = new Set<string>();
+  if (payload.primaryLocationId) referencedLocIds.add(payload.primaryLocationId);
+  if (payload.transport) {
+    for (const leg of payload.transport) {
+      if (leg.fromLocationId) referencedLocIds.add(leg.fromLocationId);
+      if (leg.toLocationId) referencedLocIds.add(leg.toLocationId);
+    }
+  }
+  if (payload.meals) {
+    for (const meal of payload.meals) {
+      if (meal.placeLocationId) referencedLocIds.add(meal.placeLocationId);
+    }
+  }
+  if (payload.activities) {
+    for (const act of payload.activities) {
+      if (act.locationId) referencedLocIds.add(act.locationId);
+    }
+  }
+  if (payload.accommodation?.locationId) {
+    referencedLocIds.add(payload.accommodation.locationId);
+  }
+
+  for (const locId of referencedLocIds) {
+    try {
+      await addRelationship("trip", existing.tripId, "location", locId, "includes_location");
+    } catch (e) {
+      console.error(`Failed to auto-link location ${locId} to trip ${existing.tripId}:`, e);
+    }
+  }
+
   await purgeTripCaches(existing.tripId);
 
   return { ...existing, ...updates } as TripDayRecord;

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { db, ensureDbInitialized } from "../src/db";
-import { trips, tripDays } from "../src/db/schema";
-import { eq } from "drizzle-orm";
+import { trips, tripDays, locations, relationships } from "../src/db/schema";
+import { eq, or, and } from "drizzle-orm";
 import {
   getTripDaysAction,
   generateTripDaysFromDatesAction,
@@ -16,6 +16,8 @@ import {
 } from "../src/features/trips/day-helpers";
 
 const TRIP_ID = "trip_test_days_1";
+const LOC_1 = "loc_test_td_1";
+const LOC_2 = "loc_test_td_2";
 
 describe("Trip day-by-day journal", () => {
   beforeAll(async () => {
@@ -37,12 +39,50 @@ describe("Trip day-by-day journal", () => {
         updatedAt: now,
       })
       .onConflictDoNothing();
+
+    await db
+      .insert(locations)
+      .values([
+        {
+          id: LOC_1,
+          name: "Darjeeling Hills",
+          slug: "darjeeling-hills",
+          city: "Darjeeling",
+          country: "India",
+          tags: "[]",
+          visibility: "public",
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: LOC_2,
+          name: "Gangtok Center",
+          slug: "gangtok-center",
+          city: "Gangtok",
+          country: "India",
+          tags: "[]",
+          visibility: "public",
+          createdAt: now,
+          updatedAt: now,
+        },
+      ])
+      .onConflictDoNothing();
+
     await db.delete(tripDays).where(eq(tripDays.tripId, TRIP_ID));
   });
 
   afterAll(async () => {
     await db.delete(tripDays).where(eq(tripDays.tripId, TRIP_ID));
     await db.delete(trips).where(eq(trips.id, TRIP_ID));
+    await db.delete(locations).where(or(eq(locations.id, LOC_1), eq(locations.id, LOC_2)));
+    await db.delete(relationships).where(
+      or(
+        eq(relationships.sourceId, TRIP_ID),
+        eq(relationships.targetId, TRIP_ID),
+        eq(relationships.targetId, LOC_1),
+        eq(relationships.targetId, LOC_2)
+      )
+    );
   });
 
   it("enumerates an inclusive ISO date range", () => {
@@ -106,5 +146,45 @@ describe("Trip day-by-day journal", () => {
     expect(summary.total["₹"]).toBe(2500);
     expect(summary.total["$"]).toBe(30);
     expect(formatCostTotals(summary.perDay[target.id])).toBe("₹ 2,500 + $ 30");
+  });
+
+  it("auto-links referenced location entities to trip and denormalizes primaryLocationName", async () => {
+    const days = await getTripDaysAction(TRIP_ID);
+    const target = days[1];
+
+    const updated = await updateTripDayAction(target.id, {
+      primaryLocationId: LOC_1,
+      transport: [
+        { id: "trn_1", mode: "bus", fromLocationId: LOC_1, toLocationId: LOC_2 },
+      ],
+      meals: [
+        { id: "ml_1", type: "lunch", placeLocationId: LOC_1 },
+      ],
+      activities: [
+        { id: "act_1", title: "Sightseeing", locationId: LOC_2 },
+      ],
+      accommodation: {
+        locationId: LOC_1,
+      },
+    });
+
+    expect(updated?.primaryLocationId).toBe(LOC_1);
+    expect(updated?.primaryLocationName).toBe("Darjeeling Hills");
+
+    const rels = await db
+      .select()
+      .from(relationships)
+      .where(
+        and(
+          eq(relationships.sourceType, "trip"),
+          eq(relationships.sourceId, TRIP_ID),
+          eq(relationships.targetType, "location"),
+          eq(relationships.relationship, "includes_location")
+        )
+      );
+
+    const linkedLocIds = rels.map((r) => r.targetId);
+    expect(linkedLocIds).toContain(LOC_1);
+    expect(linkedLocIds).toContain(LOC_2);
   });
 });

@@ -5,7 +5,9 @@ import { eq } from "drizzle-orm";
 import {
   getLocationPickerData,
   getTripPickerData,
+  getTripLocationIds,
 } from "../src/features/pickers/actions";
+import { quickCreateLocationAction } from "../src/features/locations/actions";
 
 // Distinct ids so we can assert against them without depending on other rows.
 const LOC_FAV = "loc_test_pick_fav";
@@ -92,5 +94,30 @@ describe("Entity picker data (options + server-derived recents)", () => {
     const { options, recentIds } = await getLocationPickerData();
     const validIds = new Set(options.map((o) => o.id));
     for (const id of recentIds) expect(validIds.has(id)).toBe(true);
+  });
+
+  it("retrieves location IDs associated with a trip via getTripLocationIds", async () => {
+    const tripLocIds = await getTripLocationIds(TRIP_NEW);
+    expect(Array.isArray(tripLocIds)).toBe(true);
+  });
+
+  it("quick-creates a location entity and connects to trip", async () => {
+    const quick = await quickCreateLocationAction({
+      name: "Quick Created Lake",
+      city: "Gangtok",
+      country: "IN",
+      latitude: 27.3,
+      longitude: 88.6,
+      tripId: TRIP_NEW,
+    });
+    expect(quick.id).toMatch(/^loc_/);
+    expect(quick.name).toBe("Quick Created Lake");
+    expect(quick.city).toBe("Gangtok");
+
+    const tripLocIds = await getTripLocationIds(TRIP_NEW);
+    expect(tripLocIds).toContain(quick.id);
+
+    // cleanup
+    await db.delete(locations).where(eq(locations.id, quick.id));
   });
 });

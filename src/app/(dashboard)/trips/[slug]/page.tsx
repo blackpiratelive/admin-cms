@@ -14,6 +14,9 @@ import {
 import { getLocations, removeLocationTripConnection } from "@/features/locations/actions";
 import { TripFormModal } from "@/features/trips/components/TripFormModal";
 import { TripItineraryTab } from "@/features/trips/components/TripItineraryTab";
+import { EntityCombobox } from "@/components/EntityCombobox";
+import { getLocationPickerData } from "@/features/pickers/actions";
+import type { LocationPickerOption } from "@/features/pickers/types";
 import {
   ArrowLeft,
   Compass,
@@ -42,7 +45,8 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
 
   const [trip, setTrip] = useState<TripRecord | null>(null);
   const [entities, setEntities] = useState<TripAssociatedEntities | null>(null);
-  const [availableLocations, setAvailableLocations] = useState<LocationRecord[]>([]);
+  const [availableLocations, setAvailableLocations] = useState<LocationPickerOption[]>([]);
+  const [recentLocIds, setRecentLocIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Modals & Selectors
@@ -79,8 +83,9 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
 
   const loadAvailableLocations = async () => {
     if (availableLocations.length === 0) {
-      const locs = await getLocations();
-      setAvailableLocations(locs);
+      const data = await getLocationPickerData();
+      setAvailableLocations(data.options);
+      setRecentLocIds(data.recentIds);
     }
   };
 
@@ -334,18 +339,24 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {/* Link Location Selector */}
           <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "8px", padding: "14px", display: "flex", alignItems: "center", gap: "12px" }}>
-            <span style={{ fontSize: "13px", fontWeight: 600 }}>Link Location to Trip:</span>
-            <select className="form-input" value={selectedLocToConnect} onFocus={loadAvailableLocations} onChange={(e) => setSelectedLocToConnect(e.target.value)} style={{ flex: 1 }}>
-              <option value="">-- Select Location --</option>
-              {availableLocations.map((l) => {
-                const locStr = [l.city, l.state, l.country].filter(Boolean).join(", ");
-                return (
-                  <option key={l.id} value={l.id}>
-                    {l.name} {locStr ? `(${locStr})` : ""}
-                  </option>
-                );
-              })}
-            </select>
+            <span style={{ fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap" }}>Link Location to Trip:</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <EntityCombobox
+                ariaLabel="Link Location"
+                placeholder="Search location to link…"
+                noneLabel="-- Select Location --"
+                value={selectedLocToConnect || null}
+                recentIds={recentLocIds}
+                onOpen={loadAvailableLocations}
+                onChange={(id) => setSelectedLocToConnect(id || "")}
+                options={availableLocations.map((l) => ({
+                  id: l.id,
+                  label: l.name,
+                  sublabel: [l.city, l.country].filter(Boolean).join(", ") || undefined,
+                  favorite: l.favorite,
+                }))}
+              />
+            </div>
             <button className="btn btn-primary" onClick={handleLinkLocation} disabled={!selectedLocToConnect || connectingLoc}>
               <Plus size={14} />
               <span>Link Location</span>

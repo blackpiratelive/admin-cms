@@ -23,6 +23,7 @@ import { logActivity } from "@/features/activity/actions";
 import { addRelationship, removeRelationship } from "@/features/relationships/actions";
 import { createCachedQuery, purgeTag } from "@/lib/server-cache";
 import { eventBus } from "@/lib/event-bus";
+import type { LocationPickerOption } from "@/features/pickers/types";
 
 async function fetchLocationsRaw(): Promise<LocationRecord[]> {
   await ensureDbInitialized();
@@ -387,4 +388,44 @@ export async function removeLocationTripConnection(
     } catch {}
   }
   return { success: true };
+}
+
+export async function quickCreateLocationAction(data: {
+  name: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+  tripId?: string;
+}): Promise<LocationPickerOption> {
+  const loc = await createLocation({
+    name: data.name,
+    city: data.city,
+    state: data.state,
+    country: data.country,
+    latitude: data.latitude,
+    longitude: data.longitude,
+    visibility: "public",
+  });
+
+  if (data.tripId) {
+    try {
+      await addRelationship("trip", data.tripId, "location", loc.id, "includes_location");
+      purgeTag("trips-list");
+      purgeTag(`trip-${data.tripId}`);
+    } catch (e) {
+      console.error("Failed to associate quick-created location with trip:", e);
+    }
+  }
+
+  return {
+    id: loc.id,
+    name: loc.name,
+    city: loc.city,
+    country: loc.country,
+    latitude: loc.latitude,
+    longitude: loc.longitude,
+    favorite: false,
+  };
 }
