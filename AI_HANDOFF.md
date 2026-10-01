@@ -85,7 +85,7 @@ admin-cms/
 │   │   ├── event-bus.ts         # Internal event pub-sub bus
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
-├── tests/                       # Vitest unit test suite (87 unit tests)
+├── tests/                       # Vitest unit test suite (93 unit tests across 17 test files)
 ├── freshrss.md                  # FreshRSS Sync Provider feature specification
 ├── android-journal.md           # Native Android Journal Application specification
 ├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
@@ -412,6 +412,13 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
   - `GET /api/people/pickers`: Fast aggregated picker endpoint returning locations, trips, projects, microblogs, photos, collections.
 - **CI/CD Automation**: Configured dual GitHub Actions (`.github/workflows/build-people-apk.yml`) and CircleCI (`.circleci/config.yml`) workflows for automated analyze, test, release keystore signing, and ARM64 APK build artifacts.
 - **Quality Gates**: All 24 Flutter unit/widget tests pass (100%), 0 linter issues in `flutter analyze`, and all 67 Vitest backend tests pass cleanly. `android/` legacy client remained 100% clean and untouched.
+
+### October 2026: People Module Cloudinary Client-Side Image Compression
+- **Client-Side Canvas Compression**: Added HTML5 Canvas client-side image compression support for direct Cloudinary uploads across the People module (`PersonPhotoPickerModal` and `PersonFormModal`).
+- **Configurable Quality & Dimensions**: Integrated interactive compression options enabled by default (Photos: 80% quality, 1920x1080 max dimensions; Avatars: 85% quality, 1000x1000 max dimensions) with expandable configuration panels for fine-tuning Quality sliders and Max Width/Height.
+- **Visual Feedback & Savings Badges**: Upload progress shows dynamic "Compressing..." and "Uploading..." overlay states. Successfully uploaded items display compression savings badges (e.g., `-78% (320 KB)`).
+- **Unit Test Coverage**: Added `tests/image-compressor.test.ts` covering file size formatting and non-image / SVG / GIF bypass logic.
+- **Quality Gates**: All 93 Vitest unit tests pass across 17 test suites (100%), Next.js production build (`npm run build`) compiles with zero errors, and `android/` legacy client remained 100% clean and untouched.
 
 ### September 2026: Mobile People v1.6.0 (Sync Queue Unblocking, Temp ID Remapping, Real-Time Birthdays & Android Pull-to-Refresh)
 - **Offline Sync Queue Unblocking & Temp ID Remapping**: Resolved offline mutation queue lockups. When an entity is created offline with a temporary ID (`temp_...`), upon successful creation on the backend, the optimistic cache is pruned (`LocalStore.deleteCachedPerson(tempId)`), and all subsequent mutations in the queue targeting that `tempId` have their `entityId` and payload `id`/`personId` remapped to the actual backend ID (`savedPerson.id`). Fatal non-network errors (400, 404, 422) are evicted with warnings rather than halting the sync loop indefinitely. Added periodic auto-sync timer (60s) and app-resume queue flushes.

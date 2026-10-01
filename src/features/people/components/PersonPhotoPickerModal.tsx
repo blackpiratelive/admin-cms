@@ -7,6 +7,7 @@ import { connectPersonPhotosBatchAction, BatchPhotoConnectItem } from "@/feature
 import { uploadDirectToCloudinary } from "@/lib/cloudinary";
 import { notify } from "@/lib/notifications";
 import { GalleryPhoto } from "@/db/schema";
+import { compressImageLocally, formatFileSize } from "@/lib/image-compressor";
 import {
   X,
   Image as ImageIcon,
@@ -17,6 +18,9 @@ import {
   Loader2,
   HardDrive,
   Plus,
+  Settings2,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 interface PersonPhotoPickerModalProps {
@@ -30,8 +34,10 @@ interface PersonPhotoPickerModalProps {
 interface UploadedItem {
   id: string;
   file: File;
+  originalSize: number;
+  compressedSize?: number;
   previewUrl: string;
-  status: "pending" | "uploading" | "success" | "error";
+  status: "pending" | "compressing" | "uploading" | "success" | "error";
   cloudinaryUrl?: string;
   publicId?: string;
   error?: string;
@@ -62,6 +68,13 @@ export function PersonPhotoPickerModal({
   // Upload state
   const [uploadedItems, setUploadedItems] = useState<UploadedItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Local compression configuration
+  const [compressLocally, setCompressLocally] = useState<boolean>(true);
+  const [showCompressionSettings, setShowCompressionSettings] = useState<boolean>(false);
+  const [compressionQuality, setCompressionQuality] = useState<number>(0.8);
+  const [maxWidth, setMaxWidth] = useState<number>(1920);
+  const [maxHeight, setMaxHeight] = useState<number>(1080);
 
   // Reset or load initial data when opening
   useEffect(() => {
@@ -115,26 +128,55 @@ export function PersonPhotoPickerModal({
     const newItems: UploadedItem[] = Array.from(files).map((file) => ({
       id: `up_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       file,
+      originalSize: file.size,
       previewUrl: URL.createObjectURL(file),
       status: "pending",
     }));
 
     setUploadedItems((prev) => [...prev, ...newItems]);
 
-    // Sequentially upload items to Cloudinary
+    // Sequentially process and upload items to Cloudinary
     for (const item of newItems) {
+      let fileToUpload = item.file;
+      let finalCompressedSize: number | undefined;
+
+      if (compressLocally) {
+        setUploadedItems((prev) =>
+          prev.map((it) => (it.id === item.id ? { ...it, status: "compressing" } : it))
+        );
+
+        try {
+          const compressed = await compressImageLocally(item.file, {
+            maxWidth,
+            maxHeight,
+            quality: compressionQuality,
+          });
+          if (compressed.size < item.file.size) {
+            fileToUpload = compressed;
+            finalCompressedSize = compressed.size;
+          }
+        } catch (compErr) {
+          console.warn("Compression failed, using original file:", compErr);
+        }
+      }
+
       setUploadedItems((prev) =>
-        prev.map((it) => (it.id === item.id ? { ...it, status: "uploading" } : it))
+        prev.map((it) =>
+          it.id === item.id
+            ? { ...it, status: "uploading", compressedSize: finalCompressedSize }
+            : it
+        )
       );
 
       try {
-        const uploadResult = await uploadDirectToCloudinary(item.file);
+        const uploadResult = await uploadDirectToCloudinary(fileToUpload);
         setUploadedItems((prev) =>
           prev.map((it) =>
             it.id === item.id
               ? {
                   ...it,
                   status: "success",
+                  compressedSize: finalCompressedSize,
                   cloudinaryUrl: uploadResult.secure_url,
                   publicId: uploadResult.public_id,
                 }
@@ -641,6 +683,142 @@ export function PersonPhotoPickerModal({
           {/* TAB 3: UPLOAD TO CLOUDINARY */}
           {activeTab === "upload" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {/* Compression Options Panel */}
+              <div
+                style={{
+                  backgroundColor: "var(--bg-hover)",
+                  border: "1px solid var(--border-color)",
+                  borderRadius: "8px",
+                  padding: "12px 14px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    flexWrap: "wrap",
+                    gap: "8px",
+                  }}
+                >
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      color: "var(--text-primary)",
+                      userSelect: "none",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={compressLocally}
+                      onChange={(e) => setCompressLocally(e.target.checked)}
+                      style={{ cursor: "pointer", accentColor: "#007aff" }}
+                    />
+                    <span>Compress image(s) before upload</span>
+                  </label>
+
+                  {compressLocally && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          color: "var(--text-muted)",
+                          backgroundColor: "var(--bg-card)",
+                          padding: "2px 8px",
+                          borderRadius: "12px",
+                          border: "1px solid var(--border-color)",
+                        }}
+                      >
+                        {Math.round(compressionQuality * 100)}% quality • max {maxWidth}×{maxHeight}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowCompressionSettings((prev) => !prev)}
+                        style={{
+                          background: "none",
+                          border: "1px solid var(--border-color)",
+                          borderRadius: "6px",
+                          padding: "3px 8px",
+                          fontSize: "11px",
+                          color: "var(--text-secondary)",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                        }}
+                      >
+                        <Settings2 size={13} />
+                        <span>Settings</span>
+                        {showCompressionSettings ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Collapsible Compression Settings */}
+                {compressLocally && showCompressionSettings && (
+                  <div
+                    style={{
+                      borderTop: "1px dashed var(--border-color)",
+                      paddingTop: "10px",
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                      gap: "12px",
+                      fontSize: "12px",
+                    }}
+                  >
+                    <div>
+                      <label style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px", display: "block" }}>
+                        Quality ({Math.round(compressionQuality * 100)}%)
+                      </label>
+                      <input
+                        type="range"
+                        min="0.1"
+                        max="1.0"
+                        step="0.05"
+                        value={compressionQuality}
+                        onChange={(e) => setCompressionQuality(parseFloat(e.target.value))}
+                        style={{ width: "100%", cursor: "pointer", accentColor: "#007aff" }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px", display: "block" }}>
+                        Max Width (px)
+                      </label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={maxWidth}
+                        onChange={(e) => setMaxWidth(parseInt(e.target.value) || 0)}
+                        style={{ fontSize: "12px", padding: "4px 8px", width: "100%" }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px", display: "block" }}>
+                        Max Height (px)
+                      </label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={maxHeight}
+                        onChange={(e) => setMaxHeight(parseInt(e.target.value) || 0)}
+                        style={{ fontSize: "12px", padding: "4px 8px", width: "100%" }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Dropzone Box */}
               <label
                 style={{
@@ -747,6 +925,27 @@ export function PersonPhotoPickerModal({
                             style={{ width: "100%", height: "100%", objectFit: "cover" }}
                           />
 
+                          {/* Compressing overlay */}
+                          {item.status === "compressing" && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                inset: 0,
+                                backgroundColor: "rgba(0,0,0,0.65)",
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                color: "#fff",
+                                gap: "4px",
+                                fontSize: "11px",
+                              }}
+                            >
+                              <Loader2 size={18} className="animate-spin" />
+                              <span>Compressing...</span>
+                            </div>
+                          )}
+
                           {/* Loading overlay */}
                           {item.status === "uploading" && (
                             <div
@@ -789,6 +988,26 @@ export function PersonPhotoPickerModal({
                             </div>
                           )}
 
+                          {/* Compression savings badge */}
+                          {isSuccess && item.compressedSize && item.compressedSize < item.originalSize && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: "6px",
+                                left: "6px",
+                                padding: "2px 6px",
+                                borderRadius: "4px",
+                                backgroundColor: "rgba(16, 185, 129, 0.9)",
+                                color: "#fff",
+                                fontSize: "9px",
+                                fontWeight: 700,
+                                zIndex: 2,
+                              }}
+                            >
+                              -{Math.round((1 - item.compressedSize / item.originalSize) * 100)}%
+                            </div>
+                          )}
+
                           {/* Checkmark for successfully uploaded and selected */}
                           {isSuccess && (
                             <div
@@ -827,6 +1046,7 @@ export function PersonPhotoPickerModal({
                             }}
                           >
                             {item.file.name}
+                            {item.compressedSize ? ` (${formatFileSize(item.compressedSize)})` : ` (${formatFileSize(item.originalSize)})`}
                           </div>
                         </div>
                       );

@@ -15,7 +15,8 @@ import {
 } from "@/features/people/schema";
 import { uploadDirectToCloudinary } from "@/lib/cloudinary";
 import { getCloudinaryResources, CloudinaryResource } from "@/features/media/cloudinaryActions";
-import { X, Plus, Trash2, Calendar, Lock, Globe, EyeOff, Star, Tag, Link2, Upload, Image as ImageIcon, Facebook, Check } from "lucide-react";
+import { compressImageLocally, formatFileSize } from "@/lib/image-compressor";
+import { X, Plus, Trash2, Calendar, Lock, Globe, EyeOff, Star, Tag, Link2, Upload, Image as ImageIcon, Facebook, Check, Settings2, ChevronDown, ChevronUp } from "lucide-react";
 
 interface PersonFormModalProps {
   isOpen: boolean;
@@ -59,6 +60,13 @@ export function PersonFormModal({
   const [loadingCloudinary, setLoadingCloudinary] = useState(false);
   const [showManualUrl, setShowManualUrl] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Avatar local compression settings
+  const [compressAvatar, setCompressAvatar] = useState<boolean>(true);
+  const [showAvatarCompressionSettings, setShowAvatarCompressionSettings] = useState<boolean>(false);
+  const [avatarQuality, setAvatarQuality] = useState<number>(0.85);
+  const [avatarMaxWidth, setAvatarMaxWidth] = useState<number>(1000);
+  const [avatarMaxHeight, setAvatarMaxHeight] = useState<number>(1000);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -160,13 +168,32 @@ export function PersonFormModal({
 
     setUploadingAvatar(true);
     try {
-      const res = await uploadDirectToCloudinary(file);
+      let fileToUpload = file;
+      let savingsMessage = "";
+
+      if (compressAvatar) {
+        try {
+          const compressed = await compressImageLocally(file, {
+            maxWidth: avatarMaxWidth,
+            maxHeight: avatarMaxHeight,
+            quality: avatarQuality,
+          });
+          if (compressed.size < file.size) {
+            savingsMessage = ` (${formatFileSize(file.size)} → ${formatFileSize(compressed.size)}, ${Math.round((1 - compressed.size / file.size) * 100)}% saved)`;
+            fileToUpload = compressed;
+          }
+        } catch (compErr) {
+          console.warn("Avatar compression failed, uploading original:", compErr);
+        }
+      }
+
+      const res = await uploadDirectToCloudinary(fileToUpload);
       if (res.secure_url) {
         setAvatarUrl(res.secure_url);
         notify.show({
           type: "success",
           title: "Avatar Uploaded",
-          message: "New avatar uploaded to Cloudinary successfully!",
+          message: `New avatar uploaded to Cloudinary successfully!${savingsMessage}`,
         });
       }
     } catch (err: any) {
@@ -533,6 +560,117 @@ export function PersonFormModal({
 
                 <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
                   Upload a photo directly to Cloudinary or select an existing photo from your Cloudinary library.
+                </div>
+
+                {/* Avatar Compression Controls */}
+                <div
+                  style={{
+                    marginTop: "8px",
+                    padding: "8px 10px",
+                    backgroundColor: "var(--bg-hover)",
+                    borderRadius: "6px",
+                    border: "1px solid var(--border-color)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "6px",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "6px" }}>
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        fontSize: "12px",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        userSelect: "none",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={compressAvatar}
+                        onChange={(e) => setCompressAvatar(e.target.checked)}
+                        style={{ cursor: "pointer", accentColor: "#007aff" }}
+                      />
+                      <span>Compress avatar before upload</span>
+                    </label>
+
+                    {compressAvatar && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAvatarCompressionSettings((prev) => !prev)}
+                        style={{
+                          background: "none",
+                          border: "1px solid var(--border-color)",
+                          borderRadius: "4px",
+                          padding: "2px 6px",
+                          fontSize: "11px",
+                          color: "var(--text-secondary)",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "3px",
+                        }}
+                      >
+                        <Settings2 size={12} />
+                        <span>Settings</span>
+                        {showAvatarCompressionSettings ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                      </button>
+                    )}
+                  </div>
+
+                  {compressAvatar && showAvatarCompressionSettings && (
+                    <div
+                      style={{
+                        borderTop: "1px dashed var(--border-color)",
+                        paddingTop: "6px",
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
+                        gap: "8px",
+                        fontSize: "11px",
+                      }}
+                    >
+                      <div>
+                        <label style={{ display: "block", marginBottom: "2px", color: "var(--text-muted)" }}>
+                          Quality ({Math.round(avatarQuality * 100)}%)
+                        </label>
+                        <input
+                          type="range"
+                          min="0.1"
+                          max="1.0"
+                          step="0.05"
+                          value={avatarQuality}
+                          onChange={(e) => setAvatarQuality(parseFloat(e.target.value))}
+                          style={{ width: "100%", cursor: "pointer", accentColor: "#007aff" }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", marginBottom: "2px", color: "var(--text-muted)" }}>
+                          Max Width (px)
+                        </label>
+                        <input
+                          type="number"
+                          className="form-input"
+                          value={avatarMaxWidth}
+                          onChange={(e) => setAvatarMaxWidth(parseInt(e.target.value) || 0)}
+                          style={{ fontSize: "11px", padding: "2px 6px", width: "100%" }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", marginBottom: "2px", color: "var(--text-muted)" }}>
+                          Max Height (px)
+                        </label>
+                        <input
+                          type="number"
+                          className="form-input"
+                          value={avatarMaxHeight}
+                          onChange={(e) => setAvatarMaxHeight(parseInt(e.target.value) || 0)}
+                          style={{ fontSize: "11px", padding: "2px 6px", width: "100%" }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
