@@ -75,6 +75,9 @@ export function TripCard({
           {trip.spendFormatted && (
             <span className="trip-meta-item">· {trip.spendFormatted}</span>
           )}
+          {trip.distanceFormatted && (
+            <span className="trip-meta-item">· {trip.distanceFormatted}</span>
+          )}
         </div>
 
         {displayedLocations.length > 0 && (

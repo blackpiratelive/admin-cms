@@ -32,7 +32,7 @@ import {
   computeItineraryProgress,
   getDeterministicCoverTheme,
 } from "./trip-helpers";
-import { computeTripCostSummary, formatCostTotals, parseTripDay } from "./day-helpers";
+import { computeTripCostSummary, formatCostTotals, parseTripDay, buildDayRouteStops, sumRouteDistanceKm, formatDistanceKm } from "./day-helpers";
 import type { TripOverviewItem, TripLocationCoordinate } from "./types";
 import type { BatchPhotoConnectItem } from "@/components/PhotoPickerModal";
 
@@ -246,6 +246,8 @@ export interface TripAssociatedEntities {
 export interface TripHubData {
   trip: TripRecord | null;
   entities: TripAssociatedEntities;
+  /** Geometric route distance in km (great-circle sum over itinerary stops). */
+  routeDistanceKm: number;
 }
 
 async function fetchTripHubDataRaw(slug: string): Promise<TripHubData | null> {
@@ -318,6 +320,16 @@ async function fetchTripHubDataRaw(slug: string): Promise<TripHubData | null> {
 
   const associatedLocations = locsRes.map((l) => ({ relationshipId: locRelMap.get(l.id), location: l }));
   const associatedPeople = peopleRes.map((p) => ({ relationshipId: personRelMap.get(p.id), person: p }));
+
+  // Route distance: geometric length of the itinerary route (km). Coordinates
+  // come from the denormalized day JSON first, falling back to associated
+  // location rows for any point referenced only by id.
+  const locCoordMap = new Map(
+    locsRes.map((l) => [l.id, { latitude: l.latitude, longitude: l.longitude }])
+  );
+  const routeDistanceKm = sumRouteDistanceKm(
+    buildDayRouteStops(tripDaysRows, (id) => locCoordMap.get(id))
+  );
 
   // Build a unified, de-duplicated photo list: direct gallery photos (gallery.tripId),
   // gallery photos linked via the relationship engine, and Cloudinary/uploaded attachments.
@@ -416,6 +428,7 @@ async function fetchTripHubDataRaw(slug: string): Promise<TripHubData | null> {
       movies: moviesWithMeta,
       people: associatedPeople,
     },
+    routeDistanceKm,
   };
 }
 
@@ -729,6 +742,10 @@ async function fetchTripsOverviewRaw(): Promise<TripOverviewItem[]> {
     const costSummary = computeTripCostSummary(tripDaysList);
     const spendFormatted = formatCostTotals(costSummary.total) || null;
 
+    // 2b. Route distance (geometric length of the itinerary route, km)
+    const distanceKm = sumRouteDistanceKm(buildDayRouteStops(tripDaysList));
+    const distanceFormatted = formatDistanceKm(distanceKm, { approx: true }) || null;
+
     // 3. Location names
     const orderedLocNames: string[] = [];
     const seenLocNames = new Set<string>();
@@ -883,6 +900,8 @@ async function fetchTripsOverviewRaw(): Promise<TripOverviewItem[]> {
       itineraryProgressPercent: progressPercent,
       spendFormatted,
       spendTotals: costSummary.total,
+      distanceKm,
+      distanceFormatted,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
     };
@@ -1024,6 +1043,7 @@ export async function getTripMapLocationsAction(
   routeStops: TripLocationCoordinate[];
   associatedLocations: TripLocationCoordinate[];
   missingCoords: TripLocationCoordinate[];
+  routeDistanceKm: number;
 }> {
   await ensureDbInitialized();
 
@@ -1034,6 +1054,7 @@ export async function getTripMapLocationsAction(
       routeStops: [],
       associatedLocations: [],
       missingCoords: [],
+      routeDistanceKm: 0,
     };
   }
 
@@ -1503,7 +1524,10 @@ export async function getTripMapLocationsAction(
     m.order = i + 1;
   });
 
-  return { orderedLocations, routeStops, associatedLocations, missingCoords };
+  // Geometric route length over the drawn itinerary stops (km).
+  const routeDistanceKm = sumRouteDistanceKm(routeStops);
+
+  return { orderedLocations, routeStops, associatedLocations, missingCoords, routeDistanceKm };
 }
 
 /**

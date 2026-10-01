@@ -15,6 +15,7 @@ import {
   TRANSPORT_MODES,
   MEAL_TYPES,
   parseTripDay,
+  computeLegDistanceKm,
 } from "@/features/trips/day-helpers";
 import { notify } from "@/lib/notifications";
 import { CloudinaryImageUploader } from "@/features/media/CloudinaryImageUploader";
@@ -268,6 +269,11 @@ export function TripDayEditorModal({
             {transport.map((leg, i) => {
               const upd = (patch: Partial<TransportLeg>) =>
                 setTransport((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+              // Coordinate-derived estimate (ignores any manual override) used as the
+              // placeholder, so the user sees the auto distance and can override it.
+              const estKm = computeLegDistanceKm({ ...leg, distanceKm: undefined });
+              const estLabel =
+                estKm != null ? `≈ ${estKm < 10 ? estKm.toFixed(1) : Math.round(estKm)}` : "km";
               return (
                 <div key={leg.id} style={rowStyle}>
                   <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
@@ -520,6 +526,17 @@ export function TripDayEditorModal({
                       value={leg.currency || ""}
                       onChange={(e) => upd({ currency: e.target.value })}
                       placeholder="₹/$"
+                    />
+                    <input
+                      type="number"
+                      step="any"
+                      min={0}
+                      className="form-input"
+                      style={{ flex: "0 0 90px" }}
+                      value={leg.distanceKm ?? ""}
+                      onChange={(e) => upd({ distanceKm: e.target.value ? parseFloat(e.target.value) : undefined })}
+                      placeholder={estLabel}
+                      title="Distance in km (leave blank to auto-estimate from coordinates)"
                     />
                   </div>
                 </div>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { MapPin, Navigation, AlertCircle, ExternalLink, Map as MapIcon } from "lucide-react";
 import { getTripMapLocationsAction, getMapboxTokenAction } from "@/features/trips/actions";
 import type { TripLocationCoordinate } from "@/features/trips/types";
+import { formatDistanceKm } from "@/features/trips/day-helpers";
 import { MapboxTripMap } from "./MapboxTripMap";
 
 interface TripMapTabProps {
@@ -17,6 +18,7 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
   const [missingCoords, setMissingCoords] = useState<TripLocationCoordinate[]>([]);
   const [routeStops, setRouteStops] = useState<TripLocationCoordinate[]>([]);
   const [associatedLocations, setAssociatedLocations] = useState<TripLocationCoordinate[]>([]);
+  const [routeDistanceKm, setRouteDistanceKm] = useState(0);
   const [selectedPin, setSelectedPin] = useState<TripLocationCoordinate | null>(null);
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
   const [mapboxFailed, setMapboxFailed] = useState(false);
@@ -33,6 +35,7 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
           setOrderedLocations(res.orderedLocations);
           setRouteStops(res.routeStops || res.orderedLocations);
           setAssociatedLocations(res.associatedLocations || []);
+          setRouteDistanceKm(res.routeDistanceKm || 0);
           setMissingCoords(res.missingCoords);
           setMapboxToken(token);
           if (res.orderedLocations.length > 0) {
@@ -456,7 +459,10 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
         <div>
           <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
             <Navigation size={15} style={{ color: "var(--accent, #ff6600)" }} />
-            <span>Itinerary Route Order ({routeStops.length} stops)</span>
+            <span>
+              Itinerary Route Order ({routeStops.length} stops
+              {routeDistanceKm > 0 ? ` · ${formatDistanceKm(routeDistanceKm, { approx: true })}` : ""})
+            </span>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "10px" }}>

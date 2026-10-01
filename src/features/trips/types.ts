@@ -29,6 +29,10 @@ export interface TripOverviewItem {
   itineraryProgressPercent: number;
   spendFormatted: string | null;
   spendTotals: Record<string, number>;
+  /** Geometric route distance in km (great-circle sum over itinerary stops). */
+  distanceKm: number;
+  /** Pre-formatted route distance, e.g. "≈ 1,240 km", or null when zero. */
+  distanceFormatted: string | null;
   createdAt: string;
   updatedAt: string;
 }

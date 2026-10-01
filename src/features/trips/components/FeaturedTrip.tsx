@@ -59,6 +59,11 @@ export function FeaturedTrip({ trip, onToggleFavorite }: FeaturedTripProps) {
                 <strong>{trip.spendFormatted}</strong> spend
               </div>
             )}
+            {trip.distanceFormatted && (
+              <div className="trip-hero-stat">
+                <strong>{trip.distanceFormatted}</strong>
+              </div>
+            )}
           </div>
 
           <div className="trip-hero-actions">

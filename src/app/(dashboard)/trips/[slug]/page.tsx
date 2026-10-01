@@ -24,6 +24,7 @@ import { EntityCombobox } from "@/components/EntityCombobox";
 import { PhotoPickerModal } from "@/components/PhotoPickerModal";
 import { getLocationPickerData } from "@/features/pickers/actions";
 import type { LocationPickerOption } from "@/features/pickers/types";
+import { formatDistanceKm } from "@/features/trips/day-helpers";
 import {
   formatTripDateRange,
   computeTripDuration,
@@ -60,6 +61,7 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
 
   const [trip, setTrip] = useState<TripRecord | null>(null);
   const [entities, setEntities] = useState<TripAssociatedEntities | null>(null);
+  const [routeDistanceKm, setRouteDistanceKm] = useState(0);
   const [availableLocations, setAvailableLocations] = useState<LocationPickerOption[]>([]);
   const [recentLocIds, setRecentLocIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +82,7 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
     if (cached && cached.trip) {
       setTrip(cached.trip);
       setEntities(cached.entities);
+      setRouteDistanceKm(cached.routeDistanceKm || 0);
       setLoading(false);
     } else {
       setLoading(true);
@@ -90,6 +93,7 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
       if (data && data.trip) {
         setTrip(data.trip);
         setEntities(data.entities);
+        setRouteDistanceKm(data.routeDistanceKm || 0);
         setBrowserCache(cacheKey, data);
       }
     } catch (err) {
@@ -356,6 +360,15 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
                 <span style={{ fontSize: "11px", textTransform: "uppercase", color: "var(--text-muted, #777)", fontWeight: 700 }}>Photos</span>
                 <strong style={{ display: "block", fontSize: "17px", color: "#eee" }}>{entities?.photos.length || 0}</strong>
               </div>
+
+              {routeDistanceKm > 0 && (
+                <div style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid var(--border-color, #333)", borderRadius: "8px", padding: "10px 14px", textAlign: "center" }}>
+                  <span style={{ fontSize: "11px", textTransform: "uppercase", color: "var(--text-muted, #777)", fontWeight: 700 }}>Distance</span>
+                  <strong style={{ display: "block", fontSize: "17px", color: "#eee" }} title="Approximate route distance across the itinerary">
+                    {formatDistanceKm(routeDistanceKm, { approx: true })}
+                  </strong>
+                </div>
+              )}
             </div>
           </div>
         </div>

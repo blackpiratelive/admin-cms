@@ -13,6 +13,9 @@ import {
   parseTripDay,
   computeTripCostSummary,
   formatCostTotals,
+  computeTripDistanceSummary,
+  computeDayDistanceKm,
+  formatDistanceKm,
 } from "@/features/trips/day-helpers";
 import { formatCalendarDate } from "@/features/trips/trip-helpers";
 import { getLocationPickerData, getTripLocationIds } from "@/features/pickers/actions";
@@ -69,6 +72,7 @@ export function TripItineraryTab({ trip }: { trip: TripRecord }) {
   }, [load]);
 
   const summary = computeTripCostSummary(days);
+  const distanceSummary = computeTripDistanceSummary(days);
   const hasDates = Boolean(trip.startDate && trip.endDate);
   const locationsMap = useMemo(() => new Map(locations.map((l) => [l.id, l])), [locations]);
 
@@ -157,6 +161,12 @@ export function TripItineraryTab({ trip }: { trip: TripRecord }) {
             <span className="itin-stat-label">Total Spend</span>
             <strong className="itin-stat-value">{tripTotal || "—"}</strong>
           </div>
+          <div className="itin-stat">
+            <span className="itin-stat-label">Logged Travel</span>
+            <strong className="itin-stat-value">
+              {formatDistanceKm(distanceSummary.total, { approx: distanceSummary.estimated }) || "—"}
+            </strong>
+          </div>
         </div>
 
         <div className="itin-actions">
@@ -221,6 +231,7 @@ export function TripItineraryTab({ trip }: { trip: TripRecord }) {
               documented={isDayDocumented(day)}
               locationsMap={locationsMap}
               costLabel={formatCostTotals(summary.perDay[day.id] || {})}
+              distanceLabel={formatDistanceKm(computeDayDistanceKm(day), { approx: true })}
               onEdit={() => setEditingDay(day)}
               onDelete={() => handleDelete(day)}
               cardRef={(el) => {
@@ -249,6 +260,7 @@ function DayTimelineCard({
   documented,
   locationsMap,
   costLabel,
+  distanceLabel,
   onEdit,
   onDelete,
   cardRef,
@@ -257,6 +269,7 @@ function DayTimelineCard({
   documented: boolean;
   locationsMap: Map<string, LocationPickerOption>;
   costLabel: string;
+  distanceLabel: string;
   onEdit: () => void;
   onDelete: () => void;
   cardRef: (el: HTMLDivElement | null) => void;
@@ -329,6 +342,7 @@ function DayTimelineCard({
             </div>
 
             <div className="itin-card-actions">
+              {distanceLabel && <span className="itin-dist-badge">{distanceLabel}</span>}
               {costLabel && <span className="itin-cost-badge">{costLabel}</span>}
               <button type="button" className="itin-iconbtn" onClick={onEdit} title="Edit day" aria-label={`Edit Day ${day.dayNumber}`}>
                 <Edit2 size={15} />

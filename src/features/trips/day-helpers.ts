@@ -37,6 +37,12 @@ export interface TransportLeg {
   arriveTime?: string;
   cost?: number;
   currency?: string;
+  /**
+   * Manual distance override for this leg, in kilometers. When set (> 0) it wins
+   * over the coordinate-derived estimate. Left undefined, the leg distance is
+   * estimated from the from → waypoints → to coordinates (see computeLegDistanceKm).
+   */
+  distanceKm?: number;
   notes?: string;
 }
 
@@ -191,6 +197,202 @@ export function formatCostTotals(totals: CostTotals): string {
       return cur ? `${cur} ${num}` : num;
     });
   return parts.join(" + ");
+}
+
+// ---------------------------------------------------------------------------
+// Distance travelled (kilometers)
+//
+// Two complementary notions, mirroring the cost roll-up above:
+//   • "Logged travel"  — per-leg / per-day distance from logged transport legs,
+//     honoring a manual `distanceKm` override, else estimated as the straight
+//     great-circle hop(s) through the leg's own coordinates.
+//   • "Route distance" — the geometric length of the full chronological route
+//     the map draws, summed over consecutive stop coordinates.
+// Both are read-time derivations (no new DB columns): leg coordinates already
+// live inside `transportJson`, and the manual override rides in the same JSON.
+// ---------------------------------------------------------------------------
+
+const EARTH_RADIUS_KM = 6371;
+
+function toRad(deg: number): number {
+  return (deg * Math.PI) / 180;
+}
+
+/** Great-circle (haversine) distance in km between two lat/lng points. */
+export function haversineKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+interface Coord {
+  latitude: number | null | undefined;
+  longitude: number | null | undefined;
+}
+
+function isValidCoord(c: Coord): c is { latitude: number; longitude: number } {
+  return (
+    typeof c.latitude === "number" &&
+    typeof c.longitude === "number" &&
+    !Number.isNaN(c.latitude) &&
+    !Number.isNaN(c.longitude)
+  );
+}
+
+/** True when the leg carries a usable manual distance override. */
+export function isLegDistanceManual(leg: TransportLeg): boolean {
+  return typeof leg.distanceKm === "number" && !Number.isNaN(leg.distanceKm) && leg.distanceKm > 0;
+}
+
+/**
+ * Distance of a single transport leg in km, or null when it can't be determined.
+ * Manual `distanceKm` wins; otherwise sum the great-circle hops through
+ * from → waypoints → to using whatever coordinates are present.
+ */
+export function computeLegDistanceKm(leg: TransportLeg): number | null {
+  if (isLegDistanceManual(leg)) return leg.distanceKm as number;
+
+  const points: Coord[] = [
+    { latitude: leg.fromLat, longitude: leg.fromLng },
+    ...(leg.waypoints || []).map((wp) => ({ latitude: wp.latitude, longitude: wp.longitude })),
+    { latitude: leg.toLat, longitude: leg.toLng },
+  ].filter(isValidCoord);
+
+  if (points.length < 2) return null;
+
+  let km = 0;
+  for (let i = 1; i < points.length; i++) {
+    km += haversineKm(
+      points[i - 1].latitude as number,
+      points[i - 1].longitude as number,
+      points[i].latitude as number,
+      points[i].longitude as number
+    );
+  }
+  return km;
+}
+
+/** Sum of logged transport-leg distances on a single day (km). */
+export function computeDayDistanceKm(day: TripDayRecord): number {
+  const parsed = parseTripDay(day);
+  let km = 0;
+  for (const leg of parsed.transport) {
+    km += computeLegDistanceKm(leg) ?? 0;
+  }
+  return km;
+}
+
+export interface TripDistanceSummary {
+  /** Per-day logged-travel distance keyed by day id (km). */
+  perDay: Record<string, number>;
+  /** Trip-wide logged-travel distance (km). */
+  total: number;
+  /** True when at least one contributing leg was estimated from coordinates. */
+  estimated: boolean;
+}
+
+/** Roll up per-day and trip-wide logged-travel distance. */
+export function computeTripDistanceSummary(days: TripDayRecord[]): TripDistanceSummary {
+  const perDay: Record<string, number> = {};
+  let total = 0;
+  let estimated = false;
+
+  for (const day of days) {
+    const parsed = parseTripDay(day);
+    let dayKm = 0;
+    for (const leg of parsed.transport) {
+      const legKm = computeLegDistanceKm(leg);
+      if (legKm == null) continue;
+      dayKm += legKm;
+      if (!isLegDistanceManual(leg)) estimated = true;
+    }
+    perDay[day.id] = dayKm;
+    total += dayKm;
+  }
+
+  return { perDay, total, estimated };
+}
+
+/**
+ * Build the ordered list of coordinate stops the trip route passes through,
+ * in chronological day order, mirroring getTripMapLocationsAction's sequence:
+ * primary → (per leg: from, waypoints, to) → activities → meals → accommodation.
+ * Coordinates come from the day JSON first, falling back to `resolve(locationId)`.
+ * Consecutive identical coordinates are collapsed so there are no zero hops.
+ */
+export function buildDayRouteStops(
+  days: TripDayRecord[],
+  resolve?: (locationId: string) => { latitude: number | null; longitude: number | null } | undefined
+): Array<{ latitude: number; longitude: number }> {
+  const ordered = [...days].sort((a, b) => a.dayNumber - b.dayNumber);
+  const stops: Array<{ latitude: number; longitude: number }> = [];
+
+  const push = (lat: number | null | undefined, lng: number | null | undefined, locId?: string | null) => {
+    let latitude = lat;
+    let longitude = lng;
+    if ((latitude == null || longitude == null) && locId && resolve) {
+      const r = resolve(locId);
+      if (r) {
+        latitude = r.latitude;
+        longitude = r.longitude;
+      }
+    }
+    if (!isValidCoord({ latitude, longitude })) return;
+    const prev = stops[stops.length - 1];
+    if (prev && prev.latitude === latitude && prev.longitude === longitude) return;
+    stops.push({ latitude: latitude as number, longitude: longitude as number });
+  };
+
+  for (const day of ordered) {
+    const parsed = parseTripDay(day);
+    push(day.primaryLocationLat, day.primaryLocationLng, day.primaryLocationId);
+    for (const leg of parsed.transport) {
+      push(leg.fromLat, leg.fromLng, leg.fromLocationId);
+      for (const wp of leg.waypoints || []) push(wp.latitude, wp.longitude, wp.locationId);
+      push(leg.toLat, leg.toLng, leg.toLocationId);
+    }
+    for (const act of parsed.activities) push(act.lat, act.lng, act.locationId);
+    for (const meal of parsed.meals) push(meal.lat, meal.lng, meal.placeLocationId);
+    push(parsed.accommodation.lat, parsed.accommodation.lng, parsed.accommodation.locationId);
+  }
+
+  return stops;
+}
+
+/** Sum the great-circle length (km) of a chronological list of coordinate stops. */
+export function sumRouteDistanceKm(
+  stops: Array<{ latitude: number | null; longitude: number | null }>
+): number {
+  const valid = stops.filter(isValidCoord);
+  let km = 0;
+  for (let i = 1; i < valid.length; i++) {
+    km += haversineKm(
+      valid[i - 1].latitude,
+      valid[i - 1].longitude,
+      valid[i].latitude,
+      valid[i].longitude
+    );
+  }
+  return km;
+}
+
+/**
+ * Format a distance in km for display, e.g. "≈ 1,240 km" or "4.2 km".
+ * Returns "" for a zero / absent distance. Values under 10 km keep one decimal.
+ */
+export function formatDistanceKm(km: number, opts?: { approx?: boolean }): string {
+  if (typeof km !== "number" || Number.isNaN(km) || km <= 0) return "";
+  const rounded = km < 10 ? Math.round(km * 10) / 10 : Math.round(km);
+  const num = rounded.toLocaleString();
+  return `${opts?.approx ? "≈ " : ""}${num} km`;
 }
 
 /**
