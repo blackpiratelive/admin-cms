@@ -225,8 +225,13 @@ export interface TripPhotoItem {
   largeUrl?: string;
   width?: number | null;
   height?: number | null;
-  sourceType: "direct" | "attachment";
+  sourceType: "direct" | "attachment" | "day";
   relationshipId?: string;
+  sourceDay?: {
+    id: string;
+    dayNumber: number;
+    title?: string | null;
+  };
   createdAt?: string;
 }
 
@@ -252,7 +257,7 @@ async function fetchTripHubDataRaw(slug: string): Promise<TripHubData | null> {
   const tripId = trip.id;
 
   // Execute direct lookups & relationship queries in 1 parallel batch!
-  const [directMicroblogs, directPhotos, directMovieMeta, directAttachments, relRows] = await Promise.all([
+  const [directMicroblogs, directPhotos, directMovieMeta, directAttachments, tripDaysRows, relRows] = await Promise.all([
     db.select().from(microblogs).where(eq(microblogs.tripId, tripId)),
     db.select().from(gallery).where(eq(gallery.tripId, tripId)),
     db.select().from(movieMetadata).where(eq(movieMetadata.tripId, tripId)),
@@ -263,6 +268,7 @@ async function fetchTripHubDataRaw(slug: string): Promise<TripHubData | null> {
         eq(attachments.kind, "photo")
       )
     ),
+    db.select().from(tripDays).where(eq(tripDays.tripId, tripId)),
     db.select().from(relationships).where(
       or(
         and(eq(relationships.sourceType, "trip"), eq(relationships.sourceId, tripId), eq(relationships.targetType, "location")),
@@ -368,6 +374,36 @@ async function fetchTripHubDataRaw(slug: string): Promise<TripHubData | null> {
       sourceType: "attachment",
       relationshipId: att.id,
       createdAt: att.createdAt,
+    });
+  }
+
+  // Photos recorded inside the trip's itinerary days (trip_days.photosJson).
+  // These are managed from the day editor, so they are read-only here.
+  for (const day of tripDaysRows) {
+    let parsedPhotos: Array<{ id?: string; url: string; caption?: string }> = [];
+    try {
+      const raw = JSON.parse(day.photosJson || "[]");
+      if (Array.isArray(raw)) parsedPhotos = raw;
+    } catch {}
+
+    parsedPhotos.forEach((p, idx) => {
+      if (!p.url) return;
+      const dayPhotoKey = `trip_day_${day.id}_${p.id || idx}`;
+      if (!photoMap.has(dayPhotoKey)) {
+        photoMap.set(dayPhotoKey, {
+          id: dayPhotoKey,
+          title:
+            p.caption ||
+            (day.title ? `${day.title} (Day ${day.dayNumber})` : `Day ${day.dayNumber} Photo`),
+          thumbnailUrl: p.url,
+          mediumUrl: p.url,
+          largeUrl: p.url,
+          originalUrl: p.url,
+          sourceType: "day",
+          sourceDay: { id: day.id, dayNumber: day.dayNumber, title: day.title },
+          createdAt: day.createdAt,
+        });
+      }
     });
   }
 

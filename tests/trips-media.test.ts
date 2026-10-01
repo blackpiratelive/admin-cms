@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { db, ensureDbInitialized } from "../src/db";
-import { trips, gallery, attachments, relationships } from "../src/db/schema";
+import { trips, tripDays, gallery, attachments, relationships } from "../src/db/schema";
 import { eq, or } from "drizzle-orm";
 import {
   getTripHubDataAction,
@@ -11,6 +11,7 @@ import {
 const TEST_TRIP_ID = "trip_test_media_alps";
 const TEST_TRIP_SLUG = "test-alps-media";
 const TEST_GALLERY_ID = "gal_test_media_matterhorn";
+const TEST_TRIP_DAY_ID = "tripday_test_media_day1";
 
 describe("Trip Entity: 3-Tab Photo Picker Batch Connect & Disconnect", () => {
   beforeAll(async () => {
@@ -49,10 +50,32 @@ describe("Trip Entity: 3-Tab Photo Picker Batch Connect & Disconnect", () => {
         updatedAt: now,
       })
       .onConflictDoNothing();
+
+    // Trip day carrying an inline itinerary photo (photosJson)
+    await db
+      .insert(tripDays)
+      .values({
+        id: TEST_TRIP_DAY_ID,
+        tripId: TEST_TRIP_ID,
+        dayNumber: 1,
+        date: "2026-07-01",
+        title: "Zermatt Arrival",
+        photosJson: JSON.stringify([
+          {
+            id: "day_photo_1",
+            url: "https://example.com/gornergrat-sunrise.jpg",
+            caption: "Gornergrat Sunrise",
+          },
+        ]),
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoNothing();
   });
 
   afterAll(async () => {
     await db.delete(trips).where(eq(trips.id, TEST_TRIP_ID));
+    await db.delete(tripDays).where(eq(tripDays.tripId, TEST_TRIP_ID));
     await db.delete(gallery).where(eq(gallery.id, TEST_GALLERY_ID));
     await db.delete(attachments).where(eq(attachments.entityId, TEST_TRIP_ID));
     await db.delete(relationships).where(
@@ -83,7 +106,6 @@ describe("Trip Entity: 3-Tab Photo Picker Batch Connect & Disconnect", () => {
 
     const hubData = await getTripHubDataAction(TEST_TRIP_SLUG);
     expect(hubData).not.toBeNull();
-    expect(hubData?.entities.photos.length).toBe(2);
 
     // Verify gallery photo linked
     const galPhoto = hubData?.entities.photos.find((p) => p.id === TEST_GALLERY_ID);
@@ -96,6 +118,16 @@ describe("Trip Entity: 3-Tab Photo Picker Batch Connect & Disconnect", () => {
     expect(attPhoto).toBeDefined();
     expect(attPhoto?.title).toBe("Glacier Trek");
     expect(attPhoto?.relationshipId).toBeTruthy();
+
+    // Verify the itinerary day photo rolled up (read-only, no relationshipId)
+    const dayPhoto = hubData?.entities.photos.find((p) => p.sourceType === "day");
+    expect(dayPhoto).toBeDefined();
+    expect(dayPhoto?.title).toBe("Gornergrat Sunrise");
+    expect(dayPhoto?.sourceDay?.dayNumber).toBe(1);
+    expect(dayPhoto?.relationshipId).toBeUndefined();
+
+    // 2 picker photos + 1 itinerary day photo
+    expect(hubData?.entities.photos.length).toBe(3);
 
     // Remove the Cloudinary attachment
     if (attPhoto?.relationshipId) {
@@ -117,7 +149,9 @@ describe("Trip Entity: 3-Tab Photo Picker Batch Connect & Disconnect", () => {
       expect(removeGalRes.success).toBe(true);
     }
 
+    // Only the read-only itinerary day photo remains after disconnecting picker photos
     const hubDataClean = await getTripHubDataAction(TEST_TRIP_SLUG);
-    expect(hubDataClean?.entities.photos.length).toBe(0);
+    expect(hubDataClean?.entities.photos.length).toBe(1);
+    expect(hubDataClean?.entities.photos[0]?.sourceType).toBe("day");
   });
 });

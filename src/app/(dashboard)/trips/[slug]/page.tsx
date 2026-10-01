@@ -744,29 +744,48 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
                     style={{ width: "100%", aspectRatio: "4/3", objectFit: "cover" }}
                     loading="lazy"
                   />
-                  <button
-                    type="button"
-                    onClick={() => handleRemovePhoto(photo.relationshipId || photo.id)}
-                    title="Remove photo from trip"
-                    aria-label={`Remove ${photo.title}`}
-                    style={{
-                      position: "absolute",
-                      top: "6px",
-                      right: "6px",
-                      width: "26px",
-                      height: "26px",
-                      borderRadius: "50%",
-                      border: "none",
-                      backgroundColor: "rgba(0,0,0,0.6)",
-                      color: "#fff",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <X size={14} />
-                  </button>
+                  {photo.sourceType === "day" ? (
+                    <span
+                      title="Added from the itinerary — edit in the Itinerary tab"
+                      style={{
+                        position: "absolute",
+                        top: "6px",
+                        left: "6px",
+                        padding: "2px 7px",
+                        borderRadius: "10px",
+                        backgroundColor: "rgba(255,102,0,0.9)",
+                        color: "#fff",
+                        fontSize: "10px",
+                        fontWeight: 700,
+                      }}
+                    >
+                      Day {photo.sourceDay?.dayNumber}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePhoto(photo.relationshipId || photo.id)}
+                      title="Remove photo from trip"
+                      aria-label={`Remove ${photo.title}`}
+                      style={{
+                        position: "absolute",
+                        top: "6px",
+                        right: "6px",
+                        width: "26px",
+                        height: "26px",
+                        borderRadius: "50%",
+                        border: "none",
+                        backgroundColor: "rgba(0,0,0,0.6)",
+                        color: "#fff",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
                   <div style={{ padding: "8px 10px", fontSize: "12px", fontWeight: 600 }}>{photo.title}</div>
                 </div>
               ))}
