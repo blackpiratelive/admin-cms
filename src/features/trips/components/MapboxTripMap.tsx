@@ -72,6 +72,45 @@ function generateGreatCircleArc(
   return coords;
 }
 
+/**
+ * Generates a smooth, gently-bowed curve (quadratic Bézier) between two points.
+ * Used for legs we have no precise geometry for — train, boat, ferry, "other",
+ * or untyped gaps between stops — so the route never falls back to a bare
+ * straight line. The curve always bows to the same side of the travel direction
+ * so a multi-stop itinerary reads as one continuous flowing path.
+ */
+function generateCurvedArc(
+  start: [number, number],
+  end: [number, number],
+  numPoints = 24,
+  bend = 0.18
+): [number, number][] {
+  const [lng1, lat1] = start;
+  const [lng2, lat2] = end;
+  const dx = lng2 - lng1;
+  const dy = lat2 - lat1;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  if (dist < 1e-6) return [start, end];
+
+  // Perpendicular unit vector to offset the Bézier control point sideways
+  const nx = -dy / dist;
+  const ny = dx / dist;
+  const offset = dist * bend;
+  const cx = (lng1 + lng2) / 2 + nx * offset;
+  const cy = (lat1 + lat2) / 2 + ny * offset;
+
+  const coords: [number, number][] = [];
+  for (let i = 0; i <= numPoints; i++) {
+    const t = i / numPoints;
+    const mt = 1 - t;
+    const x = mt * mt * lng1 + 2 * mt * t * cx + t * t * lng2;
+    const y = mt * mt * lat1 + 2 * mt * t * cy + t * t * lat2;
+    coords.push([x, y]);
+  }
+  return coords;
+}
+
 const directionsCache = new Map<string, [number, number][]>();
 
 async function fetchDirectionsRoute(
@@ -219,9 +258,13 @@ export function MapboxTripMap({
       const mode = p2.transportMode || p1.transportMode;
 
       if (mode === "flight") {
+        // Geographically accurate airline great-circle arc
         segmentList.push(generateGreatCircleArc(startCoord, endCoord, 35));
       } else {
-        segmentList.push([startCoord, endCoord]);
+        // Road modes start as a gentle curve and are upgraded to real road
+        // geometry asynchronously below; everything else (train, boat, other,
+        // or untyped gaps) keeps the smooth curve so no straight line remains.
+        segmentList.push(generateCurvedArc(startCoord, endCoord));
       }
     }
 

@@ -353,6 +353,11 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 
 ## 8. Standalone Apps & Release Signing Changelog
 
+### October 2026: Trip Map Route — Curved Connectors for Non-Road / Untyped Legs
+- **No More Bare Straight Lines**: Trip route legs that have no precise geometry — `train`, `boat`, `other`, and untyped gaps between consecutive itinerary stops — were previously drawn as straight polylines. They now render as smooth quadratic-Bézier arcs (`generateCurvedArc` in `MapboxTripMap.tsx`) bowed consistently to one side, so the itinerary reads as one continuous flowing path. Flights keep their geographically-accurate great-circle arc (`generateGreatCircleArc`); road modes (`walk`/`bike`/`car`/`taxi`/`bus`) still upgrade to real Mapbox Directions road geometry asynchronously, now falling back to the gentle curve instead of a straight line when a leg is unroutable.
+- **Vector Fallback Parity (`TripMapTab.tsx`)**: The SVG route visualizer (shown when `MAPBOX_TOKEN`/WebGL is unavailable) builds its route path with the same curved `Q` connectors (`buildCurvedPath`) rather than straight `L` segments, keeping the two renderers visually consistent.
+- **Quality Gates**: `npx tsc --noEmit` reports 0 errors, Next.js production build (`npm run build`) compiles cleanly (29/29 routes), all 122 Vitest tests pass across 22 suites, and `android/` remained untouched.
+
 ### October 2026: Trip Entity — Shared 3-Tab Photo Picker Integration
 - **Trip Photos Tab Add/Remove Workflow (`/trips/[slug]`)**:
   - Added the shared `PhotoPickerModal` (`src/components/PhotoPickerModal.tsx`) to the Trip detail Photos tab via an `+ Add Photos` header action bar, mirroring the People and Location modules. The same 3-tab popup is reused: **Gallery (Cloudflare R2)**, **Choose from Cloudinary**, and **Upload to Cloudinary** (with local client-side compression).

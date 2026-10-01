@@ -103,9 +103,34 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
   // Build SVG path specifically for the itinerary route
   const routePoints = projectedPoints.filter((p) => p.stopType !== "associated");
   const linePoints = routePoints.length >= 2 ? routePoints : projectedPoints;
-  const pathD = linePoints
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.pt.x} ${p.pt.y}`)
-    .join(" ");
+
+  // Draw gently-curved connectors (quadratic Béziers) instead of bare straight
+  // segments, each bowed to the same side so the route reads as one flowing path.
+  const buildCurvedPath = (pts: typeof linePoints): string => {
+    if (pts.length < 2) {
+      return pts.length === 1 ? `M ${pts[0].pt.x} ${pts[0].pt.y}` : "";
+    }
+    let d = `M ${pts[0].pt.x.toFixed(2)} ${pts[0].pt.y.toFixed(2)}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i].pt;
+      const b = pts[i + 1].pt;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 0.001) {
+        d += ` L ${b.x.toFixed(2)} ${b.y.toFixed(2)}`;
+        continue;
+      }
+      const nx = -dy / dist;
+      const ny = dx / dist;
+      const offset = dist * 0.15;
+      const cx = (a.x + b.x) / 2 + nx * offset;
+      const cy = (a.y + b.y) / 2 + ny * offset;
+      d += ` Q ${cx.toFixed(2)} ${cy.toFixed(2)} ${b.x.toFixed(2)} ${b.y.toFixed(2)}`;
+    }
+    return d;
+  };
+  const pathD = buildCurvedPath(linePoints);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
