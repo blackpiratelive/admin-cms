@@ -56,7 +56,7 @@ admin-cms/
 │   │   │   └── journal/         # Journal Sync & E2EE API (/status, /keys, /settings, /entries, /sync, /assets)
 │   │   ├── globals.css          # Design tokens, themes (HN Orange, Dark, Mono, Teal)
 │   │   └── layout.tsx           # Root layout & ThemeProvider
-│   ├── components/              # Shared UI (Header, Sidebar, CommandPalette, DeployWidget, ToastNotification, EntityCombobox)
+│   ├── components/              # Shared UI (Header, Sidebar, CommandPalette, DeployWidget, ToastNotification, EntityCombobox, PhotoPickerModal)
 │   ├── db/
 │   │   ├── schema.ts            # Drizzle table schemas for all 52 database entities
 │   │   └── index.ts             # Turso / libSQL client & auto-initializer DDL
@@ -85,7 +85,7 @@ admin-cms/
 │   │   ├── event-bus.ts         # Internal event pub-sub bus
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
-├── tests/                       # Vitest unit test suite (93 unit tests across 17 test files)
+├── tests/                       # Vitest unit test suite (96 unit tests across 18 test files)
 ├── freshrss.md                  # FreshRSS Sync Provider feature specification
 ├── android-journal.md           # Native Android Journal Application specification
 ├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
@@ -351,6 +351,30 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 ---
 
 ## 8. Standalone Apps & Release Signing Changelog
+
+### October 2026: Location Entity — People & Photos Integration, Shared Photo Picker & Trip Photo Roll-up
+- **Shared 3-Tab Photo Picker Engine (`PhotoPickerModal.tsx`)**:
+  - Extracted and generalized the 3-tab photo picker into a shared UI component in `src/components/PhotoPickerModal.tsx`:
+    1. Tab 1: **Gallery (Cloudflare R2)**: Multi-select existing gallery photos from R2 with instant title search.
+    2. Tab 2: **Choose from Cloudinary**: Multi-select existing Cloudinary assets via `getCloudinaryResources()` with instant search.
+    3. Tab 3: **Upload to Cloudinary**: Multi-file upload directly to Cloudinary with local client-side image compression (`compressImageLocally`) and auto-selection.
+  - Refactored `PersonPhotoPickerModal.tsx` to delegate to `PhotoPickerModal`, ensuring 100% backwards compatibility and zero regressions across the People module.
+- **Location People Linking & Unlinking**:
+  - Added "Link Person to Location" action bar on the individual Location page (`/locations/[slug]`) with person selector (`getPeopleAction`), relationship role selector (`visited`, `accompanied`, `lived_at`, `local_guide`, `met_at`), and `+ Link Person` button.
+  - Added `connectLocationToPersonAction` and `removeLocationPersonConnectionAction` server actions with targeted cache tag purging (`locations-list`, `location-${slug}`, `people-list`, `person-${id}`).
+  - Added disconnect (`X`) button on each linked person card on the Location detail page with confirmation modal.
+- **Location Photos Association & Batch Server Actions**:
+  - Added `+ Add Photos` button on Location page Photos tab triggering `PhotoPickerModal`.
+  - Added `connectLocationPhotosBatchAction` creating relationships for gallery photos and inserting into `attachments` table (`entityType: "location", kind: "photo"`) for Cloudinary assets.
+  - Added `removeLocationPhotoConnectionAction` removing attachments, relationships, or direct gallery linkages.
+- **Automatic Trip Photo Roll-up with Attribution**:
+  - When trips are associated with a location, `fetchLocationHubDataRaw` automatically rolls up all photos from those trips (`gallery.tripId`, trip `attachments`, and `trip_days.photosJson`).
+  - Photos rolled up from trips display a prominent badge: `from this trip: [Trip Title]` with a direct link to the trip.
+  - When a trip is unlinked from the location, its photos are automatically detached from the location view.
+- **Quality Gates & Isolation**:
+  - 18/18 Vitest test files passing, 96/96 unit tests passing (100%).
+  - Zero TypeScript compiler issues (`npx tsc --noEmit`).
+  - `android/` legacy client remained 100% clean and untouched.
 
 ### September 2026: People Module & Mobile People — 3-Tab Photo Connection Hub & Cloudinary Integration
 - **3-Tab Photo Picker Engine**:

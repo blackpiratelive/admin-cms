@@ -9,11 +9,18 @@ import {
   deleteLocation,
   connectLocationToTrip,
   removeLocationTripConnection,
+  connectLocationToPersonAction,
+  removeLocationPersonConnectionAction,
+  connectLocationPhotosBatchAction,
+  removeLocationPhotoConnectionAction,
   LocationAssociatedEntities,
   LocationHubData,
+  LocationPhotoItem,
 } from "@/features/locations/actions";
 import { getTrips } from "@/features/trips/actions";
+import { getPeopleAction } from "@/features/people/actions";
 import { LocationFormModal } from "@/features/locations/components/LocationFormModal";
+import { PhotoPickerModal } from "@/components/PhotoPickerModal";
 import {
   ArrowLeft,
   MapPin,
@@ -47,8 +54,16 @@ export default function LocationDetailPage({ params }: { params: Promise<{ slug:
 
   // Modals & Links
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isPhotoPickerOpen, setIsPhotoPickerOpen] = useState(false);
   const [selectedTripToConnect, setSelectedTripToConnect] = useState("");
   const [connectingTrip, setConnectingTrip] = useState(false);
+
+  // People linking state
+  const [availablePeople, setAvailablePeople] = useState<PersonRecord[]>([]);
+  const [selectedPersonToConnect, setSelectedPersonToConnect] = useState("");
+  const [personRoleVerb, setPersonRoleVerb] = useState("visited");
+  const [connectingPerson, setConnectingPerson] = useState(false);
+
   const [activeTab, setActiveTab] = useState<"trips" | "photos" | "microblogs" | "movies" | "people">("trips");
 
   const loadLocationData = useCallback(async () => {
@@ -81,6 +96,13 @@ export default function LocationDetailPage({ params }: { params: Promise<{ slug:
     if (availableTrips.length === 0) {
       const trps = await getTrips();
       setAvailableTrips(trps);
+    }
+  };
+
+  const loadAvailablePeople = async () => {
+    if (availablePeople.length === 0) {
+      const peopleList = await getPeopleAction();
+      setAvailablePeople(peopleList);
     }
   };
 
@@ -119,6 +141,31 @@ export default function LocationDetailPage({ params }: { params: Promise<{ slug:
     if (!relId) return;
     if (confirm("Disconnect this trip from this location?")) {
       await removeLocationTripConnection(relId, location.slug);
+      loadLocationData();
+    }
+  };
+
+  const handleLinkPerson = async () => {
+    if (!selectedPersonToConnect || !location) return;
+    setConnectingPerson(true);
+    await connectLocationToPersonAction(location.id, selectedPersonToConnect, personRoleVerb);
+    setSelectedPersonToConnect("");
+    setConnectingPerson(false);
+    loadLocationData();
+  };
+
+  const handleUnlinkPerson = async (relId?: string, personName?: string) => {
+    if (!relId || !location) return;
+    if (confirm(`Disconnect ${personName || "this person"} from this location?`)) {
+      await removeLocationPersonConnectionAction(relId, location.slug);
+      loadLocationData();
+    }
+  };
+
+  const handleUnlinkPhoto = async (photoIdOrRelId: string) => {
+    if (!location) return;
+    if (confirm("Disconnect/remove this photo from this location?")) {
+      await removeLocationPhotoConnectionAction(photoIdOrRelId, location.id, location.slug);
       loadLocationData();
     }
   };
@@ -384,17 +431,169 @@ export default function LocationDetailPage({ params }: { params: Promise<{ slug:
 
       {/* TAB 2: PHOTOS */}
       {activeTab === "photos" && (
-        <div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {/* Photos Header Action Bar */}
+          <div
+            style={{
+              backgroundColor: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              borderRadius: "8px",
+              padding: "14px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "10px",
+            }}
+          >
+            <div>
+              <span style={{ fontSize: "14px", fontWeight: 600 }}>Location Media & Photos</span>
+              <span style={{ fontSize: "12px", color: "var(--text-muted)", marginLeft: "8px" }}>
+                ({entities?.photos.length || 0} total
+                {(entities?.photos.filter((p) => !!p.sourceTrip).length || 0) > 0
+                  ? ` · ${entities?.photos.filter((p) => !!p.sourceTrip).length} from associated trip${
+                      (entities?.photos.filter((p) => !!p.sourceTrip).length || 0) === 1 ? "" : "s"
+                    }`
+                  : ""}
+                )
+              </span>
+            </div>
+            <button className="btn btn-primary" onClick={() => setIsPhotoPickerOpen(true)}>
+              <Plus size={14} />
+              <span>Add Photos</span>
+            </button>
+          </div>
+
           {entities?.photos.length === 0 ? (
-            <div style={{ padding: "30px", textAlign: "center", color: "var(--text-muted)", backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "8px" }}>
-              No gallery photos tagged with this location.
+            <div
+              style={{
+                padding: "30px",
+                textAlign: "center",
+                color: "var(--text-muted)",
+                backgroundColor: "var(--bg-card)",
+                border: "1px solid var(--border-color)",
+                borderRadius: "8px",
+              }}
+            >
+              No photos added to this location yet. Click &quot;Add Photos&quot; above to choose from gallery, Cloudinary, or upload new files.
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                gap: "14px",
+              }}
+            >
               {entities?.photos.map((photo) => (
-                <div key={photo.id} style={{ borderRadius: "6px", overflow: "hidden", border: "1px solid var(--border-color)", backgroundColor: "var(--bg-card)", display: "flex", flexDirection: "column" }}>
-                  <img src={photo.thumbnailUrl || photo.mediumUrl} alt={photo.title} style={{ width: "100%", aspectRatio: "4/3", objectFit: "cover" }} />
-                  <div style={{ padding: "8px 10px", fontSize: "12px", fontWeight: 600 }}>{photo.title}</div>
+                <div
+                  key={photo.id}
+                  style={{
+                    borderRadius: "8px",
+                    overflow: "hidden",
+                    border: "1px solid var(--border-color)",
+                    backgroundColor: "var(--bg-card)",
+                    display: "flex",
+                    flexDirection: "column",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+                  }}
+                >
+                  <div
+                    style={{
+                      position: "relative",
+                      width: "100%",
+                      aspectRatio: "4/3",
+                      backgroundColor: "var(--bg-hover)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <img
+                      src={photo.thumbnailUrl || photo.mediumUrl || photo.originalUrl}
+                      alt={photo.title}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      loading="lazy"
+                    />
+                    {photo.sourceTrip && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          bottom: "6px",
+                          left: "6px",
+                          right: "6px",
+                          zIndex: 2,
+                        }}
+                      >
+                        <Link
+                          href={`/trips/${photo.sourceTrip.slug}`}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            backgroundColor: "rgba(0, 0, 0, 0.75)",
+                            color: "#fff",
+                            padding: "3px 8px",
+                            borderRadius: "4px",
+                            backdropFilter: "blur(4px)",
+                            textDecoration: "none",
+                            maxWidth: "100%",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                          title={`Trip: ${photo.sourceTrip.title}`}
+                        >
+                          <Compass size={11} style={{ color: "var(--accent)", flexShrink: 0 }} />
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                            from this trip: {photo.sourceTrip.title}
+                          </span>
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      padding: "8px 10px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        flex: 1,
+                      }}
+                      title={photo.title}
+                    >
+                      {photo.title}
+                    </div>
+                    {!photo.sourceTrip && (
+                      <button
+                        onClick={() => handleUnlinkPhoto(photo.relationshipId || photo.id)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#ef4444",
+                          cursor: "pointer",
+                          padding: "2px",
+                          borderRadius: "4px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                        title="Remove photo from location"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -447,27 +646,171 @@ export default function LocationDetailPage({ params }: { params: Promise<{ slug:
 
       {/* TAB 5: PEOPLE */}
       {activeTab === "people" && (
-        <div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {/* Link Person Bar */}
+          <div
+            style={{
+              backgroundColor: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              borderRadius: "8px",
+              padding: "14px",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <span style={{ fontSize: "13px", fontWeight: 600 }}>Link Person to Location:</span>
+            <select
+              className="form-input"
+              value={selectedPersonToConnect}
+              onFocus={loadAvailablePeople}
+              onChange={(e) => setSelectedPersonToConnect(e.target.value)}
+              style={{ flex: 1, minWidth: "180px" }}
+            >
+              <option value="">-- Select Person --</option>
+              {availablePeople.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.displayName} {p.relationshipType ? `(${p.relationshipType})` : ""}
+                </option>
+              ))}
+            </select>
+            <select
+              className="form-input"
+              value={personRoleVerb}
+              onChange={(e) => setPersonRoleVerb(e.target.value)}
+              style={{ width: "140px" }}
+            >
+              <option value="visited">Visited</option>
+              <option value="accompanied">Accompanied</option>
+              <option value="lived_at">Lived At</option>
+              <option value="local_guide">Local Guide</option>
+              <option value="met_at">Met At</option>
+            </select>
+            <button
+              className="btn btn-primary"
+              onClick={handleLinkPerson}
+              disabled={!selectedPersonToConnect || connectingPerson}
+            >
+              <Plus size={14} />
+              <span>Link Person</span>
+            </button>
+          </div>
+
           {entities?.people.length === 0 ? (
-            <div style={{ padding: "30px", textAlign: "center", color: "var(--text-muted)", backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "8px" }}>
-              No contacts connected to this location.
+            <div
+              style={{
+                padding: "30px",
+                textAlign: "center",
+                color: "var(--text-muted)",
+                backgroundColor: "var(--bg-card)",
+                border: "1px solid var(--border-color)",
+                borderRadius: "8px",
+              }}
+            >
+              No contacts connected to this location yet. Select a person above to link them.
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "12px" }}>
-              {entities?.people.map(({ person }) => (
-                <Link key={person.id} href={`/people/${person.slug}`} style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "6px", padding: "12px", display: "flex", alignItems: "center", gap: "10px", textDecoration: "none", color: "inherit" }}>
-                  {person.avatarUrl ? (
-                    <img src={person.avatarUrl} alt={person.displayName} style={{ width: "36px", height: "36px", borderRadius: "50%", objectFit: "cover" }} />
-                  ) : (
-                    <div style={{ width: "36px", height: "36px", borderRadius: "50%", backgroundColor: "var(--accent)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
-                      {person.displayName.charAt(0)}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                gap: "12px",
+              }}
+            >
+              {entities?.people.map(({ relationshipId, person }) => (
+                <div
+                  key={person.id}
+                  style={{
+                    backgroundColor: "var(--bg-card)",
+                    border: "1px solid var(--border-color)",
+                    borderRadius: "6px",
+                    padding: "10px 12px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "8px",
+                  }}
+                >
+                  <Link
+                    href={`/people/${person.slug}`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      textDecoration: "none",
+                      color: "inherit",
+                      flex: 1,
+                      minWidth: 0,
+                    }}
+                  >
+                    {person.avatarUrl ? (
+                      <img
+                        src={person.avatarUrl}
+                        alt={person.displayName}
+                        style={{
+                          width: "36px",
+                          height: "36px",
+                          borderRadius: "50%",
+                          objectFit: "cover",
+                          flexShrink: 0,
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: "36px",
+                          height: "36px",
+                          borderRadius: "50%",
+                          backgroundColor: "var(--accent)",
+                          color: "#fff",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: 700,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {person.displayName.charAt(0)}
+                      </div>
+                    )}
+                    <div style={{ overflow: "hidden" }}>
+                      <div
+                        style={{
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {person.displayName}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                        {person.relationshipType || "Contact"}
+                      </div>
                     </div>
+                  </Link>
+
+                  {relationshipId && (
+                    <button
+                      onClick={() => handleUnlinkPerson(relationshipId, person.displayName)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "#ef4444",
+                        cursor: "pointer",
+                        padding: "4px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                      title="Disconnect person from location"
+                    >
+                      <X size={14} />
+                    </button>
                   )}
-                  <div>
-                    <div style={{ fontSize: "13px", fontWeight: 600 }}>{person.displayName}</div>
-                    <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{person.relationshipType}</div>
-                  </div>
-                </Link>
+                </div>
               ))}
             </div>
           )}
@@ -479,6 +822,22 @@ export default function LocationDetailPage({ params }: { params: Promise<{ slug:
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         locationToEdit={location}
+        onSuccess={loadLocationData}
+      />
+
+      {/* 3-Tab Photo Picker Modal */}
+      <PhotoPickerModal
+        isOpen={isPhotoPickerOpen}
+        onClose={() => setIsPhotoPickerOpen(false)}
+        entityName={location.name}
+        entityType="location"
+        entityId={location.id}
+        defaultVerb="taken_at"
+        title={`Add Photos to ${location.name}`}
+        subtitle="Choose existing gallery photos, pick from Cloudinary, or upload new files"
+        onConnectPhotos={(photos, verb) =>
+          connectLocationPhotosBatchAction(location.id, photos, verb)
+        }
         onSuccess={loadLocationData}
       />
     </div>
