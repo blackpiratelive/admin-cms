@@ -1,7 +1,9 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../core/models/trip_record.dart';
+import '../core/models/trip_day.dart';
 import '../core/models/trip_detail.dart';
 import '../core/network/api_service.dart';
 import '../core/network/sync_service.dart';
@@ -13,6 +15,9 @@ import '../widgets/trip_status_badge.dart';
 import '../widgets/trip_day_timeline.dart';
 import '../widgets/trip_map_view.dart';
 import 'trip_form_modal.dart';
+import 'trip_day_editor_modal.dart';
+import 'trip_connect_modal.dart';
+import 'photo_picker_modal.dart';
 
 class TripDetailScreen extends StatefulWidget {
   final String tripIdOrSlug;
@@ -36,7 +41,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
   bool _isLoading = true;
   int _tabIndex = 0;
 
-  static const List<String> _tabs = ['Itinerary', 'Places', 'Map', 'Photos', 'Posts', 'People'];
+  static const List<String> _tabs = ['Itinerary', 'Places', 'Map', 'Photos', 'Posts', 'People', 'Movies'];
 
   @override
   void initState() {
@@ -244,22 +249,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                 padding: const EdgeInsets.only(bottom: 40),
                 children: [
                   _buildHero(context, trip),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: CupertinoSlidingSegmentedControl<int>(
-                      groupValue: _tabIndex,
-                      onValueChanged: (val) {
-                        if (val != null) setState(() => _tabIndex = val);
-                      },
-                      children: {
-                        for (int i = 0; i < _tabs.length; i++)
-                          i: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-                            child: Text(_tabs[i], style: const TextStyle(fontSize: 12.5)),
-                          ),
-                      },
-                    ),
-                  ),
+                  _buildTabBar(context),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: _buildTabContent(context),
@@ -359,6 +349,147 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     );
   }
 
+  Widget _buildTabBar(BuildContext context) {
+    final labelColor = AppCupertinoTheme.label(context);
+    return SizedBox(
+      height: 52,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        itemCount: _tabs.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final selected = _tabIndex == i;
+          return GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setState(() => _tabIndex = i);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected ? AppCupertinoTheme.brandAccent : AppCupertinoTheme.subtleFill.resolveFrom(context),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Text(
+                _tabs[i],
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? CupertinoColors.white : labelColor,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Refetch detail after any mutation and notify the list screen.
+  Future<void> _refresh() async {
+    widget.onTripChanged?.call();
+    await _fetch(forceRefresh: true);
+  }
+
+  Widget _manageBar(BuildContext context, List<Widget> actions) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(children: actions),
+    );
+  }
+
+  Widget _actionButton(IconData icon, String label, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: CupertinoButton(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        color: AppCupertinoTheme.brandAccent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        minimumSize: Size.zero,
+        onPressed: onTap,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: AppCupertinoTheme.brandAccent),
+            const SizedBox(width: 5),
+            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppCupertinoTheme.brandAccent)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addDay() async {
+    final trip = _trip;
+    if (trip == null) return;
+    try {
+      await ApiService.addTripDay(trip.id);
+      await _refresh();
+    } catch (_) {
+      if (mounted) _showToast('Could not add day');
+    }
+  }
+
+  Future<void> _generateDays() async {
+    final trip = _trip;
+    if (trip == null) return;
+    try {
+      await ApiService.generateTripDays(trip.id);
+      await _refresh();
+    } catch (_) {
+      if (mounted) _showToast('Set trip dates first');
+    }
+  }
+
+  void _editDay(TripDay day) {
+    final trip = _trip;
+    if (trip == null) return;
+    TripDayEditorModal.show(context, tripId: trip.id, day: day, onSaved: _refresh);
+  }
+
+  Future<void> _removeConnection(String? relationshipId) async {
+    final trip = _trip;
+    if (trip == null || relationshipId == null) return;
+    try {
+      await ApiService.removeTripConnection(trip.id, relationshipId);
+      await _refresh();
+    } catch (_) {
+      if (mounted) _showToast('Could not remove');
+    }
+  }
+
+  Future<void> _removePhoto(String connectionId) async {
+    final trip = _trip;
+    if (trip == null) return;
+    try {
+      await ApiService.removeTripPhoto(trip.id, connectionId);
+      await _refresh();
+    } catch (_) {
+      if (mounted) _showToast('Could not remove photo');
+    }
+  }
+
+  void _linkEntity(String targetType) {
+    final trip = _trip;
+    if (trip == null) return;
+    TripConnectModal.show(context, tripId: trip.id, targetType: targetType, onConnected: _refresh);
+  }
+
+  void _addPhotos() {
+    final trip = _trip;
+    if (trip == null) return;
+    PhotoPickerModal.showGeneric(
+      context,
+      headerTitle: trip.title,
+      defaultVerb: 'taken_at',
+      onConnect: (photos, relationship) =>
+          ApiService.connectTripPhotos(trip.id, photos, relationship: relationship),
+      onSuccess: _refresh,
+    );
+  }
+
   Widget _buildTabContent(BuildContext context) {
     final detail = _detail;
     if (detail == null) {
@@ -370,7 +501,16 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
     switch (_tabIndex) {
       case 0:
-        return TripDayTimeline(days: detail.days);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _manageBar(context, [
+              _actionButton(CupertinoIcons.add, 'Add day', _addDay),
+              _actionButton(CupertinoIcons.calendar_badge_plus, 'Generate', _generateDays),
+            ]),
+            TripDayTimeline(days: detail.days, onEditDay: _editDay),
+          ],
+        );
       case 1:
         return _locationsTab(context, detail);
       case 2:
@@ -381,6 +521,8 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
         return _microblogsTab(context, detail);
       case 5:
         return _peopleTab(context, detail);
+      case 6:
+        return _moviesTab(context, detail);
       default:
         return const SizedBox.shrink();
     }
@@ -414,72 +556,130 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
   }
 
   Widget _locationsTab(BuildContext context, TripDetailResult detail) {
-    if (detail.locations.isEmpty) {
-      return _emptyTab(context, CupertinoIcons.placemark, 'No linked locations');
-    }
     final labelColor = AppCupertinoTheme.label(context);
     final secondaryColor = AppCupertinoTheme.secondary(context);
-    return _cardList(
-      context,
-      [
-        for (int i = 0; i < detail.locations.length; i++)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            child: Row(
-              children: [
-                const Icon(CupertinoIcons.placemark_fill, size: 18, color: AppCupertinoTheme.brandAccent),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _manageBar(context, [_actionButton(CupertinoIcons.add, 'Link location', () => _linkEntity('location'))]),
+        if (detail.locations.isEmpty)
+          _emptyTab(context, CupertinoIcons.placemark, 'No linked locations')
+        else
+          _cardList(
+            context,
+            [
+              for (final loc in detail.locations)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Row(
                     children: [
-                      Text(detail.locations[i].name,
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: labelColor)),
-                      if (detail.locations[i].subtitle.isNotEmpty)
-                        Text(detail.locations[i].subtitle, style: TextStyle(fontSize: 12.5, color: secondaryColor)),
+                      const Icon(CupertinoIcons.placemark_fill, size: 18, color: AppCupertinoTheme.brandAccent),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(loc.name,
+                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: labelColor)),
+                            if (loc.subtitle.isNotEmpty)
+                              Text(loc.subtitle, style: TextStyle(fontSize: 12.5, color: secondaryColor)),
+                          ],
+                        ),
+                      ),
+                      if (loc.relationshipId != null)
+                        CupertinoButton(
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          onPressed: () => _removeConnection(loc.relationshipId),
+                          child: const Icon(CupertinoIcons.minus_circle, size: 20, color: CupertinoColors.systemRed),
+                        ),
                     ],
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
       ],
     );
   }
 
   Widget _photosTab(BuildContext context, TripDetailResult detail) {
-    if (detail.photos.isEmpty) {
-      return _emptyTab(context, CupertinoIcons.photo, 'No photos yet');
-    }
     final urls = detail.photos.map((p) => p.fullUrl).where((u) => u.isNotEmpty).toList();
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(top: 4),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 6,
-        mainAxisSpacing: 6,
-      ),
-      itemCount: detail.photos.length,
-      itemBuilder: (context, idx) {
-        final photo = detail.photos[idx];
-        return GestureDetector(
-          onTap: () => ImageLightbox.show(context, urls, initialIndex: idx),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: CachedNetworkImage(
-              cacheManager: PeopleImageCacheManager.instance,
-              imageUrl: photo.thumbUrl,
-              fit: BoxFit.cover,
-              errorWidget: (_, _, _) => Container(
-                color: AppCupertinoTheme.subtleFill.resolveFrom(context),
-                child: const Icon(CupertinoIcons.photo, color: CupertinoColors.systemGrey),
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _manageBar(context, [_actionButton(CupertinoIcons.add, 'Add photos', _addPhotos)]),
+        if (detail.photos.isEmpty)
+          _emptyTab(context, CupertinoIcons.photo, 'No photos yet')
+        else
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(top: 4),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 6,
+              mainAxisSpacing: 6,
             ),
+            itemCount: detail.photos.length,
+            itemBuilder: (context, idx) {
+              final photo = detail.photos[idx];
+              final isDay = photo.sourceType == 'day';
+              return GestureDetector(
+                onTap: () => ImageLightbox.show(context, urls, initialIndex: idx),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: CachedNetworkImage(
+                        cacheManager: PeopleImageCacheManager.instance,
+                        imageUrl: photo.thumbUrl,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, _, _) => Container(
+                          color: AppCupertinoTheme.subtleFill.resolveFrom(context),
+                          child: const Icon(CupertinoIcons.photo, color: CupertinoColors.systemGrey),
+                        ),
+                      ),
+                    ),
+                    // Day photos are managed from the day editor, not detachable here.
+                    if (isDay)
+                      Positioned(
+                        left: 4,
+                        bottom: 4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: CupertinoColors.black.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text('Day ${photo.sourceDayNumber ?? ''}'.trim(),
+                              style: const TextStyle(color: CupertinoColors.white, fontSize: 9, fontWeight: FontWeight.w600)),
+                        ),
+                      )
+                    else
+                      Positioned(
+                        top: 2,
+                        right: 2,
+                        child: CupertinoButton(
+                          padding: const EdgeInsets.all(2),
+                          minimumSize: Size.zero,
+                          onPressed: () => _removePhoto(photo.id),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: CupertinoColors.black.withValues(alpha: 0.4),
+                              shape: BoxShape.circle,
+                            ),
+                            padding: const EdgeInsets.all(2),
+                            child: const Icon(CupertinoIcons.xmark, size: 13, color: CupertinoColors.white),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
           ),
-        );
-      },
+      ],
     );
   }
 
@@ -516,48 +716,117 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
   }
 
   Widget _peopleTab(BuildContext context, TripDetailResult detail) {
-    if (detail.people.isEmpty) {
-      return _emptyTab(context, CupertinoIcons.person_2, 'No linked people');
-    }
     final labelColor = AppCupertinoTheme.label(context);
     final secondaryColor = AppCupertinoTheme.secondary(context);
-    return _cardList(
-      context,
-      [
-        for (final person in detail.people)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            child: Row(
-              children: [
-                if (person.hasAvatar)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
-                    child: CachedNetworkImage(
-                      cacheManager: PeopleImageCacheManager.instance,
-                      imageUrl: person.avatarUrl!,
-                      width: 36,
-                      height: 36,
-                      fit: BoxFit.cover,
-                      errorWidget: (_, _, _) => _personInitials(person),
-                    ),
-                  )
-                else
-                  _personInitials(person),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _manageBar(context, [_actionButton(CupertinoIcons.add, 'Link person', () => _linkEntity('person'))]),
+        if (detail.people.isEmpty)
+          _emptyTab(context, CupertinoIcons.person_2, 'No linked people')
+        else
+          _cardList(
+            context,
+            [
+              for (final person in detail.people)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Row(
                     children: [
-                      Text(person.displayName,
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: labelColor)),
-                      Text(person.relationshipType, style: TextStyle(fontSize: 12.5, color: secondaryColor)),
+                      if (person.hasAvatar)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: CachedNetworkImage(
+                            cacheManager: PeopleImageCacheManager.instance,
+                            imageUrl: person.avatarUrl!,
+                            width: 36,
+                            height: 36,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, _, _) => _personInitials(person),
+                          ),
+                        )
+                      else
+                        _personInitials(person),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(person.displayName,
+                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: labelColor)),
+                            Text(person.relationshipType, style: TextStyle(fontSize: 12.5, color: secondaryColor)),
+                          ],
+                        ),
+                      ),
+                      if (person.relationshipId != null)
+                        CupertinoButton(
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          onPressed: () => _removeConnection(person.relationshipId),
+                          child: const Icon(CupertinoIcons.minus_circle, size: 20, color: CupertinoColors.systemRed),
+                        ),
                     ],
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
       ],
+    );
+  }
+
+  Widget _moviesTab(BuildContext context, TripDetailResult detail) {
+    if (detail.movies.isEmpty) {
+      return _emptyTab(context, CupertinoIcons.film, 'No linked movies');
+    }
+    final labelColor = AppCupertinoTheme.label(context);
+    final secondaryColor = AppCupertinoTheme.secondary(context);
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(top: 4),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 0.62,
+      ),
+      itemCount: detail.movies.length,
+      itemBuilder: (context, idx) {
+        final movie = detail.movies[idx];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: movie.posterUrl != null
+                    ? CachedNetworkImage(
+                        cacheManager: PeopleImageCacheManager.instance,
+                        imageUrl: movie.posterUrl!,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        errorWidget: (_, _, _) => _moviePlaceholder(context),
+                      )
+                    : _moviePlaceholder(context),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(movie.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: labelColor)),
+            if (movie.year != null)
+              Text('${movie.year}', style: TextStyle(fontSize: 11, color: secondaryColor)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _moviePlaceholder(BuildContext context) {
+    return Container(
+      color: AppCupertinoTheme.subtleFill.resolveFrom(context),
+      child: const Center(child: Icon(CupertinoIcons.film, color: CupertinoColors.systemGrey, size: 28)),
     );
   }
 

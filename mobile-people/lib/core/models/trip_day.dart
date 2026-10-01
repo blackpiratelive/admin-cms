@@ -17,6 +17,13 @@ class TransportWaypoint {
         latitude: (j['latitude'] as num?)?.toDouble(),
         longitude: (j['longitude'] as num?)?.toDouble(),
       );
+
+  Map<String, dynamic> toJson() => {
+        if (locationId != null) 'locationId': locationId,
+        if (name != null) 'name': name,
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
+      };
 }
 
 class TransportLeg {
@@ -69,6 +76,19 @@ class TransportLeg {
     ];
     return stops.join(' › ');
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'mode': mode,
+        if (fromName != null) 'fromName': fromName,
+        if (toName != null) 'toName': toName,
+        'waypoints': waypoints.map((w) => w.toJson()).toList(),
+        if (departTime != null) 'departTime': departTime,
+        if (arriveTime != null) 'arriveTime': arriveTime,
+        if (cost != null) 'cost': cost,
+        if (currency != null) 'currency': currency,
+        if (notes != null) 'notes': notes,
+      };
 }
 
 class MealEntry {
@@ -102,6 +122,17 @@ class MealEntry {
         rating: j['rating'] as num?,
         notes: j['notes'] as String?,
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'type': type,
+        if (place != null) 'place': place,
+        if (dishes != null) 'dishes': dishes,
+        if (cost != null) 'cost': cost,
+        if (currency != null) 'currency': currency,
+        if (rating != null) 'rating': rating,
+        if (notes != null) 'notes': notes,
+      };
 }
 
 class ActivityEntry {
@@ -132,6 +163,16 @@ class ActivityEntry {
         currency: j['currency'] as String?,
         notes: j['notes'] as String?,
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        if (time != null) 'time': time,
+        if (locationName != null) 'locationName': locationName,
+        if (cost != null) 'cost': cost,
+        if (currency != null) 'currency': currency,
+        if (notes != null) 'notes': notes,
+      };
 }
 
 class Accommodation {
@@ -155,6 +196,14 @@ class Accommodation {
       (name == null || name!.isEmpty) &&
       (locationName == null || locationName!.isEmpty) &&
       cost == null;
+
+  Map<String, dynamic> toJson() => {
+        if (name != null) 'name': name,
+        if (locationName != null) 'locationName': locationName,
+        if (cost != null) 'cost': cost,
+        if (currency != null) 'currency': currency,
+        if (notes != null) 'notes': notes,
+      };
 }
 
 class DayPhoto {
@@ -169,6 +218,12 @@ class DayPhoto {
         url: j['url'] as String? ?? '',
         caption: j['caption'] as String?,
       );
+
+  Map<String, dynamic> toJson() => {
+        if (id != null) 'id': id,
+        'url': url,
+        if (caption != null) 'caption': caption,
+      };
 }
 
 class TripDay {
@@ -276,6 +331,21 @@ class TripDay {
     add(accommodation.cost, accommodation.currency);
     return totals;
   }
+
+  /// Payload for `PUT /api/trips/[id]/days/[dayId]` (TripDayUpdate shape).
+  Map<String, dynamic> toUpdateJson() => {
+        'date': date,
+        'title': title,
+        'primaryLocationName': primaryLocationName,
+        'weather': weather,
+        'mood': mood,
+        'notesMarkdown': notesMarkdown,
+        'transport': transport.map((t) => t.toJson()).toList(),
+        'meals': meals.map((m) => m.toJson()).toList(),
+        'activities': activities.map((a) => a.toJson()).toList(),
+        'accommodation': accommodation.toJson(),
+        'photos': photos.map((p) => p.toJson()).toList(),
+      };
 }
 
 /// Format currency-grouped totals, e.g. "₹4,500 + \$30". Empty when no spend.

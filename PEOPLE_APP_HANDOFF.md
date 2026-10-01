@@ -75,8 +75,11 @@ mobile-people/
 │   │   ├── photo_picker_modal.dart        # 3-Tab Photo Connection Modal (Gallery/R2, Cloudinary, Upload)
 │   │   ├── settings_screen.dart           # Inset-grouped settings, queue & deployment
 │   │   ├── trips_screen.dart              # Cupertino trips directory (search, status filter chips, sort, cards)
-│   │   ├── trip_detail_screen.dart        # Trip hub (hero + segmented tabs: Itinerary/Places/Map/Photos/Posts/People)
-│   │   └── trip_form_modal.dart           # Trip create/edit modal (dates, status, visibility, tags, delete)
+│   │   ├── trip_detail_screen.dart        # Trip hub (hero + scrollable tabs: Itinerary/Places/Map/Photos/Posts/People/Movies)
+│   │   ├── trip_form_modal.dart           # Trip create/edit modal (dates, status, visibility, tags, delete)
+│   │   ├── trip_day_editor_modal.dart     # Full itinerary day editor (overview, transport, food, activities, stay, notes, photos)
+│   │   ├── trip_day_entry_editors.dart    # Sub-editors for transport legs / meals / activities
+│   │   └── trip_connect_modal.dart        # Link a location or person to a trip
 │   └── widgets/
 │       ├── image_lightbox.dart            # Full-screen pinch-to-zoom avatar/image viewer
 │       ├── person_card.dart               # Clean Cupertino person list row with subtle metadata & star action
@@ -221,6 +224,10 @@ The app communicates with the following Next.js REST API endpoints:
 | `/api/trips/[id]` | `PUT` / `DELETE` | Updates / deletes a trip. |
 | `/api/trips/[id]/favorite` | `POST` | Toggles trip favorite flag. |
 | `/api/trips/[id]/duplicate` | `POST` | Deep-clones a trip (metadata, days, location links). |
+| `/api/trips/[id]/days` | `GET` / `POST` | Lists itinerary days / adds a day (`{date}`) or generates days from trip dates (`{generate:true}`). |
+| `/api/trips/[id]/days/[dayId]` | `PUT` / `DELETE` | Updates (structured TripDayUpdate payload) / deletes a day. |
+| `/api/trips/[id]/photos` | `POST` / `DELETE` | Batch-connects gallery/Cloudinary photos / removes a photo by `connectionId`. |
+| `/api/trips/[id]/connections` | `POST` / `DELETE` | Links a location/person to the trip / removes by `relationshipId`. |
 | `/api/deploy` | `POST` | Triggers background `VERCEL_DEPLOY_HOOK` for Hugo rebuild. |
 
 ---
@@ -273,7 +280,7 @@ Run all automated checks prior to committing:
 cd mobile-people
 export PATH="/home/dog/flutter/bin:$PATH"
 flutter analyze    # Must report 0 issues
-flutter test       # Must pass 100% of tests (50/50 tests passing)
+flutter test       # Must pass 100% of tests (52/52 tests passing)
 
 # 2. Mobile Microblog App (verify no regression)
 cd mobile-microblog
@@ -306,6 +313,20 @@ git status android/ # Must remain completely clean!
 ---
 
 ## 9. Recent Updates & Architectural Changelog
+
+### Version 1.8.0 — Trips Follow-ups: Itinerary Day Editing, Photo Management, Connections & Movies (October 2026)
+
+1. **Itinerary Day Editing**: The Itinerary tab gains **Add day** and **Generate** (from trip dates) actions, and every day card gets a pencil button opening `TripDayEditorModal` — a full editor for date, title, primary place, weather, mood (1–5), markdown notes, transport legs, meals, activities, accommodation, and day photos. Transport/meal/activity entries use focused sub-editors (`trip_day_entry_editors.dart`); costs flow into the day/trip spend roll-up. Saves via `PUT /api/trips/[id]/days/[dayId]` (structured `TripDayUpdate`), with Add/Generate on `POST /api/trips/[id]/days`.
+
+2. **Trip Photo Management**: The Photos tab gains **Add photos** (reusing the 3-tab `PhotoPickerModal`, now generalized with a `showGeneric` entry point so it serves any entity) and a per-photo remove control. Itinerary-day photos are surfaced with a `Day N` badge and are managed from the day editor rather than detached here. Backed by `POST`/`DELETE /api/trips/[id]/photos`.
+
+3. **Connect Entities to a Trip**: Places and People tabs gain **Link location** / **Link person** actions (`TripConnectModal`, backed by the shared pickers and `getPeople`) and per-item remove. Backed by `POST`/`DELETE /api/trips/[id]/connections` over new `connectTripToPerson` / `removeTripConnectionAction` server actions plus existing `connectTripToLocation`.
+
+4. **Movies Tab**: Added a 7th detail tab rendering connected movies (TMDB poster grid). The detail tab switcher moved from a cramped segmented control to a horizontally scrollable chip bar to fit all tabs on phone widths.
+
+5. **Deferred (intentional)**: Mapbox basemaps — OpenStreetMap via `flutter_map` already covers the Map tab without a token dependency, so Mapbox styles were not added. In-editor Mapbox geocoding / entity pickers for day sub-items also remain out of scope (day sub-item locations are free-text, which the backend accepts).
+
+6. **Quality Gates**: `flutter analyze` 0 issues; 52/52 tests pass (+2 new: day write serialization round-trip, TMDB poster URL). Backend `npx tsc --noEmit` 0 errors, `npm run build` compiles with the new `/api/trips/[id]/{days,photos,connections}` routes, 132/132 Vitest pass. `mobile-microblog` 13/13, 0 analyze issues. `android/` remained 100% clean and untouched.
 
 ### Version 1.7.0 — Trips Module: Browse, Trip CRUD & Interactive OSM Map (October 2026)
 

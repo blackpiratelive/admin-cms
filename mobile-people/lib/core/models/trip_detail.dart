@@ -205,6 +205,29 @@ class TripMicroblog {
       );
 }
 
+class TripMovie {
+  final int? traktId;
+  final String title;
+  final int? year;
+  final String? posterPath;
+
+  const TripMovie({this.traktId, required this.title, this.year, this.posterPath});
+
+  /// Resolve a TMDB poster path to a displayable URL.
+  String? get posterUrl {
+    if (posterPath == null || posterPath!.isEmpty) return null;
+    if (posterPath!.startsWith('http')) return posterPath;
+    return 'https://image.tmdb.org/t/p/w342$posterPath';
+  }
+
+  factory TripMovie.fromJson(Map<String, dynamic> j) => TripMovie(
+        traktId: j['traktId'] as int?,
+        title: j['title'] as String? ?? 'Untitled',
+        year: j['year'] as int?,
+        posterPath: j['posterPath'] as String?,
+      );
+}
+
 class TripDetailResult {
   final TripRecord trip;
   final List<TripDay> days;
@@ -212,6 +235,7 @@ class TripDetailResult {
   final List<TripMicroblog> microblogs;
   final List<TripPhoto> photos;
   final List<TripPersonRef> people;
+  final List<TripMovie> movies;
   final List<TripMapStop> routeStops;
   final List<TripMapStop> missingCoords;
 
@@ -222,6 +246,7 @@ class TripDetailResult {
     this.microblogs = const [],
     this.photos = const [],
     this.people = const [],
+    this.movies = const [],
     this.routeStops = const [],
     this.missingCoords = const [],
   });
@@ -240,6 +265,7 @@ class TripDetailResult {
       microblogs: _list(entities['microblogs']).map(TripMicroblog.fromJson).toList(),
       photos: _list(entities['photos']).map(TripPhoto.fromJson).toList(),
       people: _list(entities['people']).map(TripPersonRef.fromJson).toList(),
+      movies: _list(entities['movies']).map(TripMovie.fromJson).toList(),
       routeStops: _list(map['routeStops']).map(TripMapStop.fromJson).toList(),
       missingCoords: _list(map['missingCoords']).map(TripMapStop.fromJson).toList(),
     );

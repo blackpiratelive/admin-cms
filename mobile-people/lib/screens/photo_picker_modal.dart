@@ -10,12 +10,18 @@ import '../core/network/sync_service.dart';
 import '../core/theme/cupertino_theme.dart';
 
 class PhotoPickerModal extends StatefulWidget {
-  final PersonRecord person;
+  final PersonRecord? person;
+  final String? headerTitle;
+  final String defaultVerb;
+  final Future<bool> Function(List<Map<String, dynamic>> photos, String relationship)? onConnect;
   final VoidCallback onSuccess;
 
   const PhotoPickerModal({
     super.key,
-    required this.person,
+    this.person,
+    this.headerTitle,
+    this.defaultVerb = 'appears_in',
+    this.onConnect,
     required this.onSuccess,
   });
 
@@ -30,13 +36,33 @@ class PhotoPickerModal extends StatefulWidget {
     );
   }
 
+  /// Generic entry point for non-person entities (e.g. trips) that supply their
+  /// own connect handler. Keeps the person-based API above untouched.
+  static Future<void> showGeneric(
+    BuildContext context, {
+    required String headerTitle,
+    required String defaultVerb,
+    required Future<bool> Function(List<Map<String, dynamic>> photos, String relationship) onConnect,
+    required VoidCallback onSuccess,
+  }) {
+    return showCupertinoModalPopup<void>(
+      context: context,
+      builder: (_) => PhotoPickerModal(
+        headerTitle: headerTitle,
+        defaultVerb: defaultVerb,
+        onConnect: onConnect,
+        onSuccess: onSuccess,
+      ),
+    );
+  }
+
   @override
   State<PhotoPickerModal> createState() => _PhotoPickerModalState();
 }
 
 class _PhotoPickerModalState extends State<PhotoPickerModal> {
   int _selectedSegment = 0; // 0: Gallery (R2), 1: Cloudinary, 2: Upload
-  final TextEditingController _verbController = TextEditingController(text: 'appears_in');
+  late final TextEditingController _verbController;
 
   // Multi-selection state
   final Map<String, Map<String, dynamic>> _selectedPhotos = {};
@@ -62,6 +88,7 @@ class _PhotoPickerModalState extends State<PhotoPickerModal> {
   @override
   void initState() {
     super.initState();
+    _verbController = TextEditingController(text: widget.defaultVerb);
     _loadGalleryPhotos();
   }
 
@@ -191,11 +218,30 @@ class _PhotoPickerModalState extends State<PhotoPickerModal> {
 
     final photosList = _selectedPhotos.values.toList();
     final verb = _verbController.text.trim();
-    final relationship = verb.isNotEmpty ? verb : 'appears_in';
+    final relationship = verb.isNotEmpty ? verb : widget.defaultVerb;
 
+    // Generic entity path (e.g. trips): delegate to the supplied handler.
+    if (widget.onConnect != null) {
+      try {
+        final ok = await widget.onConnect!(photosList, relationship);
+        if (ok && mounted) {
+          widget.onSuccess();
+          Navigator.of(context).pop();
+        } else {
+          throw Exception('Failed to connect photos');
+        }
+      } catch (e) {
+        if (mounted) setState(() => _errorMessage = 'Could not connect photos. Check your connection and try again.');
+      } finally {
+        if (mounted) setState(() => _isSubmitting = false);
+      }
+      return;
+    }
+
+    final person = widget.person!;
     try {
       final ok = await ApiService.connectPhotosBatch(
-        personId: widget.person.id,
+        personId: person.id,
         photos: photosList,
         relationship: relationship,
       );
@@ -211,7 +257,7 @@ class _PhotoPickerModalState extends State<PhotoPickerModal> {
       for (final photo in photosList) {
         await SyncService.queueMutation(
           type: 'add_connection',
-          entityId: widget.person.id,
+          entityId: person.id,
           payload: {
             'targetType': photo['type'] == 'gallery' ? 'gallery' : 'cloudinary',
             'targetId': photo['id'] ?? photo['url'],
@@ -291,7 +337,7 @@ class _PhotoPickerModalState extends State<PhotoPickerModal> {
                             ),
                           ),
                           Text(
-                            widget.person.displayName,
+                            widget.headerTitle ?? widget.person?.displayName ?? '',
                             style: TextStyle(
                               fontSize: 12,
                               color: AppCupertinoTheme.secondary(context),

@@ -7,10 +7,12 @@ import '../core/theme/cupertino_theme.dart';
 import 'image_lightbox.dart';
 
 /// Read-only day-by-day itinerary timeline (mirrors the web TripItineraryTab).
+/// When [onEditDay] is provided, each day card gains an edit button.
 class TripDayTimeline extends StatelessWidget {
   final List<TripDay> days;
+  final void Function(TripDay day)? onEditDay;
 
-  const TripDayTimeline({super.key, required this.days});
+  const TripDayTimeline({super.key, required this.days, this.onEditDay});
 
   static const Map<String, IconData> _transportIcons = {
     'walk': CupertinoIcons.person,
@@ -148,6 +150,13 @@ class TripDayTimeline extends StatelessWidget {
                     spend,
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: labelColor),
                   ),
+                ),
+              if (onEditDay != null)
+                CupertinoButton(
+                  padding: const EdgeInsets.only(left: 6),
+                  minimumSize: Size.zero,
+                  onPressed: () => onEditDay!(day),
+                  child: const Icon(CupertinoIcons.pencil_circle, size: 22, color: AppCupertinoTheme.brandAccent),
                 ),
             ],
           ),

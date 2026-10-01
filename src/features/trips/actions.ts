@@ -1536,3 +1536,52 @@ export async function getTripMapLocationsAction(
 export async function getMapboxTokenAction(): Promise<string | null> {
   return process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.MAPBOX_TOKEN || null;
 }
+
+/** Connect a person to a trip via the Relationship Engine. */
+export async function connectTripToPerson(
+  tripId: string,
+  personId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await ensureDbInitialized();
+    await addRelationship("trip", tripId, "person", personId, "shared_with");
+
+    purgeTag("trips-list");
+    purgeTag(`trip-${tripId}`);
+    const tr = await db.select().from(trips).where(eq(trips.id, tripId)).limit(1);
+    if (tr[0]) {
+      purgeTag(`trip-${tr[0].slug}`);
+      try {
+        revalidatePath(`/trips/${tr[0].slug}`);
+      } catch {}
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Failed to connect person to trip" };
+  }
+}
+
+/** Remove a trip↔entity relationship by its relationship id, purging caches. */
+export async function removeTripConnectionAction(
+  relationshipId: string,
+  tripId: string,
+  tripSlug?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await ensureDbInitialized();
+    await removeRelationship(relationshipId);
+
+    purgeTag("trips-list");
+    purgeTag("locations-list");
+    purgeTag(`trip-${tripId}`);
+    if (tripSlug) {
+      purgeTag(`trip-${tripSlug}`);
+      try {
+        revalidatePath(`/trips/${tripSlug}`);
+      } catch {}
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Failed to remove connection" };
+  }
+}

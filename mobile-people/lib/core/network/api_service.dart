@@ -791,6 +791,106 @@ class ApiService {
     }
   }
 
+  // --- Trip itinerary days ---
+
+  static Future<void> generateTripDays(String tripId) async {
+    await _tripPost('/api/trips/$tripId/days', {'generate': true});
+  }
+
+  static Future<void> addTripDay(String tripId, {String? date}) async {
+    await _tripPost('/api/trips/$tripId/days', {'date': ?date});
+  }
+
+  static Future<void> updateTripDay(String tripId, String dayId, Map<String, dynamic> payload) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/trips/$tripId/days/$dayId');
+    final headers = await _getHeaders();
+    final response = await http
+        .put(uri, headers: headers, body: jsonEncode(payload))
+        .timeout(timeoutDuration);
+    if (response.statusCode != 200) {
+      throw ApiException(response.statusCode, _errorFrom(response.body, 'update day'));
+    }
+  }
+
+  static Future<void> deleteTripDay(String tripId, String dayId) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/trips/$tripId/days/$dayId');
+    final headers = await _getHeaders();
+    final response = await http.delete(uri, headers: headers).timeout(timeoutDuration);
+    if (response.statusCode != 200) {
+      throw ApiException(response.statusCode, _errorFrom(response.body, 'delete day'));
+    }
+  }
+
+  // --- Trip photos ---
+
+  static Future<bool> connectTripPhotos(
+    String tripId,
+    List<Map<String, dynamic>> photos, {
+    String relationship = 'taken_at',
+  }) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/trips/$tripId/photos');
+    final headers = await _getHeaders();
+    final response = await http
+        .post(uri, headers: headers, body: jsonEncode({'photos': photos, 'relationship': relationship}))
+        .timeout(uploadTimeoutDuration);
+    if (response.statusCode == 200 || response.statusCode == 201) return true;
+    throw ApiException(response.statusCode, _errorFrom(response.body, 'connect photos'));
+  }
+
+  static Future<bool> removeTripPhoto(String tripId, String connectionId) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/trips/$tripId/photos?connectionId=$connectionId');
+    final headers = await _getHeaders();
+    final response = await http.delete(uri, headers: headers).timeout(timeoutDuration);
+    if (response.statusCode == 200) return true;
+    throw ApiException(response.statusCode, _errorFrom(response.body, 'remove photo'));
+  }
+
+  // --- Trip connections (locations / people) ---
+
+  static Future<bool> connectTripEntity(String tripId, String targetType, String targetId) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/trips/$tripId/connections');
+    final headers = await _getHeaders();
+    final response = await http
+        .post(uri, headers: headers, body: jsonEncode({'targetType': targetType, 'targetId': targetId}))
+        .timeout(timeoutDuration);
+    if (response.statusCode == 200 || response.statusCode == 201) return true;
+    throw ApiException(response.statusCode, _errorFrom(response.body, 'connect entity'));
+  }
+
+  static Future<bool> removeTripConnection(String tripId, String relationshipId) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/trips/$tripId/connections?relationshipId=$relationshipId');
+    final headers = await _getHeaders();
+    final response = await http.delete(uri, headers: headers).timeout(timeoutDuration);
+    if (response.statusCode == 200) return true;
+    throw ApiException(response.statusCode, _errorFrom(response.body, 'remove connection'));
+  }
+
+  static Future<void> _tripPost(String path, Map<String, dynamic> body) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl$path');
+    final headers = await _getHeaders();
+    final response = await http
+        .post(uri, headers: headers, body: jsonEncode(body))
+        .timeout(timeoutDuration);
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw ApiException(response.statusCode, _errorFrom(response.body, 'request'));
+    }
+  }
+
+  static String _errorFrom(String body, String action) {
+    try {
+      final err = jsonDecode(body);
+      if (err['error'] != null) return err['error'] as String;
+    } catch (_) {}
+    return 'Failed to $action';
+  }
+
   // Trigger site rebuild / deploy hook
   static Future<bool> triggerDeploy() async {
     try {

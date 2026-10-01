@@ -23,6 +23,7 @@ import 'package:mobile_people/screens/photo_picker_modal.dart';
 import 'package:mobile_people/core/network/api_service.dart';
 import 'package:mobile_people/core/models/trip_record.dart';
 import 'package:mobile_people/core/models/trip_day.dart';
+import 'package:mobile_people/core/models/trip_detail.dart';
 import 'package:mobile_people/core/util/trip_format.dart';
 import 'package:mobile_people/main.dart';
 
@@ -1236,6 +1237,43 @@ void main() {
       final formatted = formatCostTotals(totals);
       expect(formatted, contains('₹ 4,500'));
       expect(formatted, contains(r'$ 30'));
+    });
+  });
+
+  group('TripDay write serialization', () {
+    test('toUpdateJson round-trips structured lists and scalars', () {
+      final day = TripDay.fromJson({
+        'id': 'd1',
+        'tripId': 't1',
+        'dayNumber': 2,
+        'date': '2026-09-23',
+        'title': 'City day',
+        'weather': 'Sunny',
+        'mood': 4,
+        'notesMarkdown': 'Great day',
+        'transportJson': '[{"id":"l1","mode":"train","fromName":"A","toName":"B","cost":100,"currency":"€"}]',
+        'mealsJson': '[{"id":"m1","type":"dinner","place":"Cafe"}]',
+        'activitiesJson': '[{"id":"a1","title":"Museum"}]',
+        'accommodationJson': '{"name":"Hotel","cost":200,"currency":"€"}',
+        'photosJson': '[{"id":"p1","url":"https://x/y.jpg"}]',
+      });
+
+      final payload = day.toUpdateJson();
+      expect(payload['title'], 'City day');
+      expect(payload['mood'], 4);
+      expect((payload['transport'] as List).length, 1);
+      expect((payload['transport'] as List).first['mode'], 'train');
+      expect((payload['meals'] as List).first['place'], 'Cafe');
+      expect((payload['activities'] as List).first['title'], 'Museum');
+      expect((payload['accommodation'] as Map)['name'], 'Hotel');
+      expect((payload['photos'] as List).first['url'], 'https://x/y.jpg');
+    });
+
+    test('TripMovie builds a TMDB poster URL from a path', () {
+      final movie = TripMovie.fromJson({'traktId': 1, 'title': 'Inception', 'year': 2010, 'posterPath': '/abc.jpg'});
+      expect(movie.posterUrl, 'https://image.tmdb.org/t/p/w342/abc.jpg');
+      final none = TripMovie.fromJson({'title': 'No Poster'});
+      expect(none.posterUrl, isNull);
     });
   });
 }

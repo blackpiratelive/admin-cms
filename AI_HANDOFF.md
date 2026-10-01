@@ -354,6 +354,14 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 
 ## 8. Standalone Apps & Release Signing Changelog
 
+### October 2026: Mobile People — Trips Follow-ups (Day Editing, Photo Management, Connections, Movies)
+- **Itinerary day editing in `mobile-people/`**: Itinerary tab adds **Add day** / **Generate days** and a per-day editor (`trip_day_editor_modal.dart` + `trip_day_entry_editors.dart`) covering date, title, place, weather, mood, notes, transport legs, meals, activities, accommodation, and day photos — saved via `PUT /api/trips/[id]/days/[dayId]`.
+- **New day/photo/connection REST routes (`src/app/api/trips/[id]/`)**: `days` (`GET`/`POST` list/add/generate), `days/[dayId]` (`PUT`/`DELETE`), `photos` (`POST`/`DELETE` batch connect / remove by `connectionId`), `connections` (`POST`/`DELETE` link location|person / remove by `relationshipId`). Thin adapters over existing `day-actions.ts` + new `connectTripToPerson`/`removeTripConnectionAction` in `features/trips/actions.ts`. No schema change.
+- **Trip photo management & connections**: Photos tab gains add (generalized `PhotoPickerModal.showGeneric`) + per-photo remove (day photos shown read-only with a `Day N` badge); Places/People tabs gain link + remove via `TripConnectModal`.
+- **Movies tab**: 7th trip-detail tab (TMDB poster grid); the detail tab switcher is now a scrollable chip bar to fit all tabs on phones.
+- **Intentionally still deferred**: Mapbox basemaps (OSM via `flutter_map` already covers the Map tab tokenless) and in-editor geocoding/entity pickers for day sub-items (free-text locations are backend-accepted).
+- **Quality Gates**: `tsc` 0 errors, `npm run build` compiles (new `/api/trips/[id]/{days,photos,connections}` routes), 132/132 Vitest. `mobile-people` `flutter analyze` 0 issues, 52/52 tests. `mobile-microblog` 13/13. `android/` clean and untouched.
+
 ### October 2026: Trips — Distance Travelled (km) with Coordinate Estimates & Manual Override
 - **Read-time distance, zero schema change**: Added distance-travelled computation to the Trips module without any new DB column. Transport-leg coordinates (and the new manual override) already live inside `trip_days.transportJson`, so distance is derived at read time exactly like the existing spend roll-up. New pure helpers in `src/features/trips/day-helpers.ts`: `haversineKm`, `isLegDistanceManual`, `computeLegDistanceKm`, `computeDayDistanceKm`, `computeTripDistanceSummary`, `buildDayRouteStops`, `sumRouteDistanceKm`, `formatDistanceKm`, plus a new optional `distanceKm?` field on `TransportLeg`.
 - **Two complementary notions**:
