@@ -353,6 +353,14 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 
 ## 8. Standalone Apps & Release Signing Changelog
 
+### October 2026: Trip Itinerary Tab — Grouped-Section Redesign & Mobile Optimization
+- **Grouped-section day cards (`TripItineraryTab.tsx`)**: Each day's details are now organized into labeled mini-sections — **Transport · Food · Activities · Stay · Notes · Photos** — instead of a flat text list, giving clear scannable hierarchy. Costs are right-aligned into a consistent column with currency prefixes via a new `formatMoney()` helper (cost clarity).
+- **Per-day glance summary**: A chip row under each day title surfaces quick counts (`2 transport`, `3 meals`, `1 activity`, `stay`, `N photos`) plus weather and mood badges, so a day's shape is readable at a glance without scanning every row.
+- **Wrapping transport route chips**: Multi-stop routes (e.g. *Ranchi → Muri → … → Delhi*) render each stop as a pill joined by `›` separators that wrap cleanly on narrow screens via `.itin-route`/`.itin-stop`, instead of a single overflowing arrow string.
+- **Jump-to-day navigation**: A sticky, horizontally-scrollable day chip rail (`.itin-daynav`) smooth-scrolls to any day (`scrollIntoView` + per-day refs); each chip shows a dot indicating whether that day is documented.
+- **Mobile optimization**: All structural styling moved from inline styles into `trips.css` (`.itin-*`) so real media queries apply. On ≤640px the date rail collapses from a fixed 92px left column into an inline header row and the timeline connector hides; on ≤760px the Auto-generate/Add-day actions stretch full-width. Stat tiles reflow with `auto-fit`.
+- **Quality Gates**: `npx tsc --noEmit` reports 0 errors, Next.js production build (`npm run build`) compiles cleanly (29/29 routes), all 122 Vitest tests pass across 22 suites, and `android/` remained untouched.
+
 ### October 2026: Trip Map Route — Curved Connectors for Non-Road / Untyped Legs
 - **No More Bare Straight Lines**: Trip route legs that have no precise geometry — `train`, `boat`, `other`, and untyped gaps between consecutive itinerary stops — were previously drawn as straight polylines. They now render as smooth quadratic-Bézier arcs (`generateCurvedArc` in `MapboxTripMap.tsx`) bowed consistently to one side, so the itinerary reads as one continuous flowing path. Flights keep their geographically-accurate great-circle arc (`generateGreatCircleArc`); road modes (`walk`/`bike`/`car`/`taxi`/`bus`) still upgrade to real Mapbox Directions road geometry asynchronously, now falling back to the gentle curve instead of a straight line when a leg is unroutable.
 - **Vector Fallback Parity (`TripMapTab.tsx`)**: The SVG route visualizer (shown when `MAPBOX_TOKEN`/WebGL is unavailable) builds its route path with the same curved `Q` connectors (`buildCurvedPath`) rather than straight `L` segments, keeping the two renderers visually consistent.
