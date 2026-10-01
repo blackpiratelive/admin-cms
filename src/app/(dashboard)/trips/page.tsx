@@ -1,173 +1,311 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import { getTrips, deleteTrip } from "@/features/trips/actions";
-import { TripRecord } from "@/db/schema";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { Plus } from "lucide-react";
+import {
+  getTripsOverviewAction,
+  deleteTrip,
+  duplicateTripAction,
+  toggleTripFavoriteAction,
+} from "@/features/trips/actions";
+import type {
+  TripOverviewItem,
+  TripFilterType,
+  TripSortType,
+  TripViewMode,
+} from "@/features/trips/types";
+import {
+  filterAndSortTrips,
+  selectFeaturedTrip,
+} from "@/features/trips/trip-helpers";
+import { TripsToolbar } from "@/features/trips/components/TripsToolbar";
+import { TripFilterChips } from "@/features/trips/components/TripFilterChips";
+import { FeaturedTrip } from "@/features/trips/components/FeaturedTrip";
+import { TripCard } from "@/features/trips/components/TripCard";
+import { TripEmptyState } from "@/features/trips/components/TripEmptyState";
+import { TripCardSkeleton, FeaturedTripSkeleton } from "@/features/trips/components/TripSkeleton";
 import { TripFormModal } from "@/features/trips/components/TripFormModal";
-import { Compass, Plus, Edit2, Trash2, Calendar, ChevronRight, Star } from "lucide-react";
-
+import { DeleteTripDialog } from "@/features/trips/components/DeleteTripDialog";
 import { getBrowserCache, setBrowserCache } from "@/lib/client-cache";
+import { notify } from "@/lib/notifications";
+
+const CACHE_KEY = "swr_trips_overview_list";
 
 export default function TripsPage() {
-  const [trips, setTrips] = useState<TripRecord[]>([]);
+  const [allTrips, setAllTrips] = useState<TripOverviewItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [tripToEdit, setTripToEdit] = useState<TripRecord | null>(null);
 
-  const loadData = async () => {
-    const cacheKey = "swr_trips_list";
-    const cached = getBrowserCache<TripRecord[]>(cacheKey);
+  // Search, sort, view and filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState<TripFilterType>("all");
+  const [sortValue, setSortValue] = useState<TripSortType>("recent");
+  const [viewMode, setViewMode] = useState<TripViewMode>("grid");
 
-    if (cached) {
-      setTrips(cached);
+  // Modals & Dialogs
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [tripToEdit, setTripToEdit] = useState<TripOverviewItem | null>(null);
+  const [tripToDelete, setTripToDelete] = useState<TripOverviewItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const loadData = useCallback(async () => {
+    const cached = getBrowserCache<TripOverviewItem[]>(CACHE_KEY);
+    if (cached && cached.length > 0) {
+      setAllTrips(cached);
       setLoading(false);
     } else {
       setLoading(true);
     }
 
     try {
-      const data = await getTrips();
-      setTrips(data);
-      setBrowserCache(cacheKey, data);
+      const data = await getTripsOverviewAction();
+      setAllTrips(data);
+      setBrowserCache(CACHE_KEY, data);
+    } catch (err) {
+      console.error("Failed to load trips:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
-  const handleCreateNew = () => {
-    setTripToEdit(null);
-    setIsModalOpen(true);
-  };
+  // Compute filter counts
+  const filterCounts = useMemo(() => {
+    const counts: Partial<Record<TripFilterType, number>> = {
+      all: allTrips.length,
+      upcoming: 0,
+      ongoing: 0,
+      completed: 0,
+      favorites: 0,
+    };
 
-  const handleEdit = (t: TripRecord, e: React.MouseEvent) => {
+    for (const t of allTrips) {
+      if (t.favorite) counts.favorites = (counts.favorites || 0) + 1;
+      if (t.status === "completed") counts.completed = (counts.completed || 0) + 1;
+      if (t.status === "ongoing") counts.ongoing = (counts.ongoing || 0) + 1;
+      if (t.status === "planned") counts.upcoming = (counts.upcoming || 0) + 1;
+    }
+    return counts;
+  }, [allTrips]);
+
+  // Filtered & sorted trips
+  const filteredTrips = useMemo(() => {
+    return filterAndSortTrips(allTrips, searchQuery, activeFilter, sortValue);
+  }, [allTrips, searchQuery, activeFilter, sortValue]);
+
+  // Featured trip selection (deterministic priority rule)
+  const featuredTrip = useMemo(() => {
+    // Only show featured trip in "all" or "favorites" filter without active search
+    if (searchQuery.trim()) return null;
+    if (activeFilter !== "all" && activeFilter !== "favorites" && activeFilter !== "completed") return null;
+    return selectFeaturedTrip(allTrips);
+  }, [allTrips, searchQuery, activeFilter]);
+
+  // Favorite toggle action (optimistic update with rollback)
+  const handleToggleFavorite = async (tripId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setTripToEdit(t);
-    setIsModalOpen(true);
+
+    const target = allTrips.find((t) => t.id === tripId);
+    if (!target) return;
+
+    const nextState = !target.favorite;
+
+    // Optimistic UI update
+    setAllTrips((prev) =>
+      prev.map((t) => (t.id === tripId ? { ...t, favorite: nextState } : t))
+    );
+
+    notify.bg({
+      title: nextState ? "Added to Favorites" : "Removed from Favorites",
+      loadingMessage: `Updating favorite for '${target.title}'...`,
+      successMessage: nextState ? `Added '${target.title}' to favorites` : `Removed '${target.title}' from favorites`,
+      errorMessage: (err) => `Failed to update favorite: ${err?.message || String(err)}`,
+      task: () => toggleTripFavoriteAction(tripId, nextState),
+      onSuccess: () => {
+        loadData();
+      },
+    });
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (confirm("Are you sure you want to delete this trip?")) {
-      await deleteTrip(id);
+  // Duplicate trip action
+  const handleDuplicate = async (tripId: string) => {
+    const target = allTrips.find((t) => t.id === tripId);
+    const title = target ? target.title : "trip";
+
+    notify.bg({
+      title: "Duplicate Trip",
+      loadingMessage: `Duplicating '${title}'...`,
+      successMessage: `Duplicated '${title}' successfully!`,
+      errorMessage: (err) => `Failed to duplicate trip: ${err?.message || String(err)}`,
+      task: () => duplicateTripAction(tripId),
+      onSuccess: () => {
+        loadData();
+      },
+    });
+  };
+
+  // Delete trip confirmation
+  const handleConfirmDelete = async () => {
+    if (!tripToDelete) return;
+    setIsDeleting(true);
+    const title = tripToDelete.title;
+
+    try {
+      await deleteTrip(tripToDelete.id);
+      setTripToDelete(null);
+      notify.show({ type: "success", message: `Trip '${title}' deleted.` });
       loadData();
+    } catch (err: any) {
+      notify.show({ type: "error", message: `Failed to delete trip: ${err?.message || String(err)}` });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <div className="page-header">
+    <div className="trip-hub">
+      {/* 5A. Topbar / Header */}
+      <header className="trip-topbar">
         <div>
-          <h1 className="page-title">
-            <Compass size={22} style={{ color: "var(--accent)" }} />
-            <span>Trips</span>
-          </h1>
-          <p style={{ color: "var(--text-muted)", fontSize: "13px", marginTop: "4px" }}>
-            Group locations, travel itineraries, photos, microblogs, and media into trip entities.
+          <div className="trip-brandline">
+            <div className="trip-brand-icon" aria-hidden="true">
+              ↗
+            </div>
+            <h1 className="trip-title">Trips</h1>
+          </div>
+          <p className="trip-sub">
+            Your itineraries, places, photos, and memories — in one timeline.
           </p>
         </div>
-        <button onClick={handleCreateNew} className="btn btn-primary">
+
+        <button
+          type="button"
+          className="trip-primary-btn"
+          onClick={() => {
+            setTripToEdit(null);
+            setIsFormOpen(true);
+          }}
+        >
           <Plus size={16} />
           <span>New Trip</span>
         </button>
-      </div>
+      </header>
 
-      {loading ? (
-        <div style={{ color: "var(--text-muted)", fontSize: "13px", padding: "40px", textAlign: "center" }}>
-          Loading trips...
-        </div>
-      ) : trips.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "48px", color: "var(--text-muted)", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "8px" }}>
-          No trips recorded yet. Click "New Trip" to create one.
-        </div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>
-          {trips.map((t) => (
-            <div
-              key={t.id}
-              style={{
-                backgroundColor: "var(--bg-card)",
-                border: "1px solid var(--border-color)",
-                borderRadius: "8px",
-                padding: "16px",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-between",
-                color: "var(--text-primary)",
-                gap: "14px",
-              }}
-            >
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <Link
-                    href={`/trips/${t.slug}`}
-                    style={{ fontSize: "15px", fontWeight: 700, color: "var(--text-primary)", textDecoration: "none" }}
-                  >
-                    {t.title}
-                  </Link>
-                  {t.favorite === 1 && <Star size={16} fill="#f59e0b" style={{ color: "#f59e0b" }} />}
-                </div>
+      {/* 6. Search / Sort / View Toolbar */}
+      <TripsToolbar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        sortValue={sortValue}
+        onSortChange={setSortValue}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+      />
 
-                {t.description && (
-                  <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "6px" }}>
-                    {t.description}
-                  </p>
-                )}
+      {/* 7. Filter Chips */}
+      <TripFilterChips
+        activeFilter={activeFilter}
+        onChangeFilter={setActiveFilter}
+        counts={filterCounts}
+      />
 
-                {(t.startDate || t.endDate) && (
-                  <div style={{ fontSize: "12px", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "4px", marginTop: "8px" }}>
-                    <Calendar size={14} />
-                    <span>{[t.startDate, t.endDate].filter(Boolean).join(" to ")}</span>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: "10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <Link href={`/trips/${t.slug}`} className="btn btn-secondary" style={{ fontSize: "12px", padding: "4px 10px" }}>
-                  <span>Trip Hub</span>
-                  <ChevronRight size={13} />
-                </Link>
-
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span
-                    style={{
-                      padding: "2px 6px",
-                      borderRadius: "4px",
-                      fontSize: "10px",
-                      textTransform: "uppercase",
-                      fontWeight: 600,
-                      backgroundColor: t.status === "completed" ? "rgba(46, 125, 50, 0.15)" : "rgba(245, 158, 11, 0.15)",
-                      color: t.status === "completed" ? "#2e7d32" : "#f59e0b",
-                    }}
-                  >
-                    {t.status}
-                  </span>
-
-                  <button className="btn btn-secondary" onClick={(e) => handleEdit(t, e)} style={{ padding: "4px 8px" }} title="Edit Trip">
-                    <Edit2 size={13} />
-                  </button>
-                  <button className="btn btn-secondary" onClick={(e) => handleDelete(t.id, e)} style={{ padding: "4px 8px", color: "#ef4444" }} title="Delete Trip">
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* 8. Featured Trip */}
+      {loading && !featuredTrip && <FeaturedTripSkeleton />}
+      {!loading && featuredTrip && (
+        <FeaturedTrip
+          trip={featuredTrip}
+          onToggleFavorite={handleToggleFavorite}
+        />
       )}
 
-      {/* Edit / Create Form Modal */}
+      {/* Section Header */}
+      <div className="trip-section-head">
+        <div>
+          <h2 className="trip-section-title">All trips</h2>
+          <div className="trip-count-badge">
+            {filteredTrips.length} {filteredTrips.length === 1 ? "trip" : "trips"}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Trip Collection */}
+      {loading && allTrips.length === 0 ? (
+        <main className={`trip-grid ${viewMode === "list" ? "list" : ""}`}>
+          <TripCardSkeleton count={6} />
+        </main>
+      ) : filteredTrips.length === 0 ? (
+        <TripEmptyState
+          isFiltered={Boolean(searchQuery || activeFilter !== "all")}
+          onClearFilters={() => {
+            setSearchQuery("");
+            setActiveFilter("all");
+          }}
+          onCreateTrip={() => {
+            setTripToEdit(null);
+            setIsFormOpen(true);
+          }}
+        />
+      ) : (
+        <main
+          className={`trip-grid ${viewMode === "list" ? "list" : ""}`}
+          id="trips-collection-grid"
+        >
+          {filteredTrips.map((trip) => (
+            <TripCard
+              key={trip.id}
+              trip={trip}
+              viewMode={viewMode}
+              onToggleFavorite={handleToggleFavorite}
+              onEdit={(t) => {
+                setTripToEdit(t);
+                setIsFormOpen(true);
+              }}
+              onDuplicate={handleDuplicate}
+              onDelete={(t) => setTripToDelete(t)}
+            />
+          ))}
+        </main>
+      )}
+
+      {/* Form Modal (Create / Edit) */}
       <TripFormModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        tripToEdit={tripToEdit}
+        isOpen={isFormOpen}
+        tripToEdit={
+          tripToEdit
+            ? allTrips.find((t) => t.id === tripToEdit.id)
+              ? {
+                  id: tripToEdit.id,
+                  title: tripToEdit.title,
+                  slug: tripToEdit.slug,
+                  description: tripToEdit.description,
+                  startDate: tripToEdit.startDate,
+                  endDate: tripToEdit.endDate,
+                  status: tripToEdit.status,
+                  visibility: tripToEdit.visibility,
+                  favorite: tripToEdit.favorite ? 1 : 0,
+                  tags: JSON.stringify(tripToEdit.tags),
+                  createdAt: tripToEdit.createdAt,
+                  updatedAt: tripToEdit.updatedAt,
+                }
+              : null
+            : null
+        }
+        onClose={() => {
+          setIsFormOpen(false);
+          setTripToEdit(null);
+        }}
         onSuccess={loadData}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteTripDialog
+        isOpen={tripToDelete !== null}
+        tripTitle={tripToDelete?.title || ""}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setTripToDelete(null)}
+        isDeleting={isDeleting}
       />
     </div>
   );

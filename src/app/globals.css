@@ -1,3 +1,5 @@
+@import "../features/trips/components/trips.css";
+
 /* CSS Reset & Utilitarian Design System */
 :root {
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;

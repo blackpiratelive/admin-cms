@@ -16,13 +16,25 @@ import {
   relationships,
   persons,
   PersonRecord,
+  attachments,
+  tripDays,
+  NewTripDay,
 } from "@/db/schema";
-import { desc, eq, or, and, inArray } from "drizzle-orm";
+import { desc, asc, eq, or, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/features/activity/actions";
 import { addRelationship, removeRelationship } from "@/features/relationships/actions";
 import { createCachedQuery, purgeTag } from "@/lib/server-cache";
 import { eventBus } from "@/lib/event-bus";
+import {
+  computeTripDuration,
+  formatTripDateRange,
+  formatTripDisplayTitle,
+  computeItineraryProgress,
+  getDeterministicCoverTheme,
+} from "./trip-helpers";
+import { computeTripCostSummary, formatCostTotals, parseTripDay } from "./day-helpers";
+import type { TripOverviewItem, TripLocationCoordinate } from "./types";
 
 async function fetchTripsRaw(): Promise<TripRecord[]> {
   await ensureDbInitialized();
@@ -119,7 +131,7 @@ export async function createTrip(data: {
 
 export async function updateTrip(
   id: string,
-  data: Partial<TripRecord> & { tags?: string[] | string }
+  data: Omit<Partial<TripRecord>, "tags"> & { tags?: string[] | string }
 ): Promise<TripRecord | null> {
   await ensureDbInitialized();
 
@@ -331,4 +343,530 @@ export async function connectTripToLocation(
   } catch (err: any) {
     return { success: false, error: err.message || "Failed to associate location with trip" };
   }
+}
+
+/**
+ * High-performance batch query for the Trips dashboard.
+ * Eliminates N+1 queries by fetching trips, days, relationships, gallery,
+ * and attachments in parallel batches in 1 round-trip.
+ */
+async function fetchTripsOverviewRaw(): Promise<TripOverviewItem[]> {
+  await ensureDbInitialized();
+
+  const allTrips = await db
+    .select()
+    .from(trips)
+    .orderBy(desc(trips.startDate), desc(trips.createdAt));
+
+  if (allTrips.length === 0) return [];
+
+  const tripIds = allTrips.map((t) => t.id);
+
+  // Parallel batch queries
+  const [allDays, allRels, allAttachments, allGallery] = await Promise.all([
+    db
+      .select()
+      .from(tripDays)
+      .where(inArray(tripDays.tripId, tripIds))
+      .orderBy(asc(tripDays.dayNumber)),
+    db
+      .select()
+      .from(relationships)
+      .where(
+        or(
+          and(
+            eq(relationships.sourceType, "trip"),
+            inArray(relationships.sourceId, tripIds),
+            eq(relationships.targetType, "location")
+          ),
+          and(
+            eq(relationships.targetType, "trip"),
+            inArray(relationships.targetId, tripIds),
+            eq(relationships.sourceType, "location")
+          )
+        )
+      ),
+    db
+      .select()
+      .from(attachments)
+      .where(
+        and(
+          eq(attachments.entityType, "trip"),
+          inArray(attachments.entityId, tripIds)
+        )
+      ),
+    db
+      .select()
+      .from(gallery)
+      .where(inArray(gallery.tripId, tripIds)),
+  ]);
+
+  // Extract all referenced location IDs to query locations in a single batch
+  const referencedLocIds = new Set<string>();
+  for (const rel of allRels) {
+    const locId = rel.sourceType === "location" ? rel.sourceId : rel.targetId;
+    if (locId) referencedLocIds.add(locId);
+  }
+  for (const d of allDays) {
+    if (d.primaryLocationId) referencedLocIds.add(d.primaryLocationId);
+    try {
+      const parsed = parseTripDay(d);
+      for (const t of parsed.transport) {
+        if (t.fromLocationId) referencedLocIds.add(t.fromLocationId);
+        if (t.toLocationId) referencedLocIds.add(t.toLocationId);
+      }
+      for (const m of parsed.meals) {
+        if (m.placeLocationId) referencedLocIds.add(m.placeLocationId);
+      }
+      for (const a of parsed.activities) {
+        if (a.locationId) referencedLocIds.add(a.locationId);
+      }
+      if (parsed.accommodation?.locationId) {
+        referencedLocIds.add(parsed.accommodation.locationId);
+      }
+    } catch {}
+  }
+
+  const locIdArray = Array.from(referencedLocIds);
+  const allLocations =
+    locIdArray.length > 0
+      ? await db.select().from(locations).where(inArray(locations.id, locIdArray))
+      : [];
+
+  const locNameMap = new Map<string, string>();
+  for (const l of allLocations) {
+    locNameMap.set(l.id, l.name);
+  }
+
+  // Group fetched data by tripId
+  const daysByTrip = new Map<string, typeof allDays>();
+  for (const d of allDays) {
+    const list = daysByTrip.get(d.tripId) || [];
+    list.push(d);
+    daysByTrip.set(d.tripId, list);
+  }
+
+  const relLocIdsByTrip = new Map<string, string[]>();
+  for (const rel of allRels) {
+    const tId = rel.sourceType === "trip" ? rel.sourceId : rel.targetId;
+    const lId = rel.sourceType === "location" ? rel.sourceId : rel.targetId;
+    const list = relLocIdsByTrip.get(tId) || [];
+    list.push(lId);
+    relLocIdsByTrip.set(tId, list);
+  }
+
+  const attachmentsByTrip = new Map<string, typeof allAttachments>();
+  for (const att of allAttachments) {
+    const list = attachmentsByTrip.get(att.entityId) || [];
+    list.push(att);
+    attachmentsByTrip.set(att.entityId, list);
+  }
+
+  const galleryByTrip = new Map<string, typeof allGallery>();
+  for (const g of allGallery) {
+    if (g.tripId) {
+      const list = galleryByTrip.get(g.tripId) || [];
+      list.push(g);
+      galleryByTrip.set(g.tripId, list);
+    }
+  }
+
+  // Construct enriched overview items
+  return allTrips.map((t): TripOverviewItem => {
+    const tripDaysList = daysByTrip.get(t.id) || [];
+    const tripAtts = attachmentsByTrip.get(t.id) || [];
+    const tripGalleryList = galleryByTrip.get(t.id) || [];
+    const tripRelLocIds = relLocIdsByTrip.get(t.id) || [];
+
+    // 1. Durations and dates
+    const duration = computeTripDuration(t.startDate, t.endDate);
+    const dateRangeFormatted = formatTripDateRange(t.startDate, t.endDate);
+    const displayTitle = formatTripDisplayTitle(t.title);
+
+    // 2. Spend calculation
+    const costSummary = computeTripCostSummary(tripDaysList);
+    const spendFormatted = formatCostTotals(costSummary.total) || null;
+
+    // 3. Location names
+    const orderedLocNames: string[] = [];
+    const seenLocNames = new Set<string>();
+
+    const addLocName = (name?: string | null) => {
+      if (!name) return;
+      const clean = name.trim();
+      if (!clean) return;
+      const lower = clean.toLowerCase();
+      if (!seenLocNames.has(lower)) {
+        seenLocNames.add(lower);
+        orderedLocNames.push(clean);
+      }
+    };
+
+    // Primary locations from days
+    for (const d of tripDaysList) {
+      if (d.primaryLocationId && locNameMap.has(d.primaryLocationId)) {
+        addLocName(locNameMap.get(d.primaryLocationId));
+      } else if (d.primaryLocationName) {
+        addLocName(d.primaryLocationName);
+      }
+    }
+
+    // Direct location relationships
+    for (const lId of tripRelLocIds) {
+      if (locNameMap.has(lId)) {
+        addLocName(locNameMap.get(lId));
+      }
+    }
+
+    // Transport/activity locations from days
+    for (const d of tripDaysList) {
+      try {
+        const parsed = parseTripDay(d);
+        for (const tr of parsed.transport) {
+          if (tr.fromLocationId) addLocName(locNameMap.get(tr.fromLocationId));
+          else if (tr.fromName) addLocName(tr.fromName);
+          if (tr.toLocationId) addLocName(locNameMap.get(tr.toLocationId));
+          else if (tr.toName) addLocName(tr.toName);
+        }
+      } catch {}
+    }
+
+    // 4. Photos count & Cover image resolution
+    let dayPhotosCount = 0;
+    let dayPhotoFirstUrl: string | null = null;
+    for (const d of tripDaysList) {
+      try {
+        const parsed = parseTripDay(d);
+        if (parsed.photos && parsed.photos.length > 0) {
+          dayPhotosCount += parsed.photos.length;
+          if (!dayPhotoFirstUrl && parsed.photos[0]?.url) {
+            dayPhotoFirstUrl = parsed.photos[0].url;
+          }
+        }
+      } catch {}
+    }
+
+    const photoAtts = tripAtts.filter((a) => a.kind === "photo");
+    const totalPhotos = tripGalleryList.length + photoAtts.length + dayPhotosCount;
+
+    // Deterministic cover hierarchy:
+    // 1. Attachment cover
+    // 2. Attachment hero
+    // 3. Attachment photo
+    // 4. Gallery photo
+    // 5. Day photo
+    // 6. null (uses fallbackCoverTheme)
+    let coverUrl: string | null = null;
+    const coverAtt = tripAtts.find((a) => a.kind === "cover");
+    const heroAtt = tripAtts.find((a) => a.kind === "hero");
+
+    if (coverAtt?.url) {
+      coverUrl = coverAtt.url;
+    } else if (heroAtt?.url) {
+      coverUrl = heroAtt.url;
+    } else if (photoAtts[0]?.url) {
+      coverUrl = photoAtts[0].url;
+    } else if (tripGalleryList[0]) {
+      const g = tripGalleryList[0];
+      coverUrl = g.mediumUrl || g.thumbnailUrl || g.largeUrl || g.originalUrl;
+    } else if (dayPhotoFirstUrl) {
+      coverUrl = dayPhotoFirstUrl;
+    }
+
+    // 5. Itinerary progress
+    // Count days that have documented content (or all days if created)
+    let documentedDaysCount = 0;
+    for (const d of tripDaysList) {
+      let isDocumented = Boolean(
+        d.title ||
+        d.primaryLocationId ||
+        d.primaryLocationName ||
+        d.weather ||
+        d.mood ||
+        d.notesMarkdown
+      );
+      if (!isDocumented) {
+        try {
+          const parsed = parseTripDay(d);
+          isDocumented =
+            parsed.transport.length > 0 ||
+            parsed.meals.length > 0 ||
+            parsed.activities.length > 0 ||
+            Boolean(parsed.accommodation?.name || parsed.accommodation?.locationId) ||
+            parsed.photos.length > 0;
+        } catch {}
+      }
+      if (isDocumented) documentedDaysCount += 1;
+    }
+
+    // If day records exist, use that as base; if dates are set, expected is duration
+    const expectedDays = t.startDate && t.endDate ? duration : Math.max(1, tripDaysList.length);
+    const plannedDays = Math.min(expectedDays, Math.max(documentedDaysCount, tripDaysList.length));
+    const progressPercent = computeItineraryProgress(plannedDays, expectedDays);
+
+    let parsedTags: string[] = [];
+    try {
+      parsedTags = t.tags ? JSON.parse(t.tags) : [];
+    } catch {
+      parsedTags = [];
+    }
+
+    return {
+      id: t.id,
+      slug: t.slug,
+      title: t.title,
+      displayTitle,
+      description: t.description,
+      startDate: t.startDate,
+      endDate: t.endDate,
+      dateRangeFormatted,
+      duration,
+      status: t.status,
+      visibility: t.visibility,
+      favorite: t.favorite === 1,
+      tags: parsedTags,
+      placesCount: Math.max(orderedLocNames.length, tripRelLocIds.length),
+      locationNames: orderedLocNames,
+      photosCount: totalPhotos,
+      coverImageUrl: coverUrl,
+      fallbackCoverTheme: getDeterministicCoverTheme(t.id || t.slug),
+      itineraryTotalDays: expectedDays,
+      itineraryPlannedDays: plannedDays,
+      itineraryProgressPercent: progressPercent,
+      spendFormatted,
+      spendTotals: costSummary.total,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+    };
+  });
+}
+
+export async function getTripsOverviewAction(): Promise<TripOverviewItem[]> {
+  const cachedFn = createCachedQuery(
+    fetchTripsOverviewRaw,
+    ["trips-overview"],
+    { tags: ["trips-list"], revalidate: 3600 }
+  );
+
+  return cachedFn();
+}
+
+/**
+ * Duplicate a trip, cloning its metadata, itinerary days, and location relationships.
+ */
+export async function duplicateTripAction(tripId: string): Promise<TripRecord | null> {
+  await ensureDbInitialized();
+
+  const existing = (await db.select().from(trips).where(eq(trips.id, tripId)).limit(1))[0];
+  if (!existing) return null;
+
+  const now = new Date().toISOString();
+  const randSuffix = Math.random().toString(36).substring(2, 6);
+  const newId = `trip_${Date.now()}_${randSuffix}`;
+  const newSlug = `${existing.slug}-copy-${randSuffix}`;
+  const newTitle = `${existing.title} (Copy)`;
+
+  const newTripRow: NewTrip = {
+    id: newId,
+    title: newTitle,
+    slug: newSlug,
+    description: existing.description,
+    startDate: existing.startDate,
+    endDate: existing.endDate,
+    status: existing.status,
+    visibility: existing.visibility,
+    favorite: 0,
+    tags: existing.tags,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await db.insert(trips).values(newTripRow);
+
+  // Duplicate trip days
+  const existingDays = await db.select().from(tripDays).where(eq(tripDays.tripId, tripId));
+  if (existingDays.length > 0) {
+    const clonedDays: NewTripDay[] = existingDays.map((d) => ({
+      id: `tripday_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      tripId: newId,
+      dayNumber: d.dayNumber,
+      date: d.date,
+      title: d.title,
+      primaryLocationId: d.primaryLocationId,
+      primaryLocationName: d.primaryLocationName,
+      transportJson: d.transportJson,
+      mealsJson: d.mealsJson,
+      activitiesJson: d.activitiesJson,
+      accommodationJson: d.accommodationJson,
+      photosJson: d.photosJson,
+      weather: d.weather,
+      mood: d.mood,
+      notesMarkdown: d.notesMarkdown,
+      createdAt: now,
+      updatedAt: now,
+    }));
+    await db.insert(tripDays).values(clonedDays);
+  }
+
+  // Duplicate location relationships
+  const existingRels = await db.select().from(relationships).where(
+    or(
+      and(eq(relationships.sourceType, "trip"), eq(relationships.sourceId, tripId)),
+      and(eq(relationships.targetType, "trip"), eq(relationships.targetId, tripId))
+    )
+  );
+
+  for (const rel of existingRels) {
+    const isSource = rel.sourceType === "trip" && rel.sourceId === tripId;
+    try {
+      await addRelationship(
+        isSource ? "trip" : rel.sourceType,
+        isSource ? newId : rel.sourceId,
+        isSource ? rel.targetType : "trip",
+        isSource ? rel.targetId : newId,
+        rel.relationship
+      );
+    } catch {}
+  }
+
+  purgeTag("trips-list");
+  try {
+    revalidatePath("/trips");
+  } catch {}
+
+  await logActivity("trip_created", "trip", newId, `Duplicated Trip: ${newTitle}`, { slug: newSlug });
+
+  return newTripRow as TripRecord;
+}
+
+/**
+ * Direct toggle for favorite status with instant cache purging.
+ */
+export async function toggleTripFavoriteAction(
+  tripId: string,
+  favorite: boolean
+): Promise<{ success: boolean; favorite: boolean }> {
+  await ensureDbInitialized();
+
+  const tr = (await db.select().from(trips).where(eq(trips.id, tripId)).limit(1))[0];
+  if (!tr) return { success: false, favorite: false };
+
+  const val = favorite ? 1 : 0;
+  await db.update(trips).set({ favorite: val, updatedAt: new Date().toISOString() }).where(eq(trips.id, tripId));
+
+  purgeTag("trips-list");
+  purgeTag(`trip-${tripId}`);
+  purgeTag(`trip-${tr.slug}`);
+
+  try {
+    revalidatePath("/trips");
+    revalidatePath(`/trips/${tr.slug}`);
+  } catch {}
+
+  return { success: true, favorite };
+}
+
+/**
+ * Fetch ordered locations with coordinates for the Map tab.
+ */
+export async function getTripMapLocationsAction(
+  slugOrId: string
+): Promise<{
+  orderedLocations: TripLocationCoordinate[];
+  missingCoords: TripLocationCoordinate[];
+}> {
+  await ensureDbInitialized();
+
+  const tr = await fetchTripByIdOrSlugRaw(slugOrId);
+  if (!tr) return { orderedLocations: [], missingCoords: [] };
+
+  const [daysList, relsList] = await Promise.all([
+    db.select().from(tripDays).where(eq(tripDays.tripId, tr.id)).orderBy(asc(tripDays.dayNumber)),
+    db.select().from(relationships).where(
+      or(
+        and(eq(relationships.sourceType, "trip"), eq(relationships.sourceId, tr.id), eq(relationships.targetType, "location")),
+        and(eq(relationships.targetType, "trip"), eq(relationships.targetId, tr.id), eq(relationships.sourceType, "location"))
+      )
+    ),
+  ]);
+
+  // Collect ordered location references
+  const locIdOrder: string[] = [];
+  const seenLocIds = new Set<string>();
+
+  const trackLocId = (id?: string | null) => {
+    if (!id || seenLocIds.has(id)) return;
+    seenLocIds.add(id);
+    locIdOrder.push(id);
+  };
+
+  // 1. Day order
+  for (const d of daysList) {
+    trackLocId(d.primaryLocationId);
+    try {
+      const parsed = parseTripDay(d);
+      for (const t of parsed.transport) {
+        trackLocId(t.fromLocationId);
+        trackLocId(t.toLocationId);
+      }
+      for (const m of parsed.meals) {
+        trackLocId(m.placeLocationId);
+      }
+      for (const a of parsed.activities) {
+        trackLocId(a.locationId);
+      }
+      if (parsed.accommodation?.locationId) {
+        trackLocId(parsed.accommodation.locationId);
+      }
+    } catch {}
+  }
+
+  // 2. Location relationships
+  for (const rel of relsList) {
+    const locId = rel.sourceType === "location" ? rel.sourceId : rel.targetId;
+    trackLocId(locId);
+  }
+
+  if (locIdOrder.length === 0) {
+    return { orderedLocations: [], missingCoords: [] };
+  }
+
+  const locRows = await db.select().from(locations).where(inArray(locations.id, locIdOrder));
+  const locMap = new Map(locRows.map((l) => [l.id, l]));
+
+  const orderedLocations: TripLocationCoordinate[] = [];
+  const missingCoords: TripLocationCoordinate[] = [];
+
+  let orderIndex = 1;
+  for (const locId of locIdOrder) {
+    const loc = locMap.get(locId);
+    if (!loc) continue;
+
+    const item: TripLocationCoordinate = {
+      id: loc.id,
+      name: loc.name,
+      slug: loc.slug,
+      city: loc.city,
+      state: loc.state,
+      country: loc.country,
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+      order: orderIndex,
+      isPrimary: orderIndex === 1,
+    };
+
+    if (
+      loc.latitude !== null &&
+      loc.longitude !== null &&
+      !Number.isNaN(loc.latitude) &&
+      !Number.isNaN(loc.longitude)
+    ) {
+      orderedLocations.push(item);
+    } else {
+      missingCoords.push(item);
+    }
+    orderIndex += 1;
+  }
+
+  return { orderedLocations, missingCoords };
 }

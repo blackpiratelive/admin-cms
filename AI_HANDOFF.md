@@ -85,7 +85,7 @@ admin-cms/
 │   │   ├── event-bus.ts         # Internal event pub-sub bus
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
-├── tests/                       # Vitest unit test suite (96 unit tests across 18 test files)
+├── tests/                       # Vitest unit test suite (111 unit tests across 19 test files)
 ├── freshrss.md                  # FreshRSS Sync Provider feature specification
 ├── android-journal.md           # Native Android Journal Application specification
 ├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
@@ -372,8 +372,42 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
   - Photos rolled up from trips display a prominent badge: `from this trip: [Trip Title]` with a direct link to the trip.
   - When a trip is unlinked from the location, its photos are automatically detached from the location view.
 - **Quality Gates & Isolation**:
-  - 18/18 Vitest test files passing, 96/96 unit tests passing (100%).
+  - 19/19 Vitest test files passing, 111/111 unit tests passing (100%).
   - Zero TypeScript compiler issues (`npx tsc --noEmit`).
+  - `android/` legacy client remained 100% clean and untouched.
+
+### October 2026: Trips Experience Complete Redesign & Interactive Productionization
+- **Source of Truth Visual Parity**:
+  - Implemented the complete production travel memory and itinerary hub across `/trips` and `/trips/[slug]` matching `trips-interactive-demo.html`.
+  - Dark elevated surfaces, subtle borders, HN Orange accents, responsive 3/2/1-column grid and list modes, and zero layout shift.
+- **High-Performance Batched Read Projections (Zero N+1 Queries)**:
+  - Added `getTripsOverviewAction` (`src/features/trips/actions.ts`): Queries trips, trip days, location relationships, gallery photos, and attachments in single parallel batches.
+  - Generates rich projections: durations, formatted calendar ranges, display titles with city route formatting, location counts and pills, photo counts, spend rollups, and itinerary progress bars.
+  - Cached via Vercel Data Cache (`createCachedQuery`) under tag `trips-list` and browser SWR cache (`swr_trips_overview_list`).
+- **Interactive Controls & Search/Sort/Filter**:
+  - Search toolbar filtering trips across title, display title, description, locations, and tags with Escape key clearing.
+  - Sort control supporting Recent, Oldest, Duration, and Title.
+  - Horizontal scrollable filter chips: All, Upcoming, Ongoing, Completed, and ★ Favorites.
+  - Deterministic Featured Trip section: prioritizes favorite + completed trips, falling back to recent trips.
+- **Reusable Component Architecture (`src/features/trips/components/`)**:
+  - `TripCard.tsx`, `TripCover.tsx` (deterministic fallback themes `one`, `two`, `three`, `four`), `TripStatusBadge.tsx`, `FeaturedTrip.tsx`, `TripsToolbar.tsx`, `TripFilterChips.tsx`.
+  - `TripOverflowMenu.tsx` (⋯ menu with Edit, Duplicate, Delete, outside-click and Escape key handling), `DeleteTripDialog.tsx` (accessible confirmation modal).
+  - `TripSkeleton.tsx` and `TripEmptyState.tsx` (initial and filtered empty states).
+  - `TripFormModal.tsx` reorganized with sections, tag management, and date range validation.
+- **Detail Page & Map Route Visualizer (`/trips/[slug]`)**:
+  - Hero banner with cover image/art, status badge, favorite star toggle, dates, duration, places, photos, spend stats, and quick actions.
+  - Tab navigation preserving all existing capabilities: Itinerary, Locations, Map & Route, Photos, Microblogs, Movies, People.
+  - `TripMapTab.tsx`: Dynamic SVG route map projecting real location coordinates, connecting route path with glowing gradient lines, numbered pins, interactive labels, and clear identification of locations lacking coordinates.
+  - `TripItineraryTab.tsx`: Redesigned vertical timeline with day numbers, dates, primary places, structured contextual entries (transport, meals, activities, accommodation, weather, mood, notes, photos), day cost badges, and empty-day "Add details" prompts.
+- **New Server Actions**:
+  - `getTripsOverviewAction`: Batched overview query with zero N+1 overhead.
+  - `duplicateTripAction`: Deep cloning of trip metadata, days, and location relationships.
+  - `toggleTripFavoriteAction`: Direct and optimistic toggle for favorite status.
+  - `getTripMapLocationsAction`: Sequential route coordinate resolution.
+- **Quality Gates & Isolation**:
+  - 19/19 Vitest test files passing, 111/111 unit tests passing (100%).
+  - Zero TypeScript compiler issues (`npx tsc --noEmit`).
+  - Next.js production build passing (`next build`).
   - `android/` legacy client remained 100% clean and untouched.
 
 ### September 2026: People Module & Mobile People — 3-Tab Photo Connection Hub & Cloudinary Integration

@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Trips — Interactive UI Demo</title>
+<style>
+  :root{
+    --bg:#101010;
+    --surface:#1f1f1f;
+    --surface-2:#242424;
+    --surface-3:#2a2a2a;
+    --line:#343434;
+    --text:#e5e5e5;
+    --muted:#888;
+    --muted-2:#666;
+    --accent:#ff6600;
+    --green:#35a853;
+    --blue:#5c9cff;
+    --shadow:0 18px 45px rgba(0,0,0,.42);
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  body{min-height:100vh}
+  button,input,select{font:inherit}
+  button{color:inherit}
+  .app{max-width:1450px;margin:0 auto;padding:28px 18px 48px}
+  .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;border-bottom:1px solid var(--line);padding-bottom:22px}
+  .brandline{display:flex;gap:11px;align-items:center}
+  .brand-icon{width:26px;height:26px;border:2px solid var(--accent);border-radius:50%;display:grid;place-items:center;color:var(--accent);font-weight:800;font-size:13px}
+  .title{font-size:23px;font-weight:750;letter-spacing:-.02em}
+  .sub{margin-top:4px;color:#707070}
+  .primary{border:0;background:var(--accent);color:white;padding:11px 16px;border-radius:8px;font-weight:700;cursor:pointer;box-shadow:0 8px 20px rgba(255,102,0,.12)}
+  .primary:hover{filter:brightness(1.06)}
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:18px 0}
+  .search{flex:1 1 300px;position:relative}
+  .search input{width:100%;background:#171717;border:1px solid var(--line);border-radius:9px;padding:11px 13px 11px 36px;color:var(--text);outline:none}
+  .search input:focus{border-color:#555;box-shadow:0 0 0 3px rgba(255,102,0,.08)}
+  .search .icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#777}
+  .control,.view-toggle button,.chip{background:#171717;border:1px solid var(--line);border-radius:9px;color:#bdbdbd;cursor:pointer}
+  .control{padding:10px 12px}
+  .control:hover,.view-toggle button:hover,.chip:hover{background:#202020}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{padding:8px 12px;border-radius:999px}
+  .chip.active{border-color:#824018;background:#2a1b13;color:#ff9a5c}
+  .view-toggle{display:flex}
+  .view-toggle button{border-radius:0;padding:10px 11px}
+  .view-toggle button:first-child{border-radius:9px 0 0 9px}
+  .view-toggle button:last-child{border-radius:0 9px 9px 0;border-left:0}
+  .view-toggle .active{background:#292929;color:white}
+  .featured{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:linear-gradient(180deg,#202020,#1b1b1b);margin-bottom:22px;box-shadow:0 10px 32px rgba(0,0,0,.18)}
+  .featured-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr)}
+  .hero-art{min-height:290px;position:relative;overflow:hidden;background:
+     radial-gradient(circle at 20% 25%, rgba(255,168,87,.50), transparent 30%),
+     radial-gradient(circle at 72% 30%, rgba(104,145,255,.42), transparent 35%),
+     linear-gradient(135deg,#30291d 0%,#1d2732 48%,#1a1716 100%)}
+  .hero-art:before{content:"";position:absolute;inset:-20%;background:
+    linear-gradient(150deg,transparent 0 30%,rgba(255,255,255,.07) 31%,transparent 32% 56%,rgba(255,255,255,.05) 57%,transparent 58%),
+    repeating-linear-gradient(165deg,rgba(255,255,255,.03) 0 1px,transparent 1px 18px);transform:rotate(-8deg)}
+  .hero-copy{padding:28px}
+  .eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:#999;font-weight:700}
+  .hero-title{font-size:35px;line-height:1.08;font-weight:800;letter-spacing:-.035em;margin:8px 0 10px}
+  .hero-date{font-size:15px;color:#b8b8b8}
+  .hero-stats{display:flex;gap:16px;flex-wrap:wrap;margin:22px 0;color:#aaa}
+  .hero-stat strong{display:block;color:#f0f0f0;font-size:16px}
+  .hero-actions{display:flex;gap:9px;flex-wrap:wrap}
+  .ghost{background:#171717;border:1px solid var(--line);padding:10px 13px;border-radius:8px;cursor:pointer}
+  .ghost:hover{background:#232323}
+  .section-head{display:flex;justify-content:space-between;align-items:end;gap:12px;margin:26px 0 13px}
+  .section-title{font-size:18px;font-weight:750}
+  .count{color:#7d7d7d}
+  .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+  .grid.list{grid-template-columns:1fr}
+  .card{position:relative;border:1px solid var(--line);background:var(--surface);border-radius:var(--radius);overflow:hidden;transition:.18s ease;min-width:0}
+  .card:hover{transform:translateY(-2px);border-color:#454545;box-shadow:0 12px 28px rgba(0,0,0,.20)}
+  .card.list-card{display:grid;grid-template-columns:190px minmax(0,1fr) auto}
+  .cover{height:154px;position:relative;overflow:hidden}
+  .list-card .cover{height:100%;min-height:150px}
+  .cover.one{background:linear-gradient(135deg,#5f3a20,#1f2f3b 55%,#111)}
+  .cover.two{background:linear-gradient(135deg,#263443,#5a4730 55%,#151515)}
+  .cover.three{background:linear-gradient(135deg,#2d3b2b,#3c2e1f 55%,#111)}
+  .cover.four{background:linear-gradient(135deg,#4b2d39,#252f47 55%,#111)}
+  .cover:after{content:"";position:absolute;inset:0;background:
+    radial-gradient(circle at 20% 25%,rgba(255,255,255,.14),transparent 25%),
+    linear-gradient(155deg,transparent 50%,rgba(255,255,255,.06) 51%,transparent 52%)}
+  .cover-label{position:absolute;left:12px;bottom:10px;z-index:1;background:rgba(0,0,0,.46);backdrop-filter:blur(8px);padding:5px 8px;border:1px solid rgba(255,255,255,.09);border-radius:999px;font-size:11px;color:#ddd}
+  .fav{position:absolute;top:10px;right:10px;z-index:2;width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.1);cursor:pointer;display:grid;place-items:center;font-size:17px}
+  .fav.active{color:#ffb300}
+  .card-body{padding:15px 15px 13px}
+  .list-card .card-body{padding:17px 18px}
+  .card-top{display:flex;align-items:start;justify-content:space-between;gap:8px}
+  .status{padding:5px 8px;border-radius:6px;font-size:10px;font-weight:800;letter-spacing:.06em}
+  .status.completed{background:rgba(53,168,83,.12);color:#34ad53}
+  .status.upcoming{background:rgba(92,156,255,.12);color:#6ea5ff}
+  .status.ongoing{background:rgba(255,102,0,.12);color:#ff8e4d}
+  .status.cancelled{background:rgba(240,80,80,.12);color:#f07c7c}
+  .card-title{font-size:18px;font-weight:760;margin:8px 0 5px;letter-spacing:-.015em}
+  .card-date{color:#8a8a8a}
+  .meta-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:13px}
+  .meta{color:#a2a2a2;font-size:12px}
+  .pill{font-size:11px;color:#a8a8a8;background:#292929;border:1px solid #353535;border-radius:999px;padding:4px 7px}
+  .locations{margin-top:13px;color:#a7a7a7;font-size:12px;display:flex;gap:5px;flex-wrap:wrap}
+  .location-pill{display:inline-flex;align-items:center;gap:4px;color:#c8c8c8}
+  .location-pill:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px rgba(255,102,0,.08)}
+  .progress{margin-top:13px}
+  .progress-head{display:flex;justify-content:space-between;color:#8f8f8f;font-size:11px;margin-bottom:5px}
+  .bar{height:5px;background:#303030;border-radius:999px;overflow:hidden}
+  .bar span{display:block;height:100%;background:var(--accent);border-radius:999px}
+  .card-footer{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #303030;padding:11px 15px}
+  .open{font-weight:700;font-size:12px;color:#ddd;cursor:pointer;background:none;border:0;padding:0}
+  .open:hover{color:white}
+  .menu{position:relative}
+  .menu-btn{width:32px;height:30px;border-radius:8px;border:1px solid #353535;background:#1a1a1a;color:#aaa;cursor:pointer}
+  .menu-panel{position:absolute;right:0;bottom:37px;width:155px;background:#242424;border:1px solid #3a3a3a;border-radius:9px;box-shadow:var(--shadow);padding:5px;display:none;z-index:10}
+  .menu-panel.open{display:block}
+  .menu-panel button{display:block;width:100%;text-align:left;background:none;border:0;color:#c8c8c8;padding:9px;border-radius:6px;cursor:pointer}
+  .menu-panel button:hover{background:#2e2e2e}
+  .empty{border:1px dashed #3b3b3b;border-radius:14px;padding:55px 20px;text-align:center;color:#888;grid-column:1/-1}
+  .empty strong{display:block;color:#ddd;font-size:16px;margin-bottom:5px}
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.68);display:none;align-items:center;justify-content:center;padding:18px;z-index:50}
+  .modal-backdrop.show{display:flex}
+  .modal{width:min(940px,100%);max-height:90vh;overflow:auto;background:#191919;border:1px solid #393939;border-radius:16px;box-shadow:var(--shadow)}
+  .modal-head{padding:20px 22px;border-bottom:1px solid #323232;display:flex;justify-content:space-between;gap:16px;align-items:start}
+  .modal-title{font-size:25px;font-weight:800}
+  .modal-sub{color:#888;margin-top:4px}
+  .close{width:34px;height:34px;border-radius:9px;border:1px solid #363636;background:#202020;cursor:pointer;color:#aaa}
+  .tabs{display:flex;gap:4px;padding:12px 16px;border-bottom:1px solid #323232;position:sticky;top:0;background:#191919;z-index:3}
+  .tab{background:none;border:0;color:#888;padding:9px 12px;border-radius:8px;cursor:pointer}
+  .tab.active{background:#292929;color:white}
+  .modal-content{padding:20px}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:19px}
+  .stat-box{background:#212121;border:1px solid #343434;border-radius:10px;padding:13px}
+  .stat-box strong{display:block;font-size:18px;color:#eee}
+  .timeline{display:flex;flex-direction:column;gap:14px}
+  .day{display:grid;grid-template-columns:90px 1fr;gap:15px}
+  .day-label{color:#999;text-align:right;padding-top:3px;font-size:12px}
+  .day-card{border-left:2px solid #4b4b4b;padding:0 0 3px 16px}
+  .day-card h4{margin:0 0 4px;font-size:15px}
+  .day-items{display:flex;gap:7px;flex-wrap:wrap;color:#aaa;font-size:12px}
+  .map-demo{height:390px;border-radius:12px;border:1px solid #383838;background:
+    radial-gradient(circle at 30% 25%,rgba(255,102,0,.15),transparent 15%),
+    linear-gradient(180deg,#202b27,#18201d);position:relative;overflow:hidden}
+  .map-demo:before,.map-demo:after{content:"";position:absolute;inset:-25%;border:1px solid rgba(255,255,255,.05);border-radius:40%;transform:rotate(20deg)}
+  .map-demo:after{transform:rotate(-18deg);border-color:rgba(255,255,255,.035)}
+  .route{position:absolute;left:15%;top:55%;width:67%;height:2px;background:linear-gradient(90deg,var(--accent),#ffb15f,var(--accent));transform:rotate(-17deg);box-shadow:0 0 12px rgba(255,102,0,.24)}
+  .pin{position:absolute;width:15px;height:15px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 6px rgba(255,102,0,.12)}
+  .pin.p1{left:14%;top:72%}.pin.p2{left:49%;top:56%}.pin.p3{left:80%;top:33%}
+  .map-label{position:absolute;background:#151515;border:1px solid #343434;border-radius:7px;padding:5px 7px;color:#ddd;font-size:11px}
+  .map-label.l1{left:10%;top:76%}.map-label.l2{left:45%;top:60%}.map-label.l3{left:75%;top:26%}
+  .toast{position:fixed;right:18px;bottom:18px;background:#252525;border:1px solid #444;padding:11px 14px;border-radius:9px;box-shadow:var(--shadow);display:none;z-index:80}
+  .toast.show{display:block}
+  @media (max-width:980px){
+    .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .featured-grid{grid-template-columns:1fr}
+    .hero-art{min-height:220px}
+    .card.list-card{grid-template-columns:150px minmax(0,1fr) auto}
+  }
+  @media (max-width:680px){
+    .app{padding:18px 12px 36px}
+    .topbar{align-items:center}
+    .sub{display:none}
+    .title{font-size:20px}
+    .grid{grid-template-columns:1fr}
+    .featured-grid{grid-template-columns:1fr}
+    .hero-copy{padding:20px}
+    .hero-title{font-size:28px}
+    .stats{grid-template-columns:repeat(2,1fr)}
+    .card.list-card{display:block}
+    .list-card .cover{height:160px}
+    .day{grid-template-columns:1fr}
+    .day-label{text-align:left}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div>
+      <div class="brandline">
+        <div class="brand-icon">↗</div>
+        <div class="title">Trips</div>
+      </div>
+      <div class="sub">Your itineraries, places, photos, and memories — in one timeline.</div>
+    </div>
+    <button class="primary" onclick="newTrip()">＋ New Trip</button>
+  </header>
+
+  <section class="toolbar">
+    <div class="search"><span class="icon">⌕</span><input id="search" placeholder="Search trips, places, tags…" /></div>
+    <select class="control" id="sort">
+      <option value="recent">Sort: Recent</option>
+      <option value="oldest">Sort: Oldest</option>
+      <option value="duration">Sort: Duration</option>
+      <option value="title">Sort: Title</option>
+    </select>
+    <div class="view-toggle">
+      <button id="gridBtn" class="active" onclick="setView('grid')">▦</button>
+      <button id="listBtn" onclick="setView('list')">☰</button>
+    </div>
+  </section>
+  <div class="chips" id="chips">
+    <button class="chip active" data-filter="all">All</button>
+    <button class="chip" data-filter="upcoming">Upcoming</button>
+    <button class="chip" data-filter="ongoing">Ongoing</button>
+    <button class="chip" data-filter="completed">Completed</button>
+    <button class="chip" data-filter="favorites">★ Favorites</button>
+  </div>
+
+  <section class="featured" id="featured"></section>
+
+  <div class="section-head">
+    <div>
+      <div class="section-title">All trips</div>
+      <div class="count" id="count"></div>
+    </div>
+  </div>
+
+  <main class="grid" id="grid"></main>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop" onclick="backdropClose(event)">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">Trip Hub</div>
+        <div class="modal-title" id="modalTitle"></div>
+        <div class="modal-sub" id="modalSub"></div>
+      </div>
+      <button class="close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="itinerary" onclick="showTab('itinerary')">Itinerary</button>
+      <button class="tab" data-tab="locations" onclick="showTab('locations')">Locations</button>
+      <button class="tab" data-tab="map" onclick="showTab('map')">Map</button>
+    </div>
+    <div class="modal-content" id="modalContent"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const trips = [
+  {
+    id:'durgapur',
+    title:'Durgapur-Ranchi-Delhi',
+    display:'Durgapur → Ranchi → Delhi',
+    start:'2026-09-22',
+    end:'2026-09-29',
+    status:'completed',
+    favorite:true,
+    cover:'one',
+    days:8, planned:8, places:3, photos:12, cost:'₹4,500',
+    locations:['Durgapur','Ranchi','Delhi'],
+    summary:'A multi-city journey with the itinerary captured day by day.'
+  },
+  {
+    id:'mts',
+    title:'MTS PET 2026',
+    display:'MTS PET 2026',
+    start:'2026-08-25',
+    end:'2026-08-28',
+    status:'completed',
+    favorite:false,
+    cover:'two',
+    days:4, planned:4, places:2, photos:6, cost:'—',
+    locations:['Exam venue','Stay'],
+    summary:'A short focused trip.'
+  },
+  {
+    id:'college',
+    title:'College Excursion',
+    display:'College Excursion',
+    start:'2026-10-16',
+    end:'2026-10-19',
+    status:'upcoming',
+    favorite:true,
+    cover:'three',
+    days:4, planned:1, places:4, photos:0, cost:'—',
+    locations:['Campus','Destination','Hotel','Return stop'],
+    summary:'Upcoming group excursion.'
+  },
+  {
+    id:'ntpc',
+    title:'NTPC Graduate Mains',
+    display:'NTPC Graduate Mains',
+    start:'2026-07-08',
+    end:'2026-07-11',
+    status:'completed',
+    favorite:false,
+    cover:'four',
+    days:4, planned:4, places:2, photos:4, cost:'—',
+    locations:['Exam venue','Stay'],
+    summary:'A compact work-and-travel record.'
+  }
+];
+
+let activeFilter='all';
+let view='grid';
+let activeTrip=null;
+
+const statusLabel = s => ({completed:'COMPLETED',upcoming:'UPCOMING',ongoing:'ONGOING',cancelled:'CANCELLED'})[s] || s.toUpperCase();
+
+function formatDate(d){
+  return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
+}
+function duration(a,b){
+  const x = new Date(a+'T00:00:00'), y = new Date(b+'T00:00:00');
+  return Math.round((y-x)/86400000)+1;
+}
+function dateRange(t){return `${formatDate(t.start)} – ${formatDate(t.end)}`;}
+
+function filteredTrips(){
+  const q=document.getElementById('search').value.trim().toLowerCase();
+  let out=trips.filter(t=>{
+    const filterOK =
+      activeFilter==='all' ? true :
+      activeFilter==='favorites' ? t.favorite :
+      t.status===activeFilter;
+    const text=[t.title,t.display,...t.locations,t.summary].join(' ').toLowerCase();
+    return filterOK && (!q || text.includes(q));
+  });
+  const sort=document.getElementById('sort').value;
+  out.sort((a,b)=>{
+    if(sort==='oldest') return a.start.localeCompare(b.start);
+    if(sort==='duration') return b.days-a.days;
+    if(sort==='title') return a.title.localeCompare(b.title);
+    return b.start.localeCompare(a.start);
+  });
+  return out;
+}
+
+function renderFeatured(){
+  const featured=trips.find(t=>t.favorite && t.status==='completed') || trips[0];
+  document.getElementById('featured').innerHTML = `
+    <div class="featured-grid">
+      <div class="hero-art"></div>
+      <div class="hero-copy">
+        <div class="eyebrow">Featured trip</div>
+        <div class="hero-title">${featured.display}</div>
+        <div class="hero-date">${dateRange(featured)}</div>
+        <div class="hero-stats">
+          <div class="hero-stat"><strong>${featured.days}</strong> days</div>
+          <div class="hero-stat"><strong>${featured.places}</strong> places</div>
+          <div class="hero-stat"><strong>${featured.photos}</strong> photos</div>
+          <div class="hero-stat"><strong>${featured.cost}</strong> spend</div>
+        </div>
+        <div class="hero-actions">
+          <button class="primary" onclick="openTrip('${featured.id}')">Open trip →</button>
+          <button class="ghost" onclick="toggleFavorite('${featured.id}')">${featured.favorite?'★ Favorited':'☆ Favorite'}</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function cardHTML(t){
+  const prog=Math.round((t.planned/t.days)*100);
+  return `
+  <article class="card ${view==='list'?'list-card':''}">
+    <div class="cover ${t.cover}">
+      <div class="cover-label">${t.days} days</div>
+      <button class="fav ${t.favorite?'active':''}" title="Favorite" onclick="event.stopPropagation();toggleFavorite('${t.id}')">${t.favorite?'★':'☆'}</button>
+    </div>
+    <div class="card-body">
+      <div class="card-top">
+        <div class="status ${t.status}">${statusLabel(t.status)}</div>
+      </div>
+      <div class="card-title">${t.display}</div>
+      <div class="card-date">${dateRange(t)}</div>
+      <div class="meta-row">
+        <span class="meta">${t.days} days</span>
+        <span class="meta">· ${t.places} places</span>
+        <span class="meta">· ${t.photos} photos</span>
+      </div>
+      <div class="locations">${t.locations.slice(0,4).map(x=>`<span class="location-pill">${x}</span>`).join('')}</div>
+      <div class="progress">
+        <div class="progress-head"><span>Itinerary</span><span>${t.planned}/${t.days} days</span></div>
+        <div class="bar"><span style="width:${prog}%"></span></div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <button class="open" onclick="openTrip('${t.id}')">Open Trip →</button>
+      <div class="menu">
+        <button class="menu-btn" onclick="event.stopPropagation();toggleMenu('${t.id}')">⋯</button>
+        <div class="menu-panel" id="menu-${t.id}">
+          <button onclick="editTrip('${t.id}')">Edit</button>
+          <button onclick="duplicateTrip('${t.id}')">Duplicate</button>
+          <button onclick="toast('Delete confirmation would appear here')">Delete</button>
+        </div>
+      </div>
+    </div>
+  </article>`;
+}
+
+function render(){
+  const data=filteredTrips();
+  document.getElementById('count').textContent=`${data.length} trip${data.length===1?'':'s'}`;
+  const grid=document.getElementById('grid');
+  grid.className='grid '+(view==='list'?'list':'');
+  grid.innerHTML=data.length?data.map(cardHTML).join(''):`<div class="empty"><strong>No trips found</strong>Try a different search or filter.</div>`;
+  renderFeatured();
+}
+
+function setView(v){
+  view=v;
+  document.getElementById('gridBtn').classList.toggle('active',v==='grid');
+  document.getElementById('listBtn').classList.toggle('active',v==='list');
+  render();
+}
+function toggleFavorite(id){
+  const t=trips.find(x=>x.id===id); if(!t)return;
+  t.favorite=!t.favorite;
+  render();
+  toast(t.favorite?'Added to favorites':'Removed from favorites');
+}
+function toggleMenu(id){
+  document.querySelectorAll('.menu-panel').forEach(x=>x.classList.remove('open'));
+  document.getElementById('menu-'+id).classList.toggle('open');
+}
+function openTrip(id){
+  activeTrip=trips.find(x=>x.id===id);
+  document.getElementById('modalTitle').textContent=activeTrip.display;
+  document.getElementById('modalSub').textContent=`${dateRange(activeTrip)} · ${statusLabel(activeTrip.status)}`;
+  document.getElementById('modalBackdrop').classList.add('show');
+  showTab('itinerary');
+}
+function closeModal(){document.getElementById('modalBackdrop').classList.remove('show')}
+function backdropClose(e){if(e.target.id==='modalBackdrop')closeModal()}
+
+function showTab(tab){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===tab));
+  const t=activeTrip;
+  const el=document.getElementById('modalContent');
+  if(tab==='itinerary'){
+    const sample=[
+      ['Day 1','Start / departure','Travel · Primary location · Check-in'],
+      ['Day 2','Explore & activities','📍 Location · 🍛 Meal · 📷 Photos'],
+      ['Day 3','Main itinerary','🚗 Transport · 📍 Location · 🏨 Stay'],
+      ['Day 4','Return / closing day','Travel · Notes · Photo highlights']
+    ];
+    el.innerHTML=`
+      <div class="stats">
+        <div class="stat-box"><span class="eyebrow">Days</span><strong>${t.days}</strong></div>
+        <div class="stat-box"><span class="eyebrow">Planned</span><strong>${t.planned}/${t.days}</strong></div>
+        <div class="stat-box"><span class="eyebrow">Places</span><strong>${t.places}</strong></div>
+        <div class="stat-box"><span class="eyebrow">Spend</span><strong>${t.cost}</strong></div>
+      </div>
+      <div class="timeline">${sample.slice(0,Math.min(sample.length,t.days)).map(d=>`
+        <div class="day">
+          <div class="day-label">${d[0]}</div>
+          <div class="day-card"><h4>${d[1]}</h4><div class="day-items">${d[2].split(' · ').map(x=>`<span class="pill">${x}</span>`).join('')}</div></div>
+        </div>`).join('')}</div>`;
+  } else if(tab==='locations'){
+    el.innerHTML=`<div class="eyebrow">Locations visited</div><div style="font-size:22px;font-weight:800;margin:6px 0 18px">${t.locations.length} places</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+        ${t.locations.map((x,i)=>`<div class="stat-box"><div style="font-weight:700">${x}</div><div class="meta" style="margin-top:5px">${i===0?'Primary location':'Itinerary location'}</div></div>`).join('')}
+      </div>
+      <div style="margin-top:18px"><button class="ghost" onclick="toast('Location picker would open here')">＋ Link location</button></div>`;
+  } else {
+    el.innerHTML=`<div class="map-demo"><div class="route"></div><div class="pin p1"></div><div class="pin p2"></div><div class="pin p3"></div>
+      <div class="map-label l1">${t.locations[0]}</div><div class="map-label l2">${t.locations[Math.min(1,t.locations.length-1)]}</div><div class="map-label l3">${t.locations[t.locations.length-1]}</div></div>`;
+  }
+}
+function newTrip(){toast('New Trip flow would open here')}
+function editTrip(id){toast('Edit form opened for '+trips.find(x=>x.id===id).title)}
+function duplicateTrip(id){toast('Duplicated '+trips.find(x=>x.id===id).title)}
+function toast(msg){
+  const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show');
+  clearTimeout(window._toast); window._toast=setTimeout(()=>el.classList.remove('show'),1800);
+}
+document.getElementById('search').addEventListener('input',render);
+document.getElementById('sort').addEventListener('change',render);
+document.getElementById('chips').addEventListener('click',e=>{
+  const b=e.target.closest('.chip'); if(!b)return;
+  activeFilter=b.dataset.filter;
+  document.querySelectorAll('.chip').forEach(x=>x.classList.toggle('active',x===b));
+  render();
+});
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.menu'))document.querySelectorAll('.menu-panel').forEach(x=>x.classList.remove('open'));
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape')closeModal();
+});
+render();
+</script>
+</body>
+</html>
