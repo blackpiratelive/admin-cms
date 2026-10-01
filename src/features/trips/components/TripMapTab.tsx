@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { MapPin, Navigation, AlertCircle, ExternalLink } from "lucide-react";
-import { getTripMapLocationsAction } from "@/features/trips/actions";
+import { MapPin, Navigation, AlertCircle, ExternalLink, Map as MapIcon } from "lucide-react";
+import { getTripMapLocationsAction, getMapboxTokenAction } from "@/features/trips/actions";
 import type { TripLocationCoordinate } from "@/features/trips/types";
+import { MapboxTripMap } from "./MapboxTripMap";
 
 interface TripMapTabProps {
   tripSlugOrId: string;
@@ -15,15 +16,21 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
   const [orderedLocations, setOrderedLocations] = useState<TripLocationCoordinate[]>([]);
   const [missingCoords, setMissingCoords] = useState<TripLocationCoordinate[]>([]);
   const [selectedPin, setSelectedPin] = useState<TripLocationCoordinate | null>(null);
+  const [mapboxToken, setMapboxToken] = useState<string | null>(null);
+  const [mapboxFailed, setMapboxFailed] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
     (async () => {
       try {
-        const res = await getTripMapLocationsAction(tripSlugOrId);
+        const [res, token] = await Promise.all([
+          getTripMapLocationsAction(tripSlugOrId),
+          getMapboxTokenAction(),
+        ]);
         if (isMounted) {
           setOrderedLocations(res.orderedLocations);
           setMissingCoords(res.missingCoords);
+          setMapboxToken(token);
           if (res.orderedLocations.length > 0) {
             setSelectedPin(res.orderedLocations[0]);
           }
@@ -98,122 +105,163 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {/* Map visual surface */}
       {hasCoordinates ? (
-        <div className="trip-map-container" aria-label="Interactive route map">
-          <svg
-            viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-            style={{ width: "100%", height: "100%", display: "block" }}
-          >
-            <defs>
-              <linearGradient id="routeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="var(--accent, #ff6600)" />
-                <stop offset="50%" stopColor="#ffb15f" />
-                <stop offset="100%" stopColor="var(--accent, #ff6600)" />
-              </linearGradient>
-              <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="3" result="blur" />
-                <feMerge>
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-            </defs>
-
-            {/* Subtle background coordinate grid lines */}
-            <line x1="0" y1="140" x2={svgWidth} y2="140" stroke="rgba(255,255,255,0.03)" strokeDasharray="4 6" />
-            <line x1="0" y1="280" x2={svgWidth} y2="280" stroke="rgba(255,255,255,0.03)" strokeDasharray="4 6" />
-            <line x1="260" y1="0" x2="260" y2={svgHeight} stroke="rgba(255,255,255,0.03)" strokeDasharray="4 6" />
-            <line x1="540" y1="0" x2="540" y2={svgHeight} stroke="rgba(255,255,255,0.03)" strokeDasharray="4 6" />
-
-            {/* Route line */}
-            {projectedPoints.length > 1 && (
-              <>
-                {/* Route shadow/glow */}
-                <path
-                  d={pathD}
-                  fill="none"
-                  stroke="rgba(255, 102, 0, 0.3)"
-                  strokeWidth="6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                {/* Route main line */}
-                <path
-                  d={pathD}
-                  fill="none"
-                  stroke="url(#routeGrad)"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeDasharray="6 4"
-                />
-              </>
-            )}
-
-            {/* Pins */}
-            {projectedPoints.map((p, idx) => {
-              const isSelected = selectedPin?.id === p.id;
-              return (
-                <g
-                  key={p.id}
-                  onClick={() => setSelectedPin(p)}
-                  style={{ cursor: "pointer" }}
-                >
-                  {/* Outer pulse circle */}
-                  <circle
-                    cx={p.pt.x}
-                    cy={p.pt.y}
-                    r={isSelected ? 14 : 10}
-                    fill="rgba(255, 102, 0, 0.2)"
-                    filter="url(#glow)"
-                  />
-                  {/* Inner pin circle */}
-                  <circle
-                    cx={p.pt.x}
-                    cy={p.pt.y}
-                    r={isSelected ? 8 : 6}
-                    fill="var(--accent, #ff6600)"
-                    stroke="#ffffff"
-                    strokeWidth="1.5"
-                  />
-                  {/* Order Number Badge */}
-                  <text
-                    x={p.pt.x}
-                    y={p.pt.y - 12}
-                    textAnchor="middle"
-                    fill="#ffffff"
-                    fontSize="10"
-                    fontWeight="bold"
-                    style={{ textShadow: "0 1px 3px rgba(0,0,0,0.9)" }}
-                  >
-                    {idx + 1}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
-
-          {/* HTML Overlay Pin Labels */}
-          {projectedPoints.map((p) => {
-            const isSelected = selectedPin?.id === p.id;
-            const pctX = (p.pt.x / svgWidth) * 100;
-            const pctY = (p.pt.y / svgHeight) * 100;
-
-            return (
+        mapboxToken && !mapboxFailed ? (
+          <MapboxTripMap
+            locations={orderedLocations}
+            token={mapboxToken}
+            selectedPin={selectedPin}
+            onSelectPin={setSelectedPin}
+            onError={(err) => {
+              console.warn("Mapbox GL initialization failed, falling back to SVG vector visualizer:", err);
+              setMapboxFailed(true);
+            }}
+          />
+        ) : (
+          <div>
+            {!mapboxToken && (
               <div
-                key={`label-${p.id}`}
-                className="trip-map-label"
                 style={{
-                  left: `${pctX}%`,
-                  top: `${pctY}%`,
-                  borderColor: isSelected ? "var(--accent, #ff6600)" : "#3a3a3a",
-                  boxShadow: isSelected ? "0 0 12px rgba(255, 102, 0, 0.35)" : "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: "6px",
+                  fontSize: "12px",
+                  color: "var(--text-muted, #888)",
+                  marginBottom: "8px",
+                  padding: "6px 10px",
+                  background: "rgba(255, 102, 0, 0.05)",
+                  border: "1px solid rgba(255, 102, 0, 0.15)",
+                  borderRadius: "6px",
                 }}
               >
-                {p.name}
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <MapIcon size={14} style={{ color: "var(--accent, #ff6600)" }} />
+                  <span>Displaying vector route visualizer</span>
+                </div>
+                <span style={{ fontSize: "11px", color: "var(--text-muted, #777)" }}>
+                  Configure <code style={{ color: "var(--accent, #ff6600)" }}>MAPBOX_TOKEN</code> in <code style={{ color: "var(--accent, #ff6600)" }}>.env.local</code> to enable interactive 3D satellite & street maps
+                </span>
               </div>
-            );
-          })}
-        </div>
+            )}
+            <div className="trip-map-container" aria-label="Route projection map">
+              <svg
+                viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+                style={{ width: "100%", height: "100%", display: "block" }}
+              >
+                <defs>
+                  <linearGradient id="routeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="var(--accent, #ff6600)" />
+                    <stop offset="50%" stopColor="#ffb15f" />
+                    <stop offset="100%" stopColor="var(--accent, #ff6600)" />
+                  </linearGradient>
+                  <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+
+                {/* Subtle background coordinate grid lines */}
+                <line x1="0" y1="140" x2={svgWidth} y2="140" stroke="rgba(255,255,255,0.03)" strokeDasharray="4 6" />
+                <line x1="0" y1="280" x2={svgWidth} y2="280" stroke="rgba(255,255,255,0.03)" strokeDasharray="4 6" />
+                <line x1="260" y1="0" x2="260" y2={svgHeight} stroke="rgba(255,255,255,0.03)" strokeDasharray="4 6" />
+                <line x1="540" y1="0" x2="540" y2={svgHeight} stroke="rgba(255,255,255,0.03)" strokeDasharray="4 6" />
+
+                {/* Route line */}
+                {projectedPoints.length > 1 && (
+                  <>
+                    {/* Route shadow/glow */}
+                    <path
+                      d={pathD}
+                      fill="none"
+                      stroke="rgba(255, 102, 0, 0.3)"
+                      strokeWidth="6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    {/* Route main line */}
+                    <path
+                      d={pathD}
+                      fill="none"
+                      stroke="url(#routeGrad)"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeDasharray="6 4"
+                    />
+                  </>
+                )}
+
+                {/* Pins */}
+                {projectedPoints.map((p, idx) => {
+                  const isSelected = selectedPin?.id === p.id;
+                  return (
+                    <g
+                      key={p.id}
+                      onClick={() => setSelectedPin(p)}
+                      style={{ cursor: "pointer" }}
+                    >
+                      {/* Outer pulse circle */}
+                      <circle
+                        cx={p.pt.x}
+                        cy={p.pt.y}
+                        r={isSelected ? 14 : 10}
+                        fill="rgba(255, 102, 0, 0.2)"
+                        filter="url(#glow)"
+                      />
+                      {/* Inner pin circle */}
+                      <circle
+                        cx={p.pt.x}
+                        cy={p.pt.y}
+                        r={isSelected ? 8 : 6}
+                        fill="var(--accent, #ff6600)"
+                        stroke="#ffffff"
+                        strokeWidth="1.5"
+                      />
+                      {/* Order Number Badge */}
+                      <text
+                        x={p.pt.x}
+                        y={p.pt.y - 12}
+                        textAnchor="middle"
+                        fill="#ffffff"
+                        fontSize="10"
+                        fontWeight="bold"
+                        style={{ textShadow: "0 1px 3px rgba(0,0,0,0.9)" }}
+                      >
+                        {idx + 1}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
+
+              {/* HTML Overlay Pin Labels */}
+              {projectedPoints.map((p) => {
+                const isSelected = selectedPin?.id === p.id;
+                const pctX = (p.pt.x / svgWidth) * 100;
+                const pctY = (p.pt.y / svgHeight) * 100;
+
+                return (
+                  <div
+                    key={`label-${p.id}`}
+                    className="trip-map-label"
+                    style={{
+                      left: `${pctX}%`,
+                      top: `${pctY}%`,
+                      borderColor: isSelected ? "var(--accent, #ff6600)" : "#3a3a3a",
+                      boxShadow: isSelected ? "0 0 12px rgba(255, 102, 0, 0.35)" : "none",
+                    }}
+                  >
+                    {p.name}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )
       ) : (
         <div className="trip-empty-box" style={{ padding: "40px 20px" }}>
           <MapPin size={32} style={{ color: "var(--accent, #ff6600)", margin: "0 auto 12px" }} />

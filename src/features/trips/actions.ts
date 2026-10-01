@@ -870,3 +870,10 @@ export async function getTripMapLocationsAction(
 
   return { orderedLocations, missingCoords };
 }
+
+/**
+ * Retrieve Mapbox token configured on server or client.
+ */
+export async function getMapboxTokenAction(): Promise<string | null> {
+  return process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.MAPBOX_TOKEN || null;
+}

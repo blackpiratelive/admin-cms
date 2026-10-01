@@ -85,7 +85,7 @@ admin-cms/
 │   │   ├── event-bus.ts         # Internal event pub-sub bus
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
-├── tests/                       # Vitest unit test suite (111 unit tests across 19 test files)
+├── tests/                       # Vitest unit test suite (112 unit tests across 19 test files)
 ├── freshrss.md                  # FreshRSS Sync Provider feature specification
 ├── android-journal.md           # Native Android Journal Application specification
 ├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
@@ -351,6 +351,23 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 ---
 
 ## 8. Standalone Apps & Release Signing Changelog
+
+### October 2026: Trips Hub & Detail Redesign with Interactive Mapbox GL Route Visualization
+- **Comprehensive Trips Redesign (`/trips` & `/trips/[slug]`)**:
+  - Implemented modern travel memory and itinerary hub closely matching `trips-interactive-demo.html`.
+  - Batch query optimization: single-roundtrip parallel fetching of trips, days, relationships, gallery photos, and attachments (`fetchTripsOverviewRaw`), eliminating N+1 queries.
+  - Interactive toolbar with debounced search across titles/locations/tags, 4-way sorting (Recent, Oldest, Duration, Title), and Grid/List view toggle.
+  - Horizontally scrolling status filter chips (All, Upcoming, Ongoing, Completed, ★ Favorites) with live counts and optimistic favoriting.
+  - Featured Trip hero card deterministically spotlighting the top favorite or recently active trip with rich metadata rollups (days, stops, photos, total spend).
+  - Trip detail page with tabbed views: Overview, Day-by-Day Timeline, Photo Gallery, and Map & Route.
+- **Interactive Mapbox GL Route Visualization (`MapboxTripMap.tsx`)**:
+  - Full client-side WebGL rendering using `mapbox-gl` with automatic token discovery (`NEXT_PUBLIC_MAPBOX_TOKEN` and `MAPBOX_TOKEN` via `getMapboxTokenAction`).
+  - Graceful fallback: when Mapbox token is absent or WebGL is unsupported, seamlessly falls back to the dark vector SVG route projection with an informative setup notice.
+  - Chronological route polyline with an inner dashed accent `#ff8e4d` and outer glow line `#ff6600`.
+  - Custom numbered DOM pin markers (`1, 2, 3...`) with popups displaying stop names, formatted addresses, and direct links to Location Hubs (`/locations/[slug]`).
+  - Interactive style switcher: Dark (`dark-v11`), Satellite Streets (`satellite-streets-v12`), and Outdoors (`outdoors-v12`), safely preserving custom GeoJSON routes across style reloads.
+  - Auto-fit bounds with adaptive padding and smooth flyTo transitions when selecting pins.
+- **Quality Gates**: All 112 Vitest tests pass across all 19 test files (100%), Next.js production build (`npm run build`) compiles cleanly, and `android/` subsystem remains 100% clean and untouched.
 
 ### October 2026: Location Entity — People & Photos Integration, Shared Photo Picker & Trip Photo Roll-up
 - **Shared 3-Tab Photo Picker Engine (`PhotoPickerModal.tsx`)**:

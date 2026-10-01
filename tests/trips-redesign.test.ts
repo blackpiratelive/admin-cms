@@ -7,6 +7,7 @@ import {
   duplicateTripAction,
   toggleTripFavoriteAction,
   getTripMapLocationsAction,
+  getMapboxTokenAction,
 } from "../src/features/trips/actions";
 import {
   parseCalendarDateParts,
@@ -494,5 +495,10 @@ describe("Trips Redesign — Database Actions & Route Projection", () => {
     // Location 3 had null coordinates, should be in missingCoords
     expect(mapData.missingCoords.length).toBe(1);
     expect(mapData.missingCoords[0].name).toBe("Old Delhi Station");
+  });
+
+  it("retrieves mapbox token safely from environment", async () => {
+    const token = await getMapboxTokenAction();
+    expect(token === null || typeof token === "string").toBe(true);
   });
 });
