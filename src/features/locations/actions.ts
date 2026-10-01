@@ -800,3 +800,91 @@ export async function quickCreateLocationAction(data: {
     favorite: false,
   };
 }
+
+export async function updateLocationCoordinatesAction(
+  id: string,
+  data: {
+    latitude: number;
+    longitude: number;
+    city?: string;
+    state?: string;
+    country?: string;
+  }
+): Promise<{ success: boolean; location?: LocationRecord; error?: string }> {
+  try {
+    await ensureDbInitialized();
+
+    if (
+      typeof data.latitude !== "number" ||
+      typeof data.longitude !== "number" ||
+      isNaN(data.latitude) ||
+      isNaN(data.longitude)
+    ) {
+      return { success: false, error: "Invalid coordinates provided: latitude and longitude must be numbers." };
+    }
+
+    if (data.latitude < -90 || data.latitude > 90 || data.longitude < -180 || data.longitude > 180) {
+      return {
+        success: false,
+        error: "Coordinates out of bounds: latitude must be between -90 and 90, longitude between -180 and 180.",
+      };
+    }
+
+    const existing = await db.select().from(locations).where(eq(locations.id, id)).limit(1);
+    if (!existing[0]) {
+      return { success: false, error: `Location not found: ${id}` };
+    }
+
+    const now = new Date().toISOString();
+    const updates: Partial<LocationRecord> = {
+      latitude: data.latitude,
+      longitude: data.longitude,
+      updatedAt: now,
+    };
+
+    if (data.city !== undefined && data.city.trim()) {
+      updates.city = data.city.trim();
+    }
+    if (data.state !== undefined && data.state.trim()) {
+      updates.state = data.state.trim();
+    }
+    if (data.country !== undefined && data.country.trim()) {
+      updates.country = data.country.trim();
+    }
+
+    await db.update(locations).set(updates).where(eq(locations.id, id));
+    await logActivity(
+      "location_updated",
+      "location",
+      id,
+      `Updated GPS coordinates for ${existing[0].name}: ${data.latitude.toFixed(4)}, ${data.longitude.toFixed(4)}`,
+      { id, latitude: data.latitude, longitude: data.longitude }
+    );
+
+    purgeTag("locations-list");
+    purgeTag(`location-${id}`);
+    purgeTag(`location-${existing[0].slug}`);
+
+    const updatedLoc = { ...existing[0], ...updates };
+    eventBus.emit("entity.saved", {
+      type: "location",
+      id,
+      title: updatedLoc.name,
+      subtitle: [updatedLoc.city, updatedLoc.state, updatedLoc.country].filter(Boolean).join(", "),
+      keywords: `${updatedLoc.name} ${updatedLoc.city || ""} ${updatedLoc.state || ""} ${updatedLoc.country || ""}`,
+      url: `/locations`,
+    });
+
+    try {
+      revalidatePath("/locations");
+      revalidatePath(`/locations/${existing[0].slug}`);
+    } catch {}
+
+    const updatedRecord = await db.select().from(locations).where(eq(locations.id, id)).limit(1);
+    return { success: true, location: updatedRecord[0] || (updatedLoc as LocationRecord) };
+  } catch (err: any) {
+    console.error("Failed to update location coordinates:", err);
+    return { success: false, error: err?.message || "Failed to update coordinates" };
+  }
+}
+

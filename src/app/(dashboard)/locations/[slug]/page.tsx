@@ -20,6 +20,7 @@ import {
 import { getTrips } from "@/features/trips/actions";
 import { getPeopleAction } from "@/features/people/actions";
 import { LocationFormModal } from "@/features/locations/components/LocationFormModal";
+import { GeocodeLocationModal } from "@/features/locations/components/GeocodeLocationModal";
 import { PhotoPickerModal } from "@/components/PhotoPickerModal";
 import {
   ArrowLeft,
@@ -30,6 +31,7 @@ import {
   Edit2,
   Trash2,
   Compass,
+  Search,
   Image as ImageIcon,
   MessageSquareText,
   Film,
@@ -54,6 +56,7 @@ export default function LocationDetailPage({ params }: { params: Promise<{ slug:
 
   // Modals & Links
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isGeocodeModalOpen, setIsGeocodeModalOpen] = useState(false);
   const [isPhotoPickerOpen, setIsPhotoPickerOpen] = useState(false);
   const [selectedTripToConnect, setSelectedTripToConnect] = useState("");
   const [connectingTrip, setConnectingTrip] = useState(false);
@@ -177,6 +180,12 @@ export default function LocationDetailPage({ params }: { params: Promise<{ slug:
     }
   };
 
+  const hasGps =
+    location.latitude !== null &&
+    location.latitude !== undefined &&
+    location.longitude !== null &&
+    location.longitude !== undefined;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {/* Top Navigation & Actions Bar */}
@@ -187,6 +196,16 @@ export default function LocationDetailPage({ params }: { params: Promise<{ slug:
         </Link>
 
         <div style={{ display: "flex", gap: "8px" }}>
+          {!hasGps && (
+            <button
+              className="btn btn-secondary"
+              onClick={() => setIsGeocodeModalOpen(true)}
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "var(--accent)", borderColor: "var(--accent)" }}
+            >
+              <Compass size={15} />
+              <span>Find Coordinates</span>
+            </button>
+          )}
           <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(true)}>
             <Edit2 size={15} />
             <span>Edit Location</span>
@@ -233,11 +252,63 @@ export default function LocationDetailPage({ params }: { params: Promise<{ slug:
         </div>
 
         {/* GPS, elevation & rating badges */}
-        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", fontSize: "12px", color: "var(--text-muted)", marginTop: "4px" }}>
-          {location.latitude && location.longitude && (
-            <span style={{ fontFamily: "var(--font-mono)", backgroundColor: "var(--bg-hover)", padding: "2px 8px", borderRadius: "4px" }}>
-              GPS: {location.latitude}, {location.longitude}
-            </span>
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center", fontSize: "12px", color: "var(--text-muted)", marginTop: "4px" }}>
+          {hasGps ? (
+            <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ fontFamily: "var(--font-mono)", backgroundColor: "var(--bg-hover)", padding: "2px 8px", borderRadius: "4px" }}>
+                GPS: {location.latitude}, {location.longitude}
+              </span>
+              <button
+                onClick={() => setIsGeocodeModalOpen(true)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--text-muted)",
+                  cursor: "pointer",
+                  padding: "2px 4px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  fontSize: "11px",
+                  gap: "2px",
+                }}
+                title="Update GPS coordinates via Mapbox"
+              >
+                <Edit2 size={11} />
+              </button>
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                backgroundColor: "rgba(245, 158, 11, 0.1)",
+                border: "1px solid rgba(245, 158, 11, 0.3)",
+                padding: "4px 10px",
+                borderRadius: "6px",
+                color: "var(--text-primary)",
+              }}
+            >
+              <Compass size={14} style={{ color: "#f59e0b" }} />
+              <span style={{ fontSize: "12px", fontWeight: 500 }}>No coordinates saved</span>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setIsGeocodeModalOpen(true)}
+                style={{
+                  fontSize: "11px",
+                  padding: "2px 8px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  borderColor: "#f59e0b",
+                  color: "#f59e0b",
+                  backgroundColor: "var(--bg-card)",
+                }}
+              >
+                <Search size={11} />
+                <span>Search with Mapbox</span>
+              </button>
+            </div>
           )}
           {location.elevation && (
             <span style={{ backgroundColor: "var(--bg-hover)", padding: "2px 8px", borderRadius: "4px" }}>
@@ -823,6 +894,17 @@ export default function LocationDetailPage({ params }: { params: Promise<{ slug:
         onClose={() => setIsEditModalOpen(false)}
         locationToEdit={location}
         onSuccess={loadLocationData}
+      />
+
+      {/* Geocode Coordinates Modal */}
+      <GeocodeLocationModal
+        isOpen={isGeocodeModalOpen}
+        onClose={() => setIsGeocodeModalOpen(false)}
+        location={location}
+        onSuccess={(updated) => {
+          setLocation(updated);
+          loadLocationData();
+        }}
       />
 
       {/* 3-Tab Photo Picker Modal */}

@@ -5,7 +5,8 @@ import Link from "next/link";
 import { getLocations, deleteLocation } from "@/features/locations/actions";
 import { LocationRecord } from "@/db/schema";
 import { LocationFormModal } from "@/features/locations/components/LocationFormModal";
-import { MapPin, Plus, Edit2, Trash2, Camera, Globe, ChevronRight, Star, Lock, EyeOff } from "lucide-react";
+import { GeocodeLocationModal } from "@/features/locations/components/GeocodeLocationModal";
+import { MapPin, Plus, Edit2, Trash2, Camera, Globe, ChevronRight, Star, Lock, EyeOff, Compass, Search } from "lucide-react";
 
 import { getBrowserCache, setBrowserCache } from "@/lib/client-cache";
 
@@ -14,6 +15,8 @@ export default function LocationsPage() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [locationToEdit, setLocationToEdit] = useState<LocationRecord | null>(null);
+  const [locationToGeocode, setLocationToGeocode] = useState<LocationRecord | null>(null);
+  const [isGeocodeModalOpen, setIsGeocodeModalOpen] = useState(false);
 
   const loadData = async () => {
     const cacheKey = "swr_locations_list";
@@ -123,9 +126,38 @@ export default function LocationsPage() {
                     </div>
                   )}
 
-                  {loc.latitude && loc.longitude && (
+                  {loc.latitude !== null && loc.longitude !== null && loc.latitude !== undefined && loc.longitude !== undefined ? (
                     <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px", fontFamily: "var(--font-mono)" }}>
                       GPS: {loc.latitude}, {loc.longitude}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: "11px", marginTop: "6px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ color: "#f59e0b", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                        <Compass size={12} />
+                        <span>No coordinates</span>
+                      </span>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setLocationToGeocode(loc);
+                          setIsGeocodeModalOpen(true);
+                        }}
+                        style={{
+                          fontSize: "11px",
+                          padding: "2px 8px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          color: "var(--accent)",
+                          borderColor: "var(--accent)",
+                        }}
+                        title="Search coordinates with Mapbox"
+                      >
+                        <Search size={11} />
+                        <span>Find GPS</span>
+                      </button>
                     </div>
                   )}
 
@@ -166,6 +198,19 @@ export default function LocationsPage() {
         onClose={() => setIsModalOpen(false)}
         locationToEdit={locationToEdit}
         onSuccess={loadData}
+      />
+
+      {/* Geocode Coordinates Modal */}
+      <GeocodeLocationModal
+        isOpen={isGeocodeModalOpen}
+        onClose={() => {
+          setIsGeocodeModalOpen(false);
+          setLocationToGeocode(null);
+        }}
+        location={locationToGeocode}
+        onSuccess={() => {
+          loadData();
+        }}
       />
     </div>
   );

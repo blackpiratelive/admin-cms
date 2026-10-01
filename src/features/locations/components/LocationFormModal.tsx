@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { LocationRecord } from "@/db/schema";
 import { createLocation, updateLocation } from "@/features/locations/actions";
 import { notify } from "@/lib/notifications";
-import { X, Search, Loader2, MapPin } from "lucide-react";
+import { X, Search, Loader2, MapPin, Compass } from "lucide-react";
 import type { GeocodeResult } from "@/app/api/geocode/route";
 
 interface LocationFormModalProps {
@@ -39,6 +39,10 @@ export function LocationFormModal({
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Quick GPS lookup via Mapbox
+  const [findingGps, setFindingGps] = useState(false);
+  const [gpsLookupMessage, setGpsLookupMessage] = useState<string | null>(null);
 
   // --- Location search (Mapbox forward geocoding via /api/geocode) ---
   const [searchQuery, setSearchQuery] = useState("");
@@ -174,7 +178,49 @@ export function LocationFormModal({
     setSearchOpen(false);
     setSearchError(null);
     setActiveIndex(-1);
+    setGpsLookupMessage(null);
+    setFindingGps(false);
   }, [locationToEdit, isOpen]);
+
+  const handleLookupCoordinates = async () => {
+    const query = [name.trim(), city.trim(), country.trim()].filter(Boolean).join(", ");
+    if (query.length < 2) {
+      setGpsLookupMessage("Please enter a location name first to search coordinates.");
+      return;
+    }
+
+    setFindingGps(true);
+    setGpsLookupMessage(null);
+
+    try {
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setGpsLookupMessage(data?.error || "Geocoding lookup failed.");
+      } else {
+        const results: GeocodeResult[] = (data.results || []).filter(
+          (r: GeocodeResult) => typeof r.latitude === "number" && typeof r.longitude === "number"
+        );
+        if (results.length > 0) {
+          const first = results[0];
+          setLat(String(first.latitude));
+          setLng(String(first.longitude));
+          if (!city && first.city) setCity(first.city);
+          if (!state && first.state) setState(first.state);
+          if (!country && first.country) setCountry(first.country);
+          setGpsLookupMessage(
+            `Found coordinates for "${first.name}": ${first.latitude?.toFixed(4)}, ${first.longitude?.toFixed(4)}`
+          );
+        } else {
+          setGpsLookupMessage(`No coordinates found on Mapbox for "${query}".`);
+        }
+      }
+    } catch {
+      setGpsLookupMessage("Failed to reach geocoding service.");
+    } finally {
+      setFindingGps(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -385,15 +431,56 @@ export function LocationFormModal({
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
-            <div>
-              <label className="form-label">Latitude</label>
-              <input type="number" step="any" className="form-input" value={lat} onChange={(e) => setLat(e.target.value)} placeholder="22.5448" />
+          <div style={{ marginBottom: "12px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+              <span className="form-label" style={{ margin: 0 }}>Coordinates (GPS)</span>
+              {(!lat || !lng) && (
+                <button
+                  type="button"
+                  onClick={handleLookupCoordinates}
+                  disabled={findingGps || !name.trim()}
+                  style={{
+                    background: "none",
+                    border: "1px solid var(--border-color)",
+                    borderRadius: "4px",
+                    padding: "2px 8px",
+                    fontSize: "11px",
+                    color: "var(--accent)",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}
+                  title="Search Mapbox for coordinates using location name"
+                >
+                  {findingGps ? <Loader2 size={11} className="spin" /> : <Compass size={11} />}
+                  <span>Find GPS via Mapbox</span>
+                </button>
+              )}
             </div>
-            <div>
-              <label className="form-label">Longitude</label>
-              <input type="number" step="any" className="form-input" value={lng} onChange={(e) => setLng(e.target.value)} placeholder="88.3426" />
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div>
+                <label className="form-label" style={{ fontSize: "11px" }}>Latitude</label>
+                <input type="number" step="any" className="form-input" value={lat} onChange={(e) => setLat(e.target.value)} placeholder="22.5448" />
+              </div>
+              <div>
+                <label className="form-label" style={{ fontSize: "11px" }}>Longitude</label>
+                <input type="number" step="any" className="form-input" value={lng} onChange={(e) => setLng(e.target.value)} placeholder="88.3426" />
+              </div>
             </div>
+
+            {gpsLookupMessage && (
+              <div
+                style={{
+                  fontSize: "11px",
+                  color: gpsLookupMessage.includes("Found") ? "var(--badge-published, #2e7d32)" : "var(--text-muted)",
+                  marginTop: "4px",
+                }}
+              >
+                {gpsLookupMessage}
+              </div>
+            )}
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>

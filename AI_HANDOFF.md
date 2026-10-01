@@ -70,7 +70,7 @@ admin-cms/
 │   │   ├── jobs/                # Background Job Queue Engine (queued, running, completed)
 │   │   ├── search/              # Universal fuzzy multi-table search engine (search_index)
 │   │   ├── people/              # Personal relationship server actions, Memory Hub & parallel batch query engine
-│   │   ├── locations/           # Location CRUD actions, detail hub & trip associations
+│   │   ├── locations/           # Location CRUD actions, detail hub, GeocodeLocationModal & trip associations
 │   │   ├── trips/               # Trip management server actions, location linkage & day-by-day journal (day-actions.ts, day-helpers.ts)
 │   │   ├── pickers/             # Shared Location/Trip picker data: light option projections + server-derived recents (actions.ts, types.ts)
 │   │   ├── auth/                # Session cookies, password check, login server actions
@@ -85,7 +85,7 @@ admin-cms/
 │   │   ├── event-bus.ts         # Internal event pub-sub bus
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
-├── tests/                       # Vitest unit test suite (112 unit tests across 19 test files)
+├── tests/                       # Vitest unit test suite (117 unit tests across 20 test files)
 ├── freshrss.md                  # FreshRSS Sync Provider feature specification
 ├── android-journal.md           # Native Android Journal Application specification
 ├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
@@ -231,9 +231,10 @@ The database consists of **53 SQLite tables** managed via Drizzle ORM:
 - **Adaptive Header Controls (`Header.tsx` + `@media (max-width: 768px)`)**: On phones the `HUGO + TURSO` brand badge, the "Search Everything..." label + `Ctrl+K` kbd hint (`.header-search-label` / `.header-search-kbd`), and the "Logout" label (`.header-logout-label`) are hidden, collapsing the Command Palette trigger and logout to icon-only buttons that fit narrow viewports.
 - **Form Modal Mobile Optimization**: Defined the previously-missing shared `.form-input` control (`width: 100%; box-sizing: border-box; min-width: 0`) so inputs/selects/textareas in `PersonFormModal`, `LocationFormModal`, `TripFormModal` (and everywhere else the class is used) stretch to their container instead of overflowing at intrinsic browser width. Each form carries the `modal-form` class, and `@media (max-width: 640px) .modal-form [style*="grid-template-columns"]` collapses all inline two/three-column field grids to a single column on phones.
 
-### 4.7 Location Search & Autocomplete (Mapbox Geocoding)
+### 4.7 Location Search, Autocomplete & Coordinate Enrichment (Mapbox Geocoding)
 - **Server-Side Geocoding Proxy (`/api/geocode`)**: `GET /api/geocode?q=...` proxies Mapbox Geocoding API v6 forward geocoding server-side so `MAPBOX_TOKEN` is never exposed to the client. Returns a normalized flat `GeocodeResult[]` (`id`, `name`, `label`, `city`, `state`, `country`, `latitude`, `longitude`). Bounded by a 4s `AbortController` timeout; returns `501` when `MAPBOX_TOKEN` is unset, `502` on upstream errors, `504` on timeout, and an empty result set for queries under 2 characters.
 - **Live Autocomplete in `LocationFormModal`**: A "Search for a place" field at the top of the Add/Edit Location modal debounces input (300ms), cancels in-flight requests via `AbortController`, and renders a keyboard-navigable dropdown (↑/↓/Enter/Esc). Selecting a result auto-fills name, city, state, country, latitude, and longitude — all fields remain manually editable afterward. Requires `MAPBOX_TOKEN` in the environment; when absent, manual entry still works and the UI surfaces a clear message.
+- **Coordinate Search & Save for Existing Locations (`GeocodeLocationModal` & `updateLocationCoordinatesAction`)**: When an existing Location entity lacks coordinates (`latitude == null || longitude == null`), the Location Detail page (`/locations/[slug]`), Location List page (`/locations`), and `LocationFormModal` surface dedicated "Find Coordinates" and "Search Coordinates with Mapbox" options. Clicking opens the keyboard-navigable `GeocodeLocationModal`, which automatically queries Mapbox forward geocoding via `/api/geocode`, displays place candidates with live GPS coordinate previews and detected address hierarchy, and allows one-click coordinate saving. The `updateLocationCoordinatesAction` validates coordinate ranges (`[-90, 90]` and `[-180, 180]`), saves to Turso DB, purges cache tags (`locations-list`, `location-${id}`, `location-${slug}`), emits `entity.saved`, and presents non-blocking background toast feedback via `notify.bg`.
 
 ### 4.8 Trip Day-by-Day Travel Journal & Pervasive Location Entity Reuse (`src/features/trips/`)
 - **Data model**: A single `trip_days` table (see §3.1) holds one row per day with structured repeatable lists stored as JSON columns (transport legs, meals, activities, accommodation), following the codebase's established JSON-column idiom. Days link to the trip by `tripId` and are ordered by `dayNumber` then `date`.
@@ -487,6 +488,14 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
   - `GET /api/people/pickers`: Fast aggregated picker endpoint returning locations, trips, projects, microblogs, photos, collections.
 - **CI/CD Automation**: Configured dual GitHub Actions (`.github/workflows/build-people-apk.yml`) and CircleCI (`.circleci/config.yml`) workflows for automated analyze, test, release keystore signing, and ARM64 APK build artifacts.
 - **Quality Gates**: All 24 Flutter unit/widget tests pass (100%), 0 linter issues in `flutter analyze`, and all 67 Vitest backend tests pass cleanly. `android/` legacy client remained 100% clean and untouched.
+
+### October 2026: Location Entity Mapbox Geocoding & Coordinate Save Action
+- **Mapbox Coordinate Search & Save Workflow**: Introduced dedicated Mapbox forward geocoding coordinate lookup for Location entities lacking GPS coordinates (`latitude == null || longitude == null`).
+- **Dedicated GeocodeLocationModal (`GeocodeLocationModal.tsx`)**: Pre-fills search query from location name, city, and country, performs debounced query via `/api/geocode` proxy, displays candidate coordinates in monospaced badges with full address hierarchy, offers optional toggle to backfill missing address details, and saves coordinates with 0ms perceived latency via `notify.bg`.
+- **Location Hub & Catalog Integration**: Added prominent "No coordinates saved" banner with one-click Mapbox search button and header "Find Coordinates" action on `/locations/[slug]`. Added "No coordinates · Find GPS" status and trigger button to each location card on `/locations`. Added "Find GPS via Mapbox" helper in `LocationFormModal` above latitude and longitude inputs.
+- **Server Action & Validation (`updateLocationCoordinatesAction`)**: Validates coordinate types and bounds (`[-90, 90]` latitude, `[-180, 180]` longitude), updates Turso database, purges Next.js and SWR cache tags, logs activity, and emits `entity.saved` on `eventBus`.
+- **Unit Test Coverage (`tests/location-geocode.test.ts`)**: 5 comprehensive unit tests verifying coordinate persistence, address backfilling, non-numeric coordinate rejection, out-of-bounds coordinate rejection, and non-existent ID handling.
+- **Quality Gates**: All 117 Vitest unit tests pass across 20 test suites (100%), TypeScript type check passes (`tsc --noEmit`), Next.js production build (`npm run build`) compiles with zero errors, Flutter mobile apps (`mobile-microblog` and `mobile-people`) pass 100% of tests with 0 linter issues, and legacy client `android/` remains 100% clean and untouched.
 
 ### October 2026: People Module Cloudinary Client-Side Image Compression
 - **Client-Side Canvas Compression**: Added HTML5 Canvas client-side image compression support for direct Cloudinary uploads across the People module (`PersonPhotoPickerModal` and `PersonFormModal`).
