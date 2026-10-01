@@ -6,6 +6,7 @@ import '../core/models/trip_day.dart';
 import '../core/network/api_service.dart';
 import '../core/services/image_cache_manager.dart';
 import '../core/theme/cupertino_theme.dart';
+import '../widgets/picker_sheet.dart';
 import 'photo_picker_modal.dart';
 import 'trip_day_entry_editors.dart';
 
@@ -153,33 +154,12 @@ class _TripDayEditorModalState extends State<TripDayEditorModal> {
         initial = DateTime.parse(_date!);
       } catch (_) {}
     }
-    showCupertinoModalPopup(
-      context: context,
-      builder: (ctx) => Container(
-        height: 300,
-        color: CupertinoColors.systemBackground.resolveFrom(context),
-        child: Column(
-          children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: CupertinoButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ),
-            Expanded(
-              child: CupertinoDatePicker(
-                mode: CupertinoDatePickerMode.date,
-                initialDateTime: initial,
-                minimumDate: DateTime(1990),
-                maximumDate: DateTime(2100),
-                onDateTimeChanged: (d) =>
-                    setState(() => _date = DateFormat('yyyy-MM-dd').format(d)),
-              ),
-            ),
-          ],
-        ),
-      ),
+    showPremiumDateSheet(
+      context,
+      title: 'Day date',
+      initial: initial,
+      onClear: () => setState(() => _date = null),
+      onChanged: (d) => setState(() => _date = DateFormat('yyyy-MM-dd').format(d)),
     );
   }
 

@@ -314,6 +314,14 @@ git status android/ # Must remain completely clean!
 
 ## 9. Recent Updates & Architectural Changelog
 
+### Version 1.8.1 — Premium Pickers (Chip Selectors & Styled Date Sheet) (October 2026)
+
+1. **Shared picker widgets (`lib/widgets/picker_sheet.dart`)**: Added `OptionChipGrid` (animated, icon-aware selectable pills) and `showPremiumDateSheet` (a carded bottom sheet with a grabber handle, centered title, and Clear/Done controls) to replace bare `CupertinoPicker` wheels and flat date sheets.
+2. **Travel mode & meal type**: The transport-leg and meal sub-editors (`trip_day_entry_editors.dart`) now present modes (🚶🚆✈️🚗 …) and meal types (breakfast/lunch/dinner/snack/drinks) as inline icon chips instead of a grey scroll wheel.
+3. **Trip status**: `trip_form_modal.dart` renders status as icon chips (Planned/Ongoing/Completed/Cancelled, reusing `TripStatusBadge.styleFor`) rather than a wheel.
+4. **Date selection**: Trip start/end dates and itinerary day dates now use `showPremiumDateSheet`.
+5. **Quality Gates**: `flutter analyze` 0 issues; 52/52 tests pass. People module pickers (relationship wheel, important-date sheet) left unchanged to preserve existing tested behavior. `android/` untouched.
+
 ### Version 1.8.0 — Trips Follow-ups: Itinerary Day Editing, Photo Management, Connections & Movies (October 2026)
 
 1. **Itinerary Day Editing**: The Itinerary tab gains **Add day** and **Generate** (from trip dates) actions, and every day card gets a pencil button opening `TripDayEditorModal` — a full editor for date, title, primary place, weather, mood (1–5), markdown notes, transport legs, meals, activities, accommodation, and day photos. Transport/meal/activity entries use focused sub-editors (`trip_day_entry_editors.dart`); costs flow into the day/trip spend roll-up. Saves via `PUT /api/trips/[id]/days/[dayId]` (structured `TripDayUpdate`), with Add/Generate on `POST /api/trips/[id]/days`.

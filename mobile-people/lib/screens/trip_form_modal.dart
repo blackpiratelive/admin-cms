@@ -6,6 +6,8 @@ import '../core/network/api_service.dart';
 import '../core/network/sync_service.dart';
 import '../core/storage/local_store.dart';
 import '../core/theme/cupertino_theme.dart';
+import '../widgets/picker_sheet.dart';
+import '../widgets/trip_status_badge.dart';
 
 class TripFormModal extends StatefulWidget {
   final TripRecord? tripToEdit;
@@ -116,79 +118,27 @@ class _TripFormModalState extends State<TripFormModal> {
       } catch (_) {}
     }
 
-    showCupertinoModalPopup(
-      context: context,
-      builder: (ctx) => Container(
-        height: 300,
-        color: CupertinoColors.systemBackground.resolveFrom(context),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () {
-                      setState(() {
-                        if (isStart) {
-                          _startDate = null;
-                        } else {
-                          _endDate = null;
-                        }
-                      });
-                      Navigator.of(ctx).pop();
-                    },
-                    child: const Text('Clear', style: TextStyle(color: CupertinoColors.systemRed)),
-                  ),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: CupertinoDatePicker(
-                mode: CupertinoDatePickerMode.date,
-                initialDateTime: initial,
-                minimumDate: DateTime(1990),
-                maximumDate: DateTime(2100),
-                onDateTimeChanged: (newDate) {
-                  final formatted = DateFormat('yyyy-MM-dd').format(newDate);
-                  setState(() {
-                    if (isStart) {
-                      _startDate = formatted;
-                    } else {
-                      _endDate = formatted;
-                    }
-                  });
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showStatusPicker() {
-    showCupertinoModalPopup(
-      context: context,
-      builder: (ctx) => Container(
-        height: 240,
-        color: CupertinoColors.systemBackground.resolveFrom(context),
-        child: CupertinoPicker(
-          itemExtent: 36,
-          scrollController: FixedExtentScrollController(initialItem: statusPresets.indexOf(_status)),
-          onSelectedItemChanged: (idx) => setState(() => _status = statusPresets[idx]),
-          children: statusPresets
-              .map((s) => Center(child: Text(s[0].toUpperCase() + s.substring(1))))
-              .toList(),
-        ),
-      ),
+    showPremiumDateSheet(
+      context,
+      title: isStart ? 'Start date' : 'End date',
+      initial: initial,
+      onClear: () => setState(() {
+        if (isStart) {
+          _startDate = null;
+        } else {
+          _endDate = null;
+        }
+      }),
+      onChanged: (newDate) {
+        final formatted = DateFormat('yyyy-MM-dd').format(newDate);
+        setState(() {
+          if (isStart) {
+            _startDate = formatted;
+          } else {
+            _endDate = formatted;
+          }
+        });
+      },
     );
   }
 
@@ -412,7 +362,6 @@ class _TripFormModalState extends State<TripFormModal> {
   Widget build(BuildContext context) {
     final labelColor = AppCupertinoTheme.label(context);
     final secondaryColor = AppCupertinoTheme.secondary(context);
-    final tertiaryColor = AppCupertinoTheme.tertiary(context);
 
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground,
@@ -509,20 +458,15 @@ class _TripFormModalState extends State<TripFormModal> {
             CupertinoListSection.insetGrouped(
               header: const Text('STATUS'),
               children: [
-                CupertinoListTile(
-                  title: const Text('Status', style: TextStyle(fontSize: 15)),
-                  trailing: CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: _showStatusPicker,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(_status[0].toUpperCase() + _status.substring(1),
-                            style: TextStyle(fontSize: 15, color: secondaryColor)),
-                        const SizedBox(width: 4),
-                        Icon(CupertinoIcons.chevron_right, size: 14, color: tertiaryColor),
-                      ],
-                    ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  child: OptionChipGrid(
+                    selected: _status,
+                    onSelect: (v) => setState(() => _status = v),
+                    options: statusPresets.map((s) {
+                      final style = TripStatusBadge.styleFor(s);
+                      return OptionChipData(s, style.label, icon: style.icon);
+                    }).toList(),
                   ),
                 ),
                 CupertinoListTile(

@@ -1,5 +1,26 @@
 import 'package:flutter/cupertino.dart';
 import '../core/models/trip_day.dart';
+import '../widgets/picker_sheet.dart';
+
+const Map<String, IconData> _modeIcons = {
+  'walk': CupertinoIcons.person,
+  'bike': CupertinoIcons.cube_box,
+  'bus': CupertinoIcons.bus,
+  'train': CupertinoIcons.tram_fill,
+  'flight': CupertinoIcons.airplane,
+  'car': CupertinoIcons.car_detailed,
+  'taxi': CupertinoIcons.car,
+  'boat': CupertinoIcons.drop,
+  'other': CupertinoIcons.arrow_right,
+};
+
+const Map<String, IconData> _mealIcons = {
+  'breakfast': CupertinoIcons.sunrise,
+  'lunch': CupertinoIcons.sun_max,
+  'dinner': CupertinoIcons.moon_stars,
+  'snack': CupertinoIcons.square_favorites_alt,
+  'drinks': CupertinoIcons.drop,
+};
 
 /// Lightweight sub-editors for itinerary day entries (transport / meals /
 /// activities), each returning the edited entry via Navigator.pop.
@@ -114,15 +135,13 @@ class _LegEditorState extends State<_LegEditor> {
           header: const Text('MODE'),
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: SizedBox(
-                height: 120,
-                child: CupertinoPicker(
-                  itemExtent: 32,
-                  scrollController: FixedExtentScrollController(initialItem: modes.indexOf(_mode)),
-                  onSelectedItemChanged: (i) => _mode = modes[i],
-                  children: modes.map((m) => Center(child: Text(m))).toList(),
-                ),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: OptionChipGrid(
+                selected: _mode,
+                onSelect: (v) => setState(() => _mode = v),
+                options: modes
+                    .map((m) => OptionChipData(m, m[0].toUpperCase() + m.substring(1), icon: _modeIcons[m]))
+                    .toList(),
               ),
             ),
           ],
@@ -209,15 +228,13 @@ class _MealEditorState extends State<_MealEditor> {
           header: const Text('TYPE'),
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: SizedBox(
-                height: 120,
-                child: CupertinoPicker(
-                  itemExtent: 32,
-                  scrollController: FixedExtentScrollController(initialItem: types.indexOf(_type)),
-                  onSelectedItemChanged: (i) => _type = types[i],
-                  children: types.map((t) => Center(child: Text(t))).toList(),
-                ),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: OptionChipGrid(
+                selected: _type,
+                onSelect: (v) => setState(() => _type = v),
+                options: types
+                    .map((t) => OptionChipData(t, t[0].toUpperCase() + t.substring(1), icon: _mealIcons[t]))
+                    .toList(),
               ),
             ),
           ],
