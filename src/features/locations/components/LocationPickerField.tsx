@@ -6,7 +6,7 @@ import { EntityCombobox, ComboAction } from "@/components/EntityCombobox";
 import { quickCreateLocationAction } from "@/features/locations/actions";
 import { notify } from "@/lib/notifications";
 import type { GeocodeResult } from "@/app/api/geocode/route";
-import { Plus } from "lucide-react";
+import { Plus, MapPin } from "lucide-react";
 
 export interface LocationPickerFieldProps {
   locations: LocationPickerOption[];
@@ -15,12 +15,19 @@ export interface LocationPickerFieldProps {
   recentIds?: string[];
   locationId?: string;
   name?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   tripId?: string;
   placeholder?: string;
   ariaLabel?: string;
   allowCustom?: boolean;
   disabled?: boolean;
-  onChange: (next: { locationId?: string; name?: string }) => void;
+  onChange: (next: {
+    locationId?: string;
+    name?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+  }) => void;
   onLocationCreated?: (loc: LocationPickerOption) => void;
 }
 
@@ -30,6 +37,8 @@ export function LocationPickerField({
   recentIds,
   locationId,
   name,
+  latitude,
+  longitude,
   tripId,
   placeholder = "Search or type a place…",
   ariaLabel = "Location",
@@ -94,7 +103,12 @@ export function LocationPickerField({
       task: async () => {
         const newLoc = await quickCreateLocationAction({ ...data, tripId });
         onLocationCreated?.(newLoc);
-        onChange({ locationId: newLoc.id, name: newLoc.name });
+        onChange({
+          locationId: newLoc.id,
+          name: newLoc.name,
+          latitude: newLoc.latitude ?? data.latitude ?? null,
+          longitude: newLoc.longitude ?? data.longitude ?? null,
+        });
       },
     });
   };
@@ -108,11 +122,31 @@ export function LocationPickerField({
 
     // 1. Geocoded place suggestions
     for (const geo of geocodeResults) {
+      // 1A. Select directly without creating permanent location entity
+      const coordLabel =
+        geo.latitude != null && geo.longitude != null
+          ? ` [${geo.latitude.toFixed(4)}, ${geo.longitude.toFixed(4)}]`
+          : "";
       actions.push({
-        id: `geo_${geo.id}`,
-        label: `+ Add “${geo.name}” as Location`,
-        sublabel: geo.label !== geo.name ? geo.label : [geo.city, geo.country].filter(Boolean).join(", "),
-        icon: <Plus size={13} style={{ color: "var(--accent, #f97316)" }} />,
+        id: `geo_select_${geo.id}`,
+        label: `📍 ${geo.name}`,
+        sublabel: `${geo.label !== geo.name ? geo.label + " • " : ""}${coordLabel}`.trim(),
+        icon: <MapPin size={13} style={{ color: "var(--accent, #f97316)" }} />,
+        onSelect: () =>
+          onChange({
+            locationId: undefined,
+            name: geo.name,
+            latitude: geo.latitude ?? null,
+            longitude: geo.longitude ?? null,
+          }),
+      });
+
+      // 1B. Optional: Save as permanent Location entity
+      actions.push({
+        id: `geo_create_${geo.id}`,
+        label: `+ Save “${geo.name}” as Location Entity`,
+        sublabel: "Create permanent location entity with coordinates",
+        icon: <Plus size={13} style={{ color: "var(--text-muted, #888)" }} />,
         onSelect: () =>
           handleQuickCreate({
             name: geo.name,
@@ -141,35 +175,74 @@ export function LocationPickerField({
     return actions;
   }, [query, geocodeResults, locations, tripId]);
 
+  const hasCoords =
+    latitude != null &&
+    longitude != null &&
+    !Number.isNaN(latitude) &&
+    !Number.isNaN(longitude);
+
   return (
-    <EntityCombobox
-      ariaLabel={ariaLabel}
-      placeholder={placeholder}
-      noneLabel="Custom / none"
-      value={locationId || null}
-      priorityIds={priorityIds}
-      recentIds={recentIds}
-      allowCustom={allowCustom}
-      customValue={name}
-      customPlaceholder={placeholder}
-      disabled={disabled}
-      onQueryChange={setQuery}
-      extraActions={extraActions}
-      onChange={(id) => {
-        if (id) {
-          const loc = locations.find((l) => l.id === id);
-          onChange({ locationId: id, name: loc?.name || undefined });
-        } else {
-          onChange({ locationId: undefined, name });
+    <div style={{ position: "relative", width: "100%" }}>
+      <EntityCombobox
+        ariaLabel={ariaLabel}
+        placeholder={placeholder}
+        noneLabel="Custom / none"
+        value={locationId || null}
+        priorityIds={priorityIds}
+        recentIds={recentIds}
+        allowCustom={allowCustom}
+        customValue={name}
+        customPlaceholder={placeholder}
+        disabled={disabled}
+        onQueryChange={setQuery}
+        extraActions={extraActions}
+        onChange={(id) => {
+          if (id) {
+            const loc = locations.find((l) => l.id === id);
+            onChange({
+              locationId: id,
+              name: loc?.name || undefined,
+              latitude: loc?.latitude ?? null,
+              longitude: loc?.longitude ?? null,
+            });
+          } else {
+            onChange({ locationId: undefined, name, latitude, longitude });
+          }
+        }}
+        onCustomChange={(text) =>
+          onChange({
+            locationId: undefined,
+            name: text,
+            latitude: null,
+            longitude: null,
+          })
         }
-      }}
-      onCustomChange={(text) => onChange({ locationId: undefined, name: text })}
-      options={locations.map((l) => ({
-        id: l.id,
-        label: l.name,
-        sublabel: [l.city, l.country].filter(Boolean).join(", ") || undefined,
-        favorite: l.favorite,
-      }))}
-    />
+        options={locations.map((l) => ({
+          id: l.id,
+          label: l.name,
+          sublabel: [l.city, l.country].filter(Boolean).join(", ") || undefined,
+          favorite: l.favorite,
+        }))}
+      />
+      {hasCoords && (
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "3px",
+            fontSize: "10px",
+            color: "var(--accent, #f97316)",
+            marginTop: "2px",
+            fontFamily: "var(--font-mono, monospace)",
+          }}
+          title={`Coordinates: ${latitude}, ${longitude}`}
+        >
+          <MapPin size={10} />
+          <span>
+            {latitude!.toFixed(4)}, {longitude!.toFixed(4)}
+          </span>
+        </div>
+      )}
+    </div>
   );
 }

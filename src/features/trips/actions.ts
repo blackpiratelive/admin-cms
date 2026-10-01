@@ -773,12 +773,21 @@ export async function getTripMapLocationsAction(
   slugOrId: string
 ): Promise<{
   orderedLocations: TripLocationCoordinate[];
+  routeStops: TripLocationCoordinate[];
+  associatedLocations: TripLocationCoordinate[];
   missingCoords: TripLocationCoordinate[];
 }> {
   await ensureDbInitialized();
 
   const tr = await fetchTripByIdOrSlugRaw(slugOrId);
-  if (!tr) return { orderedLocations: [], missingCoords: [] };
+  if (!tr) {
+    return {
+      orderedLocations: [],
+      routeStops: [],
+      associatedLocations: [],
+      missingCoords: [],
+    };
+  }
 
   const [daysList, relsList] = await Promise.all([
     db.select().from(tripDays).where(eq(tripDays.tripId, tr.id)).orderBy(asc(tripDays.dayNumber)),
@@ -790,70 +799,357 @@ export async function getTripMapLocationsAction(
     ),
   ]);
 
-  // Collect ordered location references
-  const locIdOrder: string[] = [];
-  const seenLocIds = new Set<string>();
+  // 1. Collect all referenced location IDs from days and relationships
+  const referencedLocIds = new Set<string>();
+  const associatedLocIds = new Set<string>();
 
-  const trackLocId = (id?: string | null) => {
-    if (!id || seenLocIds.has(id)) return;
-    seenLocIds.add(id);
-    locIdOrder.push(id);
-  };
+  for (const rel of relsList) {
+    const locId = rel.sourceType === "location" ? rel.sourceId : rel.targetId;
+    referencedLocIds.add(locId);
+    associatedLocIds.add(locId);
+  }
 
-  // 1. Day order
   for (const d of daysList) {
-    trackLocId(d.primaryLocationId);
+    if (d.primaryLocationId) referencedLocIds.add(d.primaryLocationId);
     try {
       const parsed = parseTripDay(d);
       for (const t of parsed.transport) {
-        trackLocId(t.fromLocationId);
-        trackLocId(t.toLocationId);
+        if (t.fromLocationId) referencedLocIds.add(t.fromLocationId);
+        if (t.toLocationId) referencedLocIds.add(t.toLocationId);
       }
       for (const m of parsed.meals) {
-        trackLocId(m.placeLocationId);
+        if (m.placeLocationId) referencedLocIds.add(m.placeLocationId);
       }
       for (const a of parsed.activities) {
-        trackLocId(a.locationId);
+        if (a.locationId) referencedLocIds.add(a.locationId);
       }
       if (parsed.accommodation?.locationId) {
-        trackLocId(parsed.accommodation.locationId);
+        referencedLocIds.add(parsed.accommodation.locationId);
       }
     } catch {}
   }
 
-  // 2. Location relationships
-  for (const rel of relsList) {
-    const locId = rel.sourceType === "location" ? rel.sourceId : rel.targetId;
-    trackLocId(locId);
-  }
-
-  if (locIdOrder.length === 0) {
-    return { orderedLocations: [], missingCoords: [] };
-  }
-
-  const locRows = await db.select().from(locations).where(inArray(locations.id, locIdOrder));
+  const locRows =
+    referencedLocIds.size > 0
+      ? await db.select().from(locations).where(inArray(locations.id, Array.from(referencedLocIds)))
+      : [];
   const locMap = new Map(locRows.map((l) => [l.id, l]));
 
-  const orderedLocations: TripLocationCoordinate[] = [];
-  const missingCoords: TripLocationCoordinate[] = [];
+  // 2. Build chronological itinerary route stops
+  type RawStop = {
+    id: string;
+    name: string;
+    slug: string;
+    city?: string | null;
+    state?: string | null;
+    country?: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    dayNumber?: number | null;
+    stopType?: TripLocationCoordinate["stopType"];
+    isAssociatedLocation?: boolean;
+    locationId?: string;
+  };
 
-  let orderIndex = 1;
-  for (const locId of locIdOrder) {
+  const rawStops: RawStop[] = [];
+  const missingCoords: TripLocationCoordinate[] = [];
+  const missingSeen = new Set<string>();
+
+  const trackMissing = (item: TripLocationCoordinate) => {
+    if (!missingSeen.has(item.id)) {
+      missingSeen.add(item.id);
+      missingCoords.push(item);
+    }
+  };
+
+  for (const d of daysList) {
+    const parsed = parseTripDay(d);
+
+    // Primary location
+    if (d.primaryLocationId || d.primaryLocationName) {
+      const loc = d.primaryLocationId ? locMap.get(d.primaryLocationId) : undefined;
+      const lat = d.primaryLocationLat ?? loc?.latitude ?? null;
+      const lng = d.primaryLocationLng ?? loc?.longitude ?? null;
+      const name = d.primaryLocationName || loc?.name || `Day ${d.dayNumber}`;
+      const id = loc?.id || `day_primary_${d.id}`;
+      const isAssoc = !!(loc?.id && associatedLocIds.has(loc.id));
+
+      if (lat !== null && lng !== null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+        rawStops.push({
+          id,
+          name,
+          slug: loc?.slug || "",
+          city: loc?.city,
+          state: loc?.state,
+          country: loc?.country,
+          latitude: lat,
+          longitude: lng,
+          dayNumber: d.dayNumber,
+          stopType: "primary",
+          isAssociatedLocation: isAssoc,
+          locationId: loc?.id,
+        });
+      } else if (loc) {
+        trackMissing({
+          id: loc.id,
+          name: loc.name,
+          slug: loc.slug,
+          city: loc.city,
+          state: loc.state,
+          country: loc.country,
+          latitude: null,
+          longitude: null,
+          order: 0,
+        });
+      }
+    }
+
+    // Transport legs
+    for (const leg of parsed.transport) {
+      // From leg
+      if (leg.fromLocationId || leg.fromName || leg.fromLat != null) {
+        const fromLoc = leg.fromLocationId ? locMap.get(leg.fromLocationId) : undefined;
+        const lat = leg.fromLat ?? fromLoc?.latitude ?? null;
+        const lng = leg.fromLng ?? fromLoc?.longitude ?? null;
+        const name = leg.fromName || fromLoc?.name || "Departure";
+        const id = fromLoc?.id || `leg_from_${leg.id}`;
+        const isAssoc = !!(fromLoc?.id && associatedLocIds.has(fromLoc.id));
+
+        if (lat !== null && lng !== null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+          rawStops.push({
+            id,
+            name,
+            slug: fromLoc?.slug || "",
+            city: fromLoc?.city,
+            state: fromLoc?.state,
+            country: fromLoc?.country,
+            latitude: lat,
+            longitude: lng,
+            dayNumber: d.dayNumber,
+            stopType: "transport_from",
+            isAssociatedLocation: isAssoc,
+            locationId: fromLoc?.id,
+          });
+        } else if (fromLoc) {
+          trackMissing({
+            id: fromLoc.id,
+            name: fromLoc.name,
+            slug: fromLoc.slug,
+            city: fromLoc.city,
+            state: fromLoc.state,
+            country: fromLoc.country,
+            latitude: null,
+            longitude: null,
+            order: 0,
+          });
+        }
+      }
+
+      // To leg
+      if (leg.toLocationId || leg.toName || leg.toLat != null) {
+        const toLoc = leg.toLocationId ? locMap.get(leg.toLocationId) : undefined;
+        const lat = leg.toLat ?? toLoc?.latitude ?? null;
+        const lng = leg.toLng ?? toLoc?.longitude ?? null;
+        const name = leg.toName || toLoc?.name || "Arrival";
+        const id = toLoc?.id || `leg_to_${leg.id}`;
+        const isAssoc = !!(toLoc?.id && associatedLocIds.has(toLoc.id));
+
+        if (lat !== null && lng !== null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+          rawStops.push({
+            id,
+            name,
+            slug: toLoc?.slug || "",
+            city: toLoc?.city,
+            state: toLoc?.state,
+            country: toLoc?.country,
+            latitude: lat,
+            longitude: lng,
+            dayNumber: d.dayNumber,
+            stopType: "transport_to",
+            isAssociatedLocation: isAssoc,
+            locationId: toLoc?.id,
+          });
+        } else if (toLoc) {
+          trackMissing({
+            id: toLoc.id,
+            name: toLoc.name,
+            slug: toLoc.slug,
+            city: toLoc.city,
+            state: toLoc.state,
+            country: toLoc.country,
+            latitude: null,
+            longitude: null,
+            order: 0,
+          });
+        }
+      }
+    }
+
+    // Activities
+    for (const act of parsed.activities) {
+      if (act.locationId || act.locationName || act.lat != null) {
+        const actLoc = act.locationId ? locMap.get(act.locationId) : undefined;
+        const lat = act.lat ?? actLoc?.latitude ?? null;
+        const lng = act.lng ?? actLoc?.longitude ?? null;
+        const name = act.title || act.locationName || actLoc?.name || "Activity";
+        const id = actLoc?.id || `act_${act.id}`;
+        const isAssoc = !!(actLoc?.id && associatedLocIds.has(actLoc.id));
+
+        if (lat !== null && lng !== null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+          rawStops.push({
+            id,
+            name,
+            slug: actLoc?.slug || "",
+            city: actLoc?.city,
+            state: actLoc?.state,
+            country: actLoc?.country,
+            latitude: lat,
+            longitude: lng,
+            dayNumber: d.dayNumber,
+            stopType: "activity",
+            isAssociatedLocation: isAssoc,
+            locationId: actLoc?.id,
+          });
+        } else if (actLoc) {
+          trackMissing({
+            id: actLoc.id,
+            name: actLoc.name,
+            slug: actLoc.slug,
+            city: actLoc.city,
+            state: actLoc.state,
+            country: actLoc.country,
+            latitude: null,
+            longitude: null,
+            order: 0,
+          });
+        }
+      }
+    }
+
+    // Meals
+    for (const meal of parsed.meals) {
+      if (meal.placeLocationId || meal.place || meal.lat != null) {
+        const mealLoc = meal.placeLocationId ? locMap.get(meal.placeLocationId) : undefined;
+        const lat = meal.lat ?? mealLoc?.latitude ?? null;
+        const lng = meal.lng ?? mealLoc?.longitude ?? null;
+        const name = meal.place || mealLoc?.name || "Meal";
+        const id = mealLoc?.id || `meal_${meal.id}`;
+        const isAssoc = !!(mealLoc?.id && associatedLocIds.has(mealLoc.id));
+
+        if (lat !== null && lng !== null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+          rawStops.push({
+            id,
+            name,
+            slug: mealLoc?.slug || "",
+            city: mealLoc?.city,
+            state: mealLoc?.state,
+            country: mealLoc?.country,
+            latitude: lat,
+            longitude: lng,
+            dayNumber: d.dayNumber,
+            stopType: "meal",
+            isAssociatedLocation: isAssoc,
+            locationId: mealLoc?.id,
+          });
+        } else if (mealLoc) {
+          trackMissing({
+            id: mealLoc.id,
+            name: mealLoc.name,
+            slug: mealLoc.slug,
+            city: mealLoc.city,
+            state: mealLoc.state,
+            country: mealLoc.country,
+            latitude: null,
+            longitude: null,
+            order: 0,
+          });
+        }
+      }
+    }
+
+    // Accommodation
+    if (parsed.accommodation) {
+      const acc = parsed.accommodation;
+      if (acc.locationId || acc.name || acc.locationName || acc.lat != null) {
+        const accLoc = acc.locationId ? locMap.get(acc.locationId) : undefined;
+        const lat = acc.lat ?? accLoc?.latitude ?? null;
+        const lng = acc.lng ?? accLoc?.longitude ?? null;
+        const name = acc.name || acc.locationName || accLoc?.name || "Stay";
+        const id = accLoc?.id || `acc_${d.id}`;
+        const isAssoc = !!(accLoc?.id && associatedLocIds.has(accLoc.id));
+
+        if (lat !== null && lng !== null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+          rawStops.push({
+            id,
+            name,
+            slug: accLoc?.slug || "",
+            city: accLoc?.city,
+            state: accLoc?.state,
+            country: accLoc?.country,
+            latitude: lat,
+            longitude: lng,
+            dayNumber: d.dayNumber,
+            stopType: "accommodation",
+            isAssociatedLocation: isAssoc,
+            locationId: accLoc?.id,
+          });
+        } else if (accLoc) {
+          trackMissing({
+            id: accLoc.id,
+            name: accLoc.name,
+            slug: accLoc.slug,
+            city: accLoc.city,
+            state: accLoc.state,
+            country: accLoc.country,
+            latitude: null,
+            longitude: null,
+            order: 0,
+          });
+        }
+      }
+    }
+  }
+
+  // Deduplicate consecutive identical stops to avoid redundant zero-distance hops
+  const collapsedStops: RawStop[] = [];
+  for (const s of rawStops) {
+    const prev = collapsedStops[collapsedStops.length - 1];
+    if (
+      prev &&
+      ((prev.locationId && s.locationId && prev.locationId === s.locationId) ||
+        (prev.latitude === s.latitude && prev.longitude === s.longitude))
+    ) {
+      if (s.isAssociatedLocation) prev.isAssociatedLocation = true;
+      continue;
+    }
+    collapsedStops.push(s);
+  }
+
+  // 3. Build routeStops with sequential order
+  const routeStops: TripLocationCoordinate[] = collapsedStops.map((s, idx) => ({
+    id: s.id,
+    name: s.name,
+    slug: s.slug,
+    city: s.city,
+    state: s.state,
+    country: s.country,
+    latitude: s.latitude,
+    longitude: s.longitude,
+    order: idx + 1,
+    isPrimary: idx === 0,
+    dayNumber: s.dayNumber,
+    stopType: s.stopType,
+    isAssociatedLocation: s.isAssociatedLocation,
+  }));
+
+  // 4. Build associated locations
+  const associatedLocations: TripLocationCoordinate[] = [];
+  const routeLocationIds = new Set(routeStops.map((r) => r.id));
+
+  let assocOrder = routeStops.length + 1;
+  for (const locId of associatedLocIds) {
     const loc = locMap.get(locId);
     if (!loc) continue;
-
-    const item: TripLocationCoordinate = {
-      id: loc.id,
-      name: loc.name,
-      slug: loc.slug,
-      city: loc.city,
-      state: loc.state,
-      country: loc.country,
-      latitude: loc.latitude,
-      longitude: loc.longitude,
-      order: orderIndex,
-      isPrimary: orderIndex === 1,
-    };
 
     if (
       loc.latitude !== null &&
@@ -861,14 +1157,52 @@ export async function getTripMapLocationsAction(
       !Number.isNaN(loc.latitude) &&
       !Number.isNaN(loc.longitude)
     ) {
-      orderedLocations.push(item);
+      const existingInRoute = routeStops.find((r) => r.id === loc.id);
+      if (existingInRoute) {
+        existingInRoute.isAssociatedLocation = true;
+        associatedLocations.push(existingInRoute);
+      } else {
+        const item: TripLocationCoordinate = {
+          id: loc.id,
+          name: loc.name,
+          slug: loc.slug,
+          city: loc.city,
+          state: loc.state,
+          country: loc.country,
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+          order: assocOrder++,
+          isPrimary: false,
+          stopType: "associated",
+          isAssociatedLocation: true,
+        };
+        associatedLocations.push(item);
+      }
     } else {
-      missingCoords.push(item);
+      trackMissing({
+        id: loc.id,
+        name: loc.name,
+        slug: loc.slug,
+        city: loc.city,
+        state: loc.state,
+        country: loc.country,
+        latitude: null,
+        longitude: null,
+        order: 0,
+      });
     }
-    orderIndex += 1;
   }
 
-  return { orderedLocations, missingCoords };
+  // Any associated locations not already in routeStops are included in orderedLocations for map display
+  const extraAssocStops = associatedLocations.filter((a) => !routeLocationIds.has(a.id));
+  const orderedLocations: TripLocationCoordinate[] = [...routeStops, ...extraAssocStops];
+
+  // Renumber missing coords orders
+  missingCoords.forEach((m, i) => {
+    m.order = i + 1;
+  });
+
+  return { orderedLocations, routeStops, associatedLocations, missingCoords };
 }
 
 /**

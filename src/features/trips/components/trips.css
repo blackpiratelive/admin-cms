@@ -871,6 +871,19 @@
   background: #ff771a;
 }
 
+.trip-mapbox-pin.associated {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  border-color: #fef3c7;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.7), 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.trip-mapbox-pin.associated:hover,
+.trip-mapbox-pin.associated.selected {
+  transform: scale(1.15);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.95), 0 4px 12px rgba(0, 0, 0, 0.7);
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+}
+
 .trip-mapbox-pin-label {
   margin-top: 4px;
   background: rgba(18, 18, 18, 0.88);

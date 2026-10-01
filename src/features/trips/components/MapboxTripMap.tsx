@@ -122,7 +122,10 @@ export function MapboxTripMap({
     if (validLocations.length === 0) return;
 
     // 1. Add / update Route Line GeoJSON Layer
-    const lineCoordinates = validLocations.map((l) => [l.longitude!, l.latitude!]);
+    // Connect chronological itinerary route stops (excluding standalone associated pins)
+    const itineraryStops = validLocations.filter((l) => l.stopType !== "associated");
+    const linePoints = itineraryStops.length >= 2 ? itineraryStops : validLocations;
+    const lineCoordinates = linePoints.map((l) => [l.longitude!, l.latitude!]);
 
     const routeGeoJson = {
       type: "Feature",
@@ -182,24 +185,40 @@ export function MapboxTripMap({
       const lngLat: [number, number] = [loc.longitude!, loc.latitude!];
       bounds.extend(lngLat);
 
+      const isAssoc = !!loc.isAssociatedLocation;
+      const pinContent = isAssoc && loc.stopType === "associated" ? "★" : String(loc.order);
+
       // Create custom DOM element for pin marker
       const el = document.createElement("div");
       el.className = "trip-mapbox-marker";
       el.innerHTML = `
-        <div class="trip-mapbox-pin ${selectedPin?.id === loc.id ? "selected" : ""}">
-          <span>${loc.order}</span>
+        <div class="trip-mapbox-pin ${selectedPin?.id === loc.id ? "selected" : ""} ${isAssoc ? "associated" : ""}">
+          <span>${pinContent}</span>
         </div>
-        <div class="trip-mapbox-pin-label">${loc.name}</div>
+        <div class="trip-mapbox-pin-label ${isAssoc ? "associated" : ""}">${loc.name}</div>
       `;
 
       // Popup
       const fullLoc = [loc.city, loc.state, loc.country].filter(Boolean).join(", ");
+      const badgeHtml = isAssoc
+        ? `<div class="popup-associated-badge" style="display: inline-block; font-size: 10px; font-weight: 700; color: #f59e0b; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); padding: 2px 6px; border-radius: 4px; margin-bottom: 6px;">⭐ Associated Trip Location</div>`
+        : "";
+      const orderLabel = loc.dayNumber
+        ? `Day ${loc.dayNumber} Stop`
+        : loc.stopType === "associated"
+        ? "Associated Location"
+        : `Stop ${loc.order}`;
+      const linkHtml = loc.slug
+        ? `<a href="/locations/${loc.slug}" class="popup-link">View Location Hub →</a>`
+        : `<span class="popup-sub" style="display: block; margin-top: 6px; font-style: italic; font-size: 11px;">Itinerary Stop</span>`;
+
       const popupHtml = `
         <div class="trip-mapbox-popup">
-          <div class="popup-order">Stop ${loc.order}</div>
+          ${badgeHtml}
+          <div class="popup-order">${orderLabel}</div>
           <div class="popup-title">${loc.name}</div>
           ${fullLoc ? `<div class="popup-sub">${fullLoc}</div>` : ""}
-          <a href="/locations/${loc.slug}" class="popup-link">View Location Hub →</a>
+          ${linkHtml}
         </div>
       `;
 

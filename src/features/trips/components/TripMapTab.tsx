@@ -15,6 +15,8 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
   const [loading, setLoading] = useState(true);
   const [orderedLocations, setOrderedLocations] = useState<TripLocationCoordinate[]>([]);
   const [missingCoords, setMissingCoords] = useState<TripLocationCoordinate[]>([]);
+  const [routeStops, setRouteStops] = useState<TripLocationCoordinate[]>([]);
+  const [associatedLocations, setAssociatedLocations] = useState<TripLocationCoordinate[]>([]);
   const [selectedPin, setSelectedPin] = useState<TripLocationCoordinate | null>(null);
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
   const [mapboxFailed, setMapboxFailed] = useState(false);
@@ -29,6 +31,8 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
         ]);
         if (isMounted) {
           setOrderedLocations(res.orderedLocations);
+          setRouteStops(res.routeStops || res.orderedLocations);
+          setAssociatedLocations(res.associatedLocations || []);
           setMissingCoords(res.missingCoords);
           setMapboxToken(token);
           if (res.orderedLocations.length > 0) {
@@ -96,8 +100,10 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
     pt: projectToSvg(loc.latitude!, loc.longitude!),
   }));
 
-  // Build SVG path for the route
-  const pathD = projectedPoints
+  // Build SVG path specifically for the itinerary route
+  const routePoints = projectedPoints.filter((p) => p.stopType !== "associated");
+  const linePoints = routePoints.length >= 2 ? routePoints : projectedPoints;
+  const pathD = linePoints
     .map((p, i) => `${i === 0 ? "M" : "L"} ${p.pt.x} ${p.pt.y}`)
     .join(" ");
 
@@ -171,7 +177,7 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
                 <line x1="540" y1="0" x2="540" y2={svgHeight} stroke="rgba(255,255,255,0.03)" strokeDasharray="4 6" />
 
                 {/* Route line */}
-                {projectedPoints.length > 1 && (
+                {linePoints.length > 1 && (
                   <>
                     {/* Route shadow/glow */}
                     <path
@@ -198,6 +204,7 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
                 {/* Pins */}
                 {projectedPoints.map((p, idx) => {
                   const isSelected = selectedPin?.id === p.id;
+                  const isAssoc = !!p.isAssociatedLocation;
                   return (
                     <g
                       key={p.id}
@@ -209,7 +216,7 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
                         cx={p.pt.x}
                         cy={p.pt.y}
                         r={isSelected ? 14 : 10}
-                        fill="rgba(255, 102, 0, 0.2)"
+                        fill={isAssoc ? "rgba(245, 158, 11, 0.25)" : "rgba(255, 102, 0, 0.2)"}
                         filter="url(#glow)"
                       />
                       {/* Inner pin circle */}
@@ -217,8 +224,8 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
                         cx={p.pt.x}
                         cy={p.pt.y}
                         r={isSelected ? 8 : 6}
-                        fill="var(--accent, #ff6600)"
-                        stroke="#ffffff"
+                        fill={isAssoc ? "#f59e0b" : "var(--accent, #ff6600)"}
+                        stroke={isAssoc ? "#fef3c7" : "#ffffff"}
                         strokeWidth="1.5"
                       />
                       {/* Order Number Badge */}
@@ -226,12 +233,12 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
                         x={p.pt.x}
                         y={p.pt.y - 12}
                         textAnchor="middle"
-                        fill="#ffffff"
+                        fill={isAssoc ? "#fef3c7" : "#ffffff"}
                         fontSize="10"
                         fontWeight="bold"
                         style={{ textShadow: "0 1px 3px rgba(0,0,0,0.9)" }}
                       >
-                        {idx + 1}
+                        {isAssoc && p.stopType === "associated" ? "★" : p.order}
                       </text>
                     </g>
                   );
@@ -241,6 +248,7 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
               {/* HTML Overlay Pin Labels */}
               {projectedPoints.map((p) => {
                 const isSelected = selectedPin?.id === p.id;
+                const isAssoc = !!p.isAssociatedLocation;
                 const pctX = (p.pt.x / svgWidth) * 100;
                 const pctY = (p.pt.y / svgHeight) * 100;
 
@@ -251,10 +259,22 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
                     style={{
                       left: `${pctX}%`,
                       top: `${pctY}%`,
-                      borderColor: isSelected ? "var(--accent, #ff6600)" : "#3a3a3a",
-                      boxShadow: isSelected ? "0 0 12px rgba(255, 102, 0, 0.35)" : "none",
+                      borderColor: isSelected
+                        ? isAssoc
+                          ? "#f59e0b"
+                          : "var(--accent, #ff6600)"
+                        : isAssoc
+                        ? "rgba(245, 158, 11, 0.4)"
+                        : "#3a3a3a",
+                      color: isAssoc ? "#fef3c7" : "#eeeeee",
+                      boxShadow: isSelected
+                        ? isAssoc
+                          ? "0 0 14px rgba(245, 158, 11, 0.5)"
+                          : "0 0 12px rgba(255, 102, 0, 0.35)"
+                        : "none",
                     }}
                   >
+                    {isAssoc && <span style={{ marginRight: "3px" }}>★</span>}
                     {p.name}
                   </div>
                 );
@@ -267,7 +287,7 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
           <MapPin size={32} style={{ color: "var(--accent, #ff6600)", margin: "0 auto 12px" }} />
           <strong className="trip-empty-title">No Map Coordinates Available</strong>
           <p className="trip-empty-desc">
-            The locations connected to this trip do not have latitude and longitude recorded yet. Edit the location entities to add coordinates and view the interactive travel route.
+            The locations connected to this trip do not have latitude and longitude recorded yet. Edit the itinerary days or location entities to add coordinates and view the travel route.
           </p>
         </div>
       )}
@@ -277,7 +297,9 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
         <div
           style={{
             backgroundColor: "var(--bg-card, #1c1c1c)",
-            border: "1px solid var(--border-color, #343434)",
+            border: `1px solid ${
+              selectedPin.isAssociatedLocation ? "rgba(245, 158, 11, 0.5)" : "var(--border-color, #343434)"
+            }`,
             borderRadius: "10px",
             padding: "14px 18px",
             display: "flex",
@@ -293,21 +315,56 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
                 width: "28px",
                 height: "28px",
                 borderRadius: "50%",
-                backgroundColor: "var(--accent, #ff6600)",
+                backgroundColor: selectedPin.isAssociatedLocation ? "#f59e0b" : "var(--accent, #ff6600)",
                 color: "#ffffff",
                 display: "grid",
                 placeItems: "center",
                 fontWeight: "bold",
                 fontSize: "12px",
+                boxShadow: selectedPin.isAssociatedLocation
+                  ? "0 0 12px rgba(245, 158, 11, 0.6)"
+                  : "none",
               }}
             >
-              {selectedPin.order}
+              {selectedPin.isAssociatedLocation && selectedPin.stopType === "associated" ? "★" : selectedPin.order}
             </div>
             <div>
-              <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--text-primary, #fff)" }}>
-                {selectedPin.name}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--text-primary, #fff)" }}>
+                  {selectedPin.name}
+                </span>
+                {selectedPin.isAssociatedLocation && (
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      color: "#f59e0b",
+                      backgroundColor: "rgba(245, 158, 11, 0.15)",
+                      border: "1px solid rgba(245, 158, 11, 0.35)",
+                      padding: "1px 6px",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    ⭐ Associated Location
+                  </span>
+                )}
+                {selectedPin.dayNumber && (
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      fontWeight: 600,
+                      color: "var(--accent, #ff6600)",
+                      backgroundColor: "rgba(255, 102, 0, 0.1)",
+                      border: "1px solid rgba(255, 102, 0, 0.25)",
+                      padding: "1px 6px",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    Day {selectedPin.dayNumber}
+                  </span>
+                )}
               </div>
-              <div style={{ fontSize: "12px", color: "var(--text-muted, #888)" }}>
+              <div style={{ fontSize: "12px", color: "var(--text-muted, #888)", marginTop: "2px" }}>
                 {[selectedPin.city, selectedPin.state, selectedPin.country].filter(Boolean).join(", ")}
                 {selectedPin.latitude && selectedPin.longitude && (
                   <span style={{ marginLeft: "8px", fontFamily: "var(--font-mono, monospace)", fontSize: "11px" }}>
@@ -318,35 +375,58 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
             </div>
           </div>
 
-          <Link
-            href={`/locations/${selectedPin.slug}`}
-            className="trip-ghost-btn"
-            style={{ fontSize: "12px", padding: "6px 12px" }}
-          >
-            <span>View Location Hub</span>
-            <ExternalLink size={13} />
-          </Link>
+          {selectedPin.slug ? (
+            <Link
+              href={`/locations/${selectedPin.slug}`}
+              className="trip-ghost-btn"
+              style={{ fontSize: "12px", padding: "6px 12px" }}
+            >
+              <span>View Location Hub</span>
+              <ExternalLink size={13} />
+            </Link>
+          ) : (
+            <span
+              style={{
+                fontSize: "11px",
+                color: "var(--text-muted, #777)",
+                backgroundColor: "rgba(255, 255, 255, 0.05)",
+                padding: "4px 8px",
+                borderRadius: "4px",
+              }}
+            >
+              Itinerary Stop
+            </span>
+          )}
         </div>
       )}
 
       {/* Ordered Route List */}
-      {orderedLocations.length > 0 && (
+      {routeStops.length > 0 && (
         <div>
           <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
             <Navigation size={15} style={{ color: "var(--accent, #ff6600)" }} />
-            <span>Itinerary Route Order ({orderedLocations.length} stops)</span>
+            <span>Itinerary Route Order ({routeStops.length} stops)</span>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "10px" }}>
-            {orderedLocations.map((loc) => {
+            {routeStops.map((loc) => {
               const isSelected = selectedPin?.id === loc.id;
+              const isAssoc = !!loc.isAssociatedLocation;
               return (
                 <div
                   key={loc.id}
                   onClick={() => setSelectedPin(loc)}
                   style={{
                     backgroundColor: "var(--bg-card, #1c1c1c)",
-                    border: `1px solid ${isSelected ? "var(--accent, #ff6600)" : "var(--border-color, #333)"}`,
+                    border: `1px solid ${
+                      isSelected
+                        ? isAssoc
+                          ? "#f59e0b"
+                          : "var(--accent, #ff6600)"
+                        : isAssoc
+                        ? "rgba(245, 158, 11, 0.3)"
+                        : "var(--border-color, #333)"
+                    }`,
                     borderRadius: "8px",
                     padding: "10px 12px",
                     cursor: "pointer",
@@ -361,8 +441,14 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
                       width: "22px",
                       height: "22px",
                       borderRadius: "50%",
-                      backgroundColor: isSelected ? "var(--accent, #ff6600)" : "#2c2c2c",
-                      color: "#fff",
+                      backgroundColor: isSelected
+                        ? isAssoc
+                          ? "#f59e0b"
+                          : "var(--accent, #ff6600)"
+                        : isAssoc
+                        ? "rgba(245, 158, 11, 0.25)"
+                        : "#2c2c2c",
+                      color: isAssoc ? "#fef3c7" : "#fff",
                       fontSize: "11px",
                       fontWeight: 700,
                       display: "grid",
@@ -373,13 +459,83 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
                     {loc.order}
                   </span>
                   <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: "4px" }}>
+                      {isAssoc && <span style={{ color: "#f59e0b", fontSize: "11px" }}>★</span>}
+                      <span>{loc.name}</span>
+                    </div>
+                    <div style={{ fontSize: "11px", color: "var(--text-muted, #777)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {loc.dayNumber ? `Day ${loc.dayNumber} • ` : ""}
+                      {[loc.city, loc.country].filter(Boolean).join(", ") || "Location"}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Associated Locations Section */}
+      {associatedLocations.length > 0 && (
+        <div>
+          <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
+            <span style={{ color: "#f59e0b" }}>⭐</span>
+            <span>Associated Trip Locations ({associatedLocations.length})</span>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "10px" }}>
+            {associatedLocations.map((loc) => {
+              const isSelected = selectedPin?.id === loc.id;
+              return (
+                <div
+                  key={`assoc-${loc.id}`}
+                  onClick={() => setSelectedPin(loc)}
+                  style={{
+                    backgroundColor: "var(--bg-card, #1c1c1c)",
+                    border: `1px solid ${isSelected ? "#f59e0b" : "rgba(245, 158, 11, 0.25)"}`,
+                    borderRadius: "8px",
+                    padding: "10px 12px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    transition: "border-color 0.15s ease",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: "22px",
+                      height: "22px",
+                      borderRadius: "50%",
+                      backgroundColor: isSelected ? "#f59e0b" : "rgba(245, 158, 11, 0.2)",
+                      color: isSelected ? "#000" : "#f59e0b",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      display: "grid",
+                      placeItems: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    ★
+                  </span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {loc.name}
                     </div>
                     <div style={{ fontSize: "11px", color: "var(--text-muted, #777)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {[loc.city, loc.country].filter(Boolean).join(", ") || "Location"}
+                      {[loc.city, loc.country].filter(Boolean).join(", ") || "Associated destination"}
                     </div>
                   </div>
+                  {loc.slug && (
+                    <Link
+                      href={`/locations/${loc.slug}`}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ color: "var(--text-muted, #777)", padding: "2px" }}
+                      title="Open location hub"
+                    >
+                      <ExternalLink size={13} />
+                    </Link>
+                  )}
                 </div>
               );
             })}

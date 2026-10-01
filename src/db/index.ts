@@ -380,6 +380,8 @@ export async function ensureDbInitialized(): Promise<void> {
           title TEXT,
           primary_location_id TEXT,
           primary_location_name TEXT,
+          primary_location_lat REAL,
+          primary_location_lng REAL,
           transport_json TEXT NOT NULL DEFAULT '[]',
           meals_json TEXT NOT NULL DEFAULT '[]',
           activities_json TEXT NOT NULL DEFAULT '[]',
@@ -899,6 +901,13 @@ export async function ensureDbInitialized(): Promise<void> {
       } catch (err) {}
       try {
         await client.execute(`ALTER TABLE persons ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;`);
+      } catch (err) {}
+
+      try {
+        await client.execute(`ALTER TABLE trip_days ADD COLUMN primary_location_lat REAL;`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE trip_days ADD COLUMN primary_location_lng REAL;`);
       } catch (err) {}
 
       // Comprehensive performance indexes covering all single-column & multi-column queries

@@ -144,6 +144,8 @@ export const tripDays = sqliteTable("trip_days", {
   title: text("title"),
   primaryLocationId: text("primary_location_id"),
   primaryLocationName: text("primary_location_name"),
+  primaryLocationLat: real("primary_location_lat"),
+  primaryLocationLng: real("primary_location_lng"),
   transportJson: text("transport_json").notNull().default("[]"),
   mealsJson: text("meals_json").notNull().default("[]"),
   activitiesJson: text("activities_json").notNull().default("[]"),

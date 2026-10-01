@@ -43,4 +43,14 @@ export interface TripLocationCoordinate {
   longitude: number | null;
   order: number;
   isPrimary?: boolean;
+  dayNumber?: number | null;
+  stopType?:
+    | "primary"
+    | "transport_from"
+    | "transport_to"
+    | "meal"
+    | "activity"
+    | "accommodation"
+    | "associated";
+  isAssociatedLocation?: boolean;
 }

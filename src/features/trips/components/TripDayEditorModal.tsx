@@ -70,6 +70,8 @@ export function TripDayEditorModal({
   const [date, setDate] = useState("");
   const [primaryLocationId, setPrimaryLocationId] = useState<string | undefined>(undefined);
   const [primaryLocationName, setPrimaryLocationName] = useState<string | undefined>(undefined);
+  const [primaryLocationLat, setPrimaryLocationLat] = useState<number | null>(null);
+  const [primaryLocationLng, setPrimaryLocationLng] = useState<number | null>(null);
   const [transport, setTransport] = useState<TransportLeg[]>([]);
   const [meals, setMeals] = useState<MealEntry[]>([]);
   const [activities, setActivities] = useState<ActivityEntry[]>([]);
@@ -94,6 +96,8 @@ export function TripDayEditorModal({
     setDate(day.date || "");
     setPrimaryLocationId(day.primaryLocationId || undefined);
     setPrimaryLocationName(day.primaryLocationName || undefined);
+    setPrimaryLocationLat(day.primaryLocationLat ?? null);
+    setPrimaryLocationLng(day.primaryLocationLng ?? null);
     setTransport(parsed.transport);
     setMeals(parsed.meals);
     setActivities(parsed.activities);
@@ -136,6 +140,8 @@ export function TripDayEditorModal({
           date: date || null,
           primaryLocationId: primaryLocationId || null,
           primaryLocationName: resolvedPrimaryName,
+          primaryLocationLat,
+          primaryLocationLng,
           transport,
           meals,
           activities,
@@ -231,10 +237,14 @@ export function TripDayEditorModal({
               recentIds={locationRecentIds}
               locationId={primaryLocationId}
               name={primaryLocationName}
+              latitude={primaryLocationLat}
+              longitude={primaryLocationLng}
               tripId={day.tripId}
               onChange={(next) => {
                 setPrimaryLocationId(next.locationId);
                 setPrimaryLocationName(next.name);
+                setPrimaryLocationLat(next.latitude ?? null);
+                setPrimaryLocationLng(next.longitude ?? null);
               }}
               onLocationCreated={handleLocationCreated}
               placeholder="e.g. Kolkata"
@@ -279,9 +289,18 @@ export function TripDayEditorModal({
                         recentIds={locationRecentIds}
                         locationId={leg.fromLocationId}
                         name={leg.fromName}
+                        latitude={leg.fromLat}
+                        longitude={leg.fromLng}
                         tripId={day.tripId}
                         placeholder="From"
-                        onChange={(next) => upd({ fromLocationId: next.locationId, fromName: next.name })}
+                        onChange={(next) =>
+                          upd({
+                            fromLocationId: next.locationId,
+                            fromName: next.name,
+                            fromLat: next.latitude,
+                            fromLng: next.longitude,
+                          })
+                        }
                         onLocationCreated={handleLocationCreated}
                       />
                     </div>
@@ -292,9 +311,18 @@ export function TripDayEditorModal({
                         recentIds={locationRecentIds}
                         locationId={leg.toLocationId}
                         name={leg.toName}
+                        latitude={leg.toLat}
+                        longitude={leg.toLng}
                         tripId={day.tripId}
                         placeholder="To"
-                        onChange={(next) => upd({ toLocationId: next.locationId, toName: next.name })}
+                        onChange={(next) =>
+                          upd({
+                            toLocationId: next.locationId,
+                            toName: next.name,
+                            toLat: next.latitude,
+                            toLng: next.longitude,
+                          })
+                        }
                         onLocationCreated={handleLocationCreated}
                       />
                     </div>
@@ -382,9 +410,18 @@ export function TripDayEditorModal({
                         recentIds={locationRecentIds}
                         locationId={meal.placeLocationId}
                         name={meal.place}
+                        latitude={meal.lat}
+                        longitude={meal.lng}
                         tripId={day.tripId}
                         placeholder="Restaurant / place"
-                        onChange={(next) => upd({ placeLocationId: next.locationId, place: next.name })}
+                        onChange={(next) =>
+                          upd({
+                            placeLocationId: next.locationId,
+                            place: next.name,
+                            lat: next.latitude,
+                            lng: next.longitude,
+                          })
+                        }
                         onLocationCreated={handleLocationCreated}
                       />
                     </div>
@@ -496,9 +533,18 @@ export function TripDayEditorModal({
                       recentIds={locationRecentIds}
                       locationId={act.locationId}
                       name={act.locationName}
+                      latitude={act.lat}
+                      longitude={act.lng}
                       tripId={day.tripId}
                       placeholder="Activity location (optional)"
-                      onChange={(next) => upd({ locationId: next.locationId, locationName: next.name })}
+                      onChange={(next) =>
+                        upd({
+                          locationId: next.locationId,
+                          locationName: next.name,
+                          lat: next.latitude,
+                          lng: next.longitude,
+                        })
+                      }
                       onLocationCreated={handleLocationCreated}
                     />
                   </div>
@@ -518,6 +564,8 @@ export function TripDayEditorModal({
                   recentIds={locationRecentIds}
                   locationId={accommodation.locationId}
                   name={accommodation.name || accommodation.locationName}
+                  latitude={accommodation.lat}
+                  longitude={accommodation.lng}
                   tripId={day.tripId}
                   placeholder="Hotel / stay location"
                   onChange={(next) =>
@@ -526,6 +574,8 @@ export function TripDayEditorModal({
                       locationId: next.locationId,
                       name: next.name,
                       locationName: next.name,
+                      lat: next.latitude,
+                      lng: next.longitude,
                     }))
                   }
                   onLocationCreated={handleLocationCreated}

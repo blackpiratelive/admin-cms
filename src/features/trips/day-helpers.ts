@@ -18,8 +18,12 @@ export interface TransportLeg {
   mode: TransportMode;
   fromLocationId?: string;
   fromName?: string;
+  fromLat?: number | null;
+  fromLng?: number | null;
   toLocationId?: string;
   toName?: string;
+  toLat?: number | null;
+  toLng?: number | null;
   departTime?: string;
   arriveTime?: string;
   cost?: number;
@@ -36,6 +40,8 @@ export interface MealEntry {
   type: MealType;
   place?: string;
   placeLocationId?: string;
+  lat?: number | null;
+  lng?: number | null;
   dishes?: string;
   cost?: number;
   currency?: string;
@@ -49,6 +55,8 @@ export interface ActivityEntry {
   time?: string;
   locationId?: string;
   locationName?: string;
+  lat?: number | null;
+  lng?: number | null;
   cost?: number;
   currency?: string;
   notes?: string;
@@ -58,6 +66,8 @@ export interface Accommodation {
   name?: string;
   locationId?: string;
   locationName?: string;
+  lat?: number | null;
+  lng?: number | null;
   cost?: number;
   currency?: string;
   notes?: string;
@@ -75,6 +85,8 @@ export interface TripDayUpdate {
   title?: string | null;
   primaryLocationId?: string | null;
   primaryLocationName?: string | null;
+  primaryLocationLat?: number | null;
+  primaryLocationLng?: number | null;
   transport?: TransportLeg[];
   meals?: MealEntry[];
   activities?: ActivityEntry[];
