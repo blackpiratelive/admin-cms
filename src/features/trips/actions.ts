@@ -10,7 +10,6 @@ import {
   microblogs,
   Microblog,
   gallery,
-  GalleryPhoto,
   movieMetadata,
   traktMovies,
   relationships,
@@ -35,6 +34,7 @@ import {
 } from "./trip-helpers";
 import { computeTripCostSummary, formatCostTotals, parseTripDay } from "./day-helpers";
 import type { TripOverviewItem, TripLocationCoordinate } from "./types";
+import type { BatchPhotoConnectItem } from "@/components/PhotoPickerModal";
 
 async function fetchTripsRaw(): Promise<TripRecord[]> {
   await ensureDbInitialized();
@@ -216,10 +216,24 @@ export async function deleteTrip(id: string): Promise<boolean> {
   return true;
 }
 
+export interface TripPhotoItem {
+  id: string;
+  title: string;
+  thumbnailUrl: string;
+  mediumUrl: string;
+  originalUrl?: string;
+  largeUrl?: string;
+  width?: number | null;
+  height?: number | null;
+  sourceType: "direct" | "attachment";
+  relationshipId?: string;
+  createdAt?: string;
+}
+
 export interface TripAssociatedEntities {
   associatedLocations: Array<{ relationshipId?: string; location: LocationRecord }>;
   microblogs: Microblog[];
-  photos: GalleryPhoto[];
+  photos: TripPhotoItem[];
   movies: any[];
   people: Array<{ relationshipId?: string; person: PersonRecord }>;
 }
@@ -238,16 +252,25 @@ async function fetchTripHubDataRaw(slug: string): Promise<TripHubData | null> {
   const tripId = trip.id;
 
   // Execute direct lookups & relationship queries in 1 parallel batch!
-  const [directMicroblogs, directPhotos, directMovieMeta, relRows] = await Promise.all([
+  const [directMicroblogs, directPhotos, directMovieMeta, directAttachments, relRows] = await Promise.all([
     db.select().from(microblogs).where(eq(microblogs.tripId, tripId)),
     db.select().from(gallery).where(eq(gallery.tripId, tripId)),
     db.select().from(movieMetadata).where(eq(movieMetadata.tripId, tripId)),
+    db.select().from(attachments).where(
+      and(
+        eq(attachments.entityType, "trip"),
+        eq(attachments.entityId, tripId),
+        eq(attachments.kind, "photo")
+      )
+    ),
     db.select().from(relationships).where(
       or(
         and(eq(relationships.sourceType, "trip"), eq(relationships.sourceId, tripId), eq(relationships.targetType, "location")),
         and(eq(relationships.sourceType, "location"), eq(relationships.targetType, "trip"), eq(relationships.targetId, tripId)),
         and(eq(relationships.sourceType, "person"), eq(relationships.targetType, "trip"), eq(relationships.targetId, tripId)),
-        and(eq(relationships.sourceType, "trip"), eq(relationships.sourceId, tripId), eq(relationships.targetType, "person"))
+        and(eq(relationships.sourceType, "trip"), eq(relationships.sourceId, tripId), eq(relationships.targetType, "person")),
+        and(eq(relationships.sourceType, "trip"), eq(relationships.sourceId, tripId), eq(relationships.targetType, "gallery")),
+        and(eq(relationships.sourceType, "gallery"), eq(relationships.targetType, "trip"), eq(relationships.targetId, tripId))
       )
     ),
   ]);
@@ -259,8 +282,10 @@ async function fetchTripHubDataRaw(slug: string): Promise<TripHubData | null> {
 
   const locRelMap = new Map<string, string>();
   const personRelMap = new Map<string, string>();
+  const galleryRelMap = new Map<string, string>();
   const locIds: string[] = [];
   const personIds: string[] = [];
+  const galleryRelIds: string[] = [];
 
   for (const rel of relRows) {
     const isSourceTrip = rel.sourceType === "trip" && rel.sourceId === tripId;
@@ -273,23 +298,85 @@ async function fetchTripHubDataRaw(slug: string): Promise<TripHubData | null> {
     } else if (otherType === "person") {
       personIds.push(otherId);
       personRelMap.set(otherId, rel.id);
+    } else if (otherType === "gallery") {
+      galleryRelIds.push(otherId);
+      galleryRelMap.set(otherId, rel.id);
     }
   }
 
-  const [locsRes, peopleRes] = await Promise.all([
+  const [locsRes, peopleRes, relGalleryRes] = await Promise.all([
     locIds.length > 0 ? db.select().from(locations).where(inArray(locations.id, locIds)) : Promise.resolve([]),
     personIds.length > 0 ? db.select().from(persons).where(inArray(persons.id, personIds)) : Promise.resolve([]),
+    galleryRelIds.length > 0 ? db.select().from(gallery).where(inArray(gallery.id, galleryRelIds)) : Promise.resolve([]),
   ]);
 
   const associatedLocations = locsRes.map((l) => ({ relationshipId: locRelMap.get(l.id), location: l }));
   const associatedPeople = peopleRes.map((p) => ({ relationshipId: personRelMap.get(p.id), person: p }));
+
+  // Build a unified, de-duplicated photo list: direct gallery photos (gallery.tripId),
+  // gallery photos linked via the relationship engine, and Cloudinary/uploaded attachments.
+  const photoMap = new Map<string, TripPhotoItem>();
+
+  for (const p of directPhotos) {
+    photoMap.set(`gallery_${p.id}`, {
+      id: p.id,
+      title: p.title,
+      thumbnailUrl: p.thumbnailUrl || p.mediumUrl || p.originalUrl,
+      mediumUrl: p.mediumUrl || p.originalUrl,
+      largeUrl: p.largeUrl,
+      originalUrl: p.originalUrl,
+      width: p.width,
+      height: p.height,
+      sourceType: "direct",
+      createdAt: p.createdAt,
+    });
+  }
+
+  for (const p of relGalleryRes) {
+    const key = `gallery_${p.id}`;
+    if (!photoMap.has(key)) {
+      photoMap.set(key, {
+        id: p.id,
+        title: p.title,
+        thumbnailUrl: p.thumbnailUrl || p.mediumUrl || p.originalUrl,
+        mediumUrl: p.mediumUrl || p.originalUrl,
+        largeUrl: p.largeUrl,
+        originalUrl: p.originalUrl,
+        width: p.width,
+        height: p.height,
+        sourceType: "direct",
+        relationshipId: galleryRelMap.get(p.id),
+        createdAt: p.createdAt,
+      });
+    }
+  }
+
+  for (const att of directAttachments) {
+    let meta: any = {};
+    try {
+      meta = JSON.parse(att.metadataJson || "{}");
+    } catch {}
+    photoMap.set(`att_${att.id}`, {
+      id: att.id,
+      title: meta.title || "Photo",
+      thumbnailUrl: att.url,
+      mediumUrl: att.url,
+      largeUrl: att.url,
+      originalUrl: att.url,
+      width: att.width,
+      height: att.height,
+      sourceType: "attachment",
+      relationshipId: att.id,
+      createdAt: att.createdAt,
+    });
+  }
 
   return {
     trip,
     entities: {
       associatedLocations,
       microblogs: directMicroblogs,
-      photos: directPhotos,
+      photos: Array.from(photoMap.values()),
       movies: moviesWithMeta,
       people: associatedPeople,
     },
@@ -342,6 +429,120 @@ export async function connectTripToLocation(
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message || "Failed to associate location with trip" };
+  }
+}
+
+export async function connectTripPhotosBatchAction(
+  tripId: string,
+  photos: BatchPhotoConnectItem[],
+  relationship: string = "taken_at"
+): Promise<{ success: boolean; error?: string; count?: number }> {
+  try {
+    await ensureDbInitialized();
+    const now = new Date().toISOString();
+
+    for (const photo of photos) {
+      if (photo.type === "gallery" && photo.id) {
+        // Link via relationship table
+        await addRelationship("trip", tripId, "gallery", photo.id, relationship);
+
+        // Also update gallery.tripId if currently null
+        const gal = await db
+          .select({ tripId: gallery.tripId })
+          .from(gallery)
+          .where(eq(gallery.id, photo.id))
+          .limit(1);
+        if (gal[0] && !gal[0].tripId) {
+          await db.update(gallery).set({ tripId }).where(eq(gallery.id, photo.id));
+        }
+      } else if (photo.type === "cloudinary" && photo.url) {
+        const id = `att_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        await db.insert(attachments).values({
+          id,
+          entityType: "trip",
+          entityId: tripId,
+          kind: "photo",
+          url: photo.url,
+          width: photo.width || null,
+          height: photo.height || null,
+          metadataJson: JSON.stringify({
+            title: photo.title || photo.publicId || "Photo",
+            publicId: photo.publicId,
+            provider: "cloudinary",
+          }),
+          createdAt: now,
+        });
+      }
+    }
+
+    purgeTag("trips-list");
+    purgeTag(`trip-${tripId}`);
+
+    const tr = await db.select().from(trips).where(eq(trips.id, tripId)).limit(1);
+    if (tr[0]) {
+      purgeTag(`trip-${tr[0].slug}`);
+      try {
+        revalidatePath(`/trips/${tr[0].slug}`);
+      } catch {}
+    }
+
+    return { success: true, count: photos.length };
+  } catch (err: any) {
+    console.error("Error connecting photos to trip in batch:", err);
+    return { success: false, error: err.message || "Failed to connect photos" };
+  }
+}
+
+export async function removeTripPhotoConnectionAction(
+  connectionId: string,
+  tripId: string,
+  tripSlug?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await ensureDbInitialized();
+
+    if (connectionId.startsWith("att_")) {
+      await db.delete(attachments).where(eq(attachments.id, connectionId));
+    } else if (connectionId.startsWith("rel_")) {
+      await removeRelationship(connectionId);
+    } else {
+      // Direct gallery photo ID
+      const gal = await db.select().from(gallery).where(eq(gallery.id, connectionId)).limit(1);
+      if (gal[0] && gal[0].tripId === tripId) {
+        await db.update(gallery).set({ tripId: null }).where(eq(gallery.id, connectionId));
+      }
+      // Also delete any relationship linking this photo to the trip
+      await db.delete(relationships).where(
+        or(
+          and(
+            eq(relationships.sourceType, "trip"),
+            eq(relationships.sourceId, tripId),
+            eq(relationships.targetType, "gallery"),
+            eq(relationships.targetId, connectionId)
+          ),
+          and(
+            eq(relationships.sourceType, "gallery"),
+            eq(relationships.sourceId, connectionId),
+            eq(relationships.targetType, "trip"),
+            eq(relationships.targetId, tripId)
+          )
+        )
+      );
+    }
+
+    purgeTag("trips-list");
+    purgeTag(`trip-${tripId}`);
+    if (tripSlug) {
+      purgeTag(`trip-${tripSlug}`);
+      try {
+        revalidatePath(`/trips/${tripSlug}`);
+      } catch {}
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error disconnecting photo from trip:", err);
+    return { success: false, error: err.message || "Failed to disconnect photo" };
   }
 }
 

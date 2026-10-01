@@ -3,12 +3,14 @@
 import React, { useState, useEffect, useCallback, useMemo, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { TripRecord, LocationRecord, Microblog, GalleryPhoto, PersonRecord } from "@/db/schema";
+import { TripRecord, LocationRecord, Microblog, PersonRecord } from "@/db/schema";
 import {
   getTripHubDataAction,
   deleteTrip,
   connectTripToLocation,
   toggleTripFavoriteAction,
+  connectTripPhotosBatchAction,
+  removeTripPhotoConnectionAction,
   TripAssociatedEntities,
   TripHubData,
 } from "@/features/trips/actions";
@@ -19,6 +21,7 @@ import { TripMapTab } from "@/features/trips/components/TripMapTab";
 import { TripStatusBadge } from "@/features/trips/components/TripStatusBadge";
 import { DeleteTripDialog } from "@/features/trips/components/DeleteTripDialog";
 import { EntityCombobox } from "@/components/EntityCombobox";
+import { PhotoPickerModal } from "@/components/PhotoPickerModal";
 import { getLocationPickerData } from "@/features/pickers/actions";
 import type { LocationPickerOption } from "@/features/pickers/types";
 import {
@@ -67,6 +70,7 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedLocToConnect, setSelectedLocToConnect] = useState("");
   const [connectingLoc, setConnectingLoc] = useState(false);
+  const [isPhotoPickerOpen, setIsPhotoPickerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<DetailTab>("itinerary");
 
   const loadTripData = useCallback(async () => {
@@ -159,6 +163,20 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
       await removeLocationTripConnection(relId, undefined, trip.slug);
       loadTripData();
     }
+  };
+
+  const handleRemovePhoto = async (photoIdOrRelId: string) => {
+    if (!trip) return;
+    if (!confirm("Remove this photo from the trip?")) return;
+
+    notify.bg({
+      title: "Remove Photo",
+      loadingMessage: "Removing photo from trip...",
+      successMessage: "Photo removed from trip.",
+      errorMessage: (err) => `Failed to remove photo: ${err?.message || String(err)}`,
+      task: () => removeTripPhotoConnectionAction(photoIdOrRelId, trip.id, trip.slug),
+      onSuccess: () => loadTripData(),
+    });
   };
 
   const handleDeleteConfirm = async () => {
@@ -668,11 +686,44 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
 
       {/* TAB 3: PHOTOS */}
       {activeTab === "photos" && (
-        <div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {/* Photos Header Action Bar */}
+          <div
+            style={{
+              backgroundColor: "var(--bg-card, #1c1c1c)",
+              border: "1px solid var(--border-color, #333)",
+              borderRadius: "10px",
+              padding: "14px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "10px",
+            }}
+          >
+            <div>
+              <span style={{ fontSize: "14px", fontWeight: 600 }}>Trip Media & Photos</span>
+              <span style={{ fontSize: "12px", color: "var(--text-muted, #888)", marginLeft: "8px" }}>
+                ({entities?.photos.length || 0} total)
+              </span>
+            </div>
+            <button
+              type="button"
+              className="trip-primary-btn"
+              onClick={() => setIsPhotoPickerOpen(true)}
+              style={{ fontSize: "13px", padding: "8px 14px" }}
+            >
+              <Plus size={14} />
+              <span>Add Photos</span>
+            </button>
+          </div>
+
           {entities?.photos.length === 0 ? (
             <div className="trip-empty-box" style={{ padding: "30px" }}>
               <strong className="trip-empty-title">No photos recorded</strong>
-              <p className="trip-empty-desc">No gallery photos or media have been linked to this trip yet.</p>
+              <p className="trip-empty-desc">
+                Click &quot;Add Photos&quot; above to choose from your gallery, pick from Cloudinary, or upload new files.
+              </p>
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px" }}>
@@ -680,6 +731,7 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
                 <div
                   key={photo.id}
                   style={{
+                    position: "relative",
                     borderRadius: "8px",
                     overflow: "hidden",
                     border: "1px solid var(--border-color, #333)",
@@ -692,6 +744,29 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
                     style={{ width: "100%", aspectRatio: "4/3", objectFit: "cover" }}
                     loading="lazy"
                   />
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePhoto(photo.relationshipId || photo.id)}
+                    title="Remove photo from trip"
+                    aria-label={`Remove ${photo.title}`}
+                    style={{
+                      position: "absolute",
+                      top: "6px",
+                      right: "6px",
+                      width: "26px",
+                      height: "26px",
+                      borderRadius: "50%",
+                      border: "none",
+                      backgroundColor: "rgba(0,0,0,0.6)",
+                      color: "#fff",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <X size={14} />
+                  </button>
                   <div style={{ padding: "8px 10px", fontSize: "12px", fontWeight: 600 }}>{photo.title}</div>
                 </div>
               ))}
@@ -849,6 +924,20 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
         onConfirm={handleDeleteConfirm}
         onCancel={() => setIsDeleteDialogOpen(false)}
         isDeleting={isDeleting}
+      />
+
+      {/* 3-Tab Photo Picker Modal */}
+      <PhotoPickerModal
+        isOpen={isPhotoPickerOpen}
+        onClose={() => setIsPhotoPickerOpen(false)}
+        entityName={trip.title}
+        entityType="trip"
+        entityId={trip.id}
+        defaultVerb="taken_at"
+        title={`Add Photos to ${trip.title}`}
+        subtitle="Choose existing gallery photos, pick from Cloudinary, or upload new files"
+        onConnectPhotos={(photos, verb) => connectTripPhotosBatchAction(trip.id, photos, verb)}
+        onSuccess={loadTripData}
       />
     </div>
   );

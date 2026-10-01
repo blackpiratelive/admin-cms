@@ -85,7 +85,7 @@ admin-cms/
 │   │   ├── event-bus.ts         # Internal event pub-sub bus
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
-├── tests/                       # Vitest unit test suite (117 unit tests across 20 test files)
+├── tests/                       # Vitest unit test suite (122 unit tests across 22 test files)
 ├── freshrss.md                  # FreshRSS Sync Provider feature specification
 ├── android-journal.md           # Native Android Journal Application specification
 ├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
@@ -352,6 +352,17 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 ---
 
 ## 8. Standalone Apps & Release Signing Changelog
+
+### October 2026: Trip Entity — Shared 3-Tab Photo Picker Integration
+- **Trip Photos Tab Add/Remove Workflow (`/trips/[slug]`)**:
+  - Added the shared `PhotoPickerModal` (`src/components/PhotoPickerModal.tsx`) to the Trip detail Photos tab via an `+ Add Photos` header action bar, mirroring the People and Location modules. The same 3-tab popup is reused: **Gallery (Cloudflare R2)**, **Choose from Cloudinary**, and **Upload to Cloudinary** (with local client-side compression).
+  - Each photo card now carries a hover-free `X` remove button that detaches the photo from the trip with non-blocking `notify.bg` toast feedback.
+- **Unified Trip Photo Model (`TripPhotoItem`)**: `TripAssociatedEntities.photos` upgraded from `GalleryPhoto[]` to a unified `TripPhotoItem[]` projection. `fetchTripHubDataRaw` now combines, de-duplicated: direct gallery photos (`gallery.tripId`), gallery photos linked via the Relationship Engine (`trip`↔`gallery`), and Cloudinary/uploaded `attachments` (`entityType: "trip"`, `kind: "photo"`), all fetched in the existing single parallel batch.
+- **New Server Actions (`src/features/trips/actions.ts`)**:
+  - `connectTripPhotosBatchAction(tripId, photos, relationship = "taken_at")`: links gallery photos via `addRelationship("trip", tripId, "gallery", id, verb)` (backfilling `gallery.tripId` when null) and inserts Cloudinary assets into `attachments`. Purges `trips-list`/`trip-${id}`/`trip-${slug}` and revalidates `/trips/${slug}`.
+  - `removeTripPhotoConnectionAction(connectionId, tripId, tripSlug?)`: removes attachments (`att_` prefix), relationships (`rel_` prefix), or direct gallery linkages by ID, with the same targeted cache purging.
+- **Unit Test Coverage (`tests/trips-media.test.ts`)**: Verifies batch connection of gallery + Cloudinary photos, correct `sourceType`/`relationshipId` projection in trip hub data, and clean disconnection.
+- **Quality Gates**: All 122 Vitest unit tests pass across 22 test suites (100%), `npx tsc --noEmit` reports 0 errors, Next.js production build (`npm run build`) compiles cleanly, and `android/` legacy client remained 100% clean and untouched.
 
 ### October 2026: Trips Hub & Detail Redesign with Interactive Mapbox GL Route Visualization
 - **Comprehensive Trips Redesign (`/trips` & `/trips/[slug]`)**:
