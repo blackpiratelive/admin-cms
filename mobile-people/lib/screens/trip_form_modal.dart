@@ -7,6 +7,7 @@ import '../core/network/sync_service.dart';
 import '../core/storage/local_store.dart';
 import '../core/theme/cupertino_theme.dart';
 import '../widgets/picker_sheet.dart';
+import '../widgets/form_kit.dart';
 import '../widgets/trip_status_badge.dart';
 
 class TripFormModal extends StatefulWidget {
@@ -382,163 +383,139 @@ class _TripFormModalState extends State<TripFormModal> {
       ),
       child: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.only(bottom: 40),
+          padding: const EdgeInsets.only(top: 4, bottom: 44),
           children: [
             if (_errorMessage != null)
               Container(
-                margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: CupertinoColors.systemRed.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(_errorMessage!,
                     style: const TextStyle(color: CupertinoColors.systemRed, fontSize: 13),
                     textAlign: TextAlign.center),
               ),
 
-            // __FORM_SECTIONS__
-            CupertinoListSection.insetGrouped(
-              header: const Text('TRIP'),
-              children: [
-                CupertinoTextFormFieldRow(
-                  controller: _titleController,
-                  prefix: const Text('Title', style: TextStyle(fontSize: 15)),
-                  placeholder: 'Required',
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Description', style: TextStyle(fontSize: 13, color: secondaryColor)),
-                      const SizedBox(height: 8),
-                      CupertinoTextField(
-                        controller: _descriptionController,
-                        placeholder: 'What was this trip about?',
-                        maxLines: 4,
-                        minLines: 2,
-                        padding: const EdgeInsets.all(12),
-                        style: TextStyle(fontSize: 14, color: labelColor),
-                        decoration: BoxDecoration(
-                          color: AppCupertinoTheme.subtleFill.resolveFrom(context),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            // TRIP
+            formSectionLabel(context, 'Trip'),
+            formCard(context, children: [
+              formInlineField(context,
+                  label: 'Title',
+                  field: formInput(context, _titleController, placeholder: 'Required')),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Text('DESCRIPTION',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5, color: secondaryColor)),
+              ),
+              formTextArea(context, _descriptionController, placeholder: 'What was this trip about?'),
+            ]),
 
-            CupertinoListSection.insetGrouped(
-              header: const Text('DATES'),
-              children: [
-                CupertinoListTile(
-                  title: const Text('Start date', style: TextStyle(fontSize: 15)),
-                  trailing: CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () => _pickDate(isStart: true),
-                    child: Text(_formatDisplayDate(_startDate),
-                        style: TextStyle(fontSize: 15, color: secondaryColor)),
-                  ),
-                ),
-                CupertinoListTile(
-                  title: const Text('End date', style: TextStyle(fontSize: 15)),
-                  trailing: CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () => _pickDate(isStart: false),
-                    child: Text(_formatDisplayDate(_endDate),
-                        style: TextStyle(fontSize: 15, color: secondaryColor)),
-                  ),
-                ),
-              ],
-            ),
+            // DATES
+            formSectionLabel(context, 'Dates'),
+            formCard(context, children: [
+              formTapRow(context,
+                  label: 'Start date',
+                  value: _formatDisplayDate(_startDate),
+                  muted: _startDate == null,
+                  onTap: () => _pickDate(isStart: true)),
+              formTapRow(context,
+                  label: 'End date',
+                  value: _formatDisplayDate(_endDate),
+                  muted: _endDate == null,
+                  onTap: () => _pickDate(isStart: false)),
+            ]),
 
-            CupertinoListSection.insetGrouped(
-              header: const Text('STATUS'),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                  child: OptionChipGrid(
-                    selected: _status,
-                    onSelect: (v) => setState(() => _status = v),
-                    options: statusPresets.map((s) {
-                      final style = TripStatusBadge.styleFor(s);
-                      return OptionChipData(s, style.label, icon: style.icon);
-                    }).toList(),
-                  ),
+            // STATUS
+            formSectionLabel(context, 'Status'),
+            formCard(context, children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                child: OptionChipGrid(
+                  selected: _status,
+                  onSelect: (v) => setState(() => _status = v),
+                  options: statusPresets.map((s) {
+                    final style = TripStatusBadge.styleFor(s);
+                    return OptionChipData(s, style.label, icon: style.icon);
+                  }).toList(),
                 ),
-                CupertinoListTile(
-                  leading: Icon(CupertinoIcons.star_fill,
-                      size: 20, color: _favorite ? AppCupertinoTheme.favoriteGold : CupertinoColors.systemGrey3),
-                  title: const Text('Favorite', style: TextStyle(fontSize: 15)),
-                  trailing: CupertinoSwitch(
-                    value: _favorite,
-                    activeTrackColor: AppCupertinoTheme.favoriteGold,
-                    onChanged: (val) => setState(() => _favorite = val),
-                  ),
-                ),
-              ],
-            ),
-
-            CupertinoListSection.insetGrouped(
-              header: const Text('VISIBILITY'),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: CupertinoSlidingSegmentedControl<String>(
-                      groupValue: _visibility,
-                      onValueChanged: (val) {
-                        if (val != null) setState(() => _visibility = val);
-                      },
-                      children: const {
-                        'private': Padding(padding: EdgeInsets.symmetric(vertical: 6), child: Text('Private', style: TextStyle(fontSize: 13))),
-                        'unlisted': Padding(padding: EdgeInsets.symmetric(vertical: 6), child: Text('Unlisted', style: TextStyle(fontSize: 13))),
-                        'public': Padding(padding: EdgeInsets.symmetric(vertical: 6), child: Text('Public', style: TextStyle(fontSize: 13))),
-                      },
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(CupertinoIcons.star_fill,
+                        size: 18, color: _favorite ? AppCupertinoTheme.favoriteGold : CupertinoColors.systemGrey3),
+                    const SizedBox(width: 10),
+                    Text('Favorite', style: TextStyle(fontSize: 15, color: labelColor)),
+                    const Spacer(),
+                    CupertinoSwitch(
+                      value: _favorite,
+                      activeTrackColor: AppCupertinoTheme.favoriteGold,
+                      onChanged: (val) => setState(() => _favorite = val),
                     ),
+                  ],
+                ),
+              ),
+            ]),
+
+            // VISIBILITY
+            formSectionLabel(context, 'Visibility'),
+            formCard(context, children: [
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: CupertinoSlidingSegmentedControl<String>(
+                    groupValue: _visibility,
+                    onValueChanged: (val) {
+                      if (val != null) setState(() => _visibility = val);
+                    },
+                    children: const {
+                      'private': Padding(padding: EdgeInsets.symmetric(vertical: 7), child: Text('Private', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+                      'unlisted': Padding(padding: EdgeInsets.symmetric(vertical: 7), child: Text('Unlisted', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+                      'public': Padding(padding: EdgeInsets.symmetric(vertical: 7), child: Text('Public', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+                    },
                   ),
                 ),
-              ],
-            ),
+              ),
+            ]),
 
-            CupertinoListSection.insetGrouped(
-              header: const Text('TAGS'),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: _buildChipRow(),
-                ),
-              ],
-            ),
+            // TAGS
+            formSectionLabel(context, 'Tags'),
+            formCard(context, children: [
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: _buildChipRow(),
+              ),
+            ]),
 
-            CupertinoListSection.insetGrouped(
-              header: const Text('ADVANCED'),
-              children: [
-                CupertinoTextFormFieldRow(
-                  controller: _slugController,
-                  prefix: const Text('URL slug', style: TextStyle(fontSize: 15)),
-                  placeholder: 'summer-trip',
-                  onChanged: (_) => _isAutoSlug = false,
-                ),
-              ],
-            ),
+            // ADVANCED
+            formSectionLabel(context, 'Advanced'),
+            formCard(context, children: [
+              formInlineField(context,
+                  label: 'URL slug',
+                  field: formInput(context, _slugController,
+                      placeholder: 'summer-trip', onChanged: (_) => _isAutoSlug = false)),
+            ]),
 
-            if (widget.tripToEdit != null)
-              CupertinoListSection.insetGrouped(
-                children: [
-                  CupertinoListTile(
-                    title: const Center(
+            if (widget.tripToEdit != null) ...[
+              const SizedBox(height: 20),
+              formCard(context, children: [
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _confirmDelete,
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 15),
+                    child: Center(
                       child: Text('Delete Trip',
                           style: TextStyle(color: CupertinoColors.systemRed, fontWeight: FontWeight.w600, fontSize: 16)),
                     ),
-                    onTap: _confirmDelete,
                   ),
-                ],
-              ),
+                ),
+              ]),
+            ],
           ],
         ),
       ),

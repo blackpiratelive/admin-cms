@@ -314,13 +314,13 @@ git status android/ # Must remain completely clean!
 
 ## 9. Recent Updates & Architectural Changelog
 
-### Version 1.8.1 — Premium Pickers (Chip Selectors & Styled Date Sheet) (October 2026)
+### Version 1.8.1 — Premium Form Redesign (Form Kit, Chip Selectors & Styled Date Sheet) (October 2026)
 
-1. **Shared picker widgets (`lib/widgets/picker_sheet.dart`)**: Added `OptionChipGrid` (animated, icon-aware selectable pills) and `showPremiumDateSheet` (a carded bottom sheet with a grabber handle, centered title, and Clear/Done controls) to replace bare `CupertinoPicker` wheels and flat date sheets.
-2. **Travel mode & meal type**: The transport-leg and meal sub-editors (`trip_day_entry_editors.dart`) now present modes (🚶🚆✈️🚗 …) and meal types (breakfast/lunch/dinner/snack/drinks) as inline icon chips instead of a grey scroll wheel.
-3. **Trip status**: `trip_form_modal.dart` renders status as icon chips (Planned/Ongoing/Completed/Cancelled, reusing `TripStatusBadge.styleFor`) rather than a wheel.
-4. **Date selection**: Trip start/end dates and itinerary day dates now use `showPremiumDateSheet`.
-5. **Quality Gates**: `flutter analyze` 0 issues; 52/52 tests pass. People module pickers (relationship wheel, important-date sheet) left unchanged to preserve existing tested behavior. `android/` untouched.
+1. **Shared form kit (`lib/widgets/form_kit.dart`)**: Replaced the stock `CupertinoListSection` chrome (oversized headers, flat grey inputs) across the trip form and day editor with a cohesive, production-grade system — refined uppercase section labels, soft rounded cards with hairline dividers and a subtle shadow, inline label+field rows, clean transparent inputs, carded text areas, and tappable value rows.
+2. **Shared picker widgets (`lib/widgets/picker_sheet.dart`)**: `OptionChipGrid` (animated, icon-aware selectable pills) and `showPremiumDateSheet` (a carded bottom sheet with a grabber handle, centered title, Clear/Done) replace bare `CupertinoPicker` wheels and flat date sheets.
+3. **`TripFormModal`**: Rebuilt with form-kit cards — Title/Description, Dates (tap rows), Status (icon chips reusing `TripStatusBadge.styleFor`) + Favorite, Visibility (segmented), Tags (chips), Advanced (slug), and a carded destructive Delete.
+4. **`TripDayEditorModal`**: Rebuilt with form-kit cards and premium entry rows — each transport/meal/activity row now shows a tinted icon tile, title + subtitle, a cost pill, and a subtle delete; mood uses animated accent circles; sub-editors (`trip_day_entry_editors.dart`) use icon chip grids for travel mode and meal type; date uses the premium sheet.
+5. **Quality Gates**: `flutter analyze` 0 issues; 54/54 tests pass (incl. render smoke tests asserting the redesigned editors mount without exceptions/overflow). People module forms left unchanged to preserve existing tested behavior. `android/` untouched.
 
 ### Version 1.8.0 — Trips Follow-ups: Itinerary Day Editing, Photo Management, Connections & Movies (October 2026)
 

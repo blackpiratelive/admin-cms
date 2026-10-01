@@ -7,6 +7,7 @@ import '../core/network/api_service.dart';
 import '../core/services/image_cache_manager.dart';
 import '../core/theme/cupertino_theme.dart';
 import '../widgets/picker_sheet.dart';
+import '../widgets/form_kit.dart';
 import 'photo_picker_modal.dart';
 import 'trip_day_entry_editors.dart';
 
@@ -185,51 +186,111 @@ class _TripDayEditorModalState extends State<TripDayEditorModal> {
     );
   }
 
-  Widget _sectionHeader(String title, VoidCallback onAdd) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(title),
-        CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: onAdd,
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(CupertinoIcons.plus_circle_fill, size: 15, color: AppCupertinoTheme.brandAccent),
-              SizedBox(width: 4),
-              Text('Add', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppCupertinoTheme.brandAccent)),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _entryRow(String label, String? trailing, VoidCallback onEdit, VoidCallback onDelete) {
-    return CupertinoListTile(
-      title: Text(label, style: const TextStyle(fontSize: 15)),
-      subtitle: trailing != null && trailing.isNotEmpty
-          ? Text(trailing, style: TextStyle(fontSize: 12.5, color: AppCupertinoTheme.secondary(context)))
-          : null,
-      onTap: onEdit,
-      trailing: CupertinoButton(
-        padding: const EdgeInsets.all(4),
-        minimumSize: Size.zero,
-        onPressed: onDelete,
-        child: const Icon(CupertinoIcons.trash, size: 18, color: CupertinoColors.systemRed),
+  Widget _addButton(VoidCallback onAdd) {
+    return CupertinoButton(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      minimumSize: Size.zero,
+      onPressed: onAdd,
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(CupertinoIcons.add, size: 15, color: AppCupertinoTheme.brandAccent),
+          SizedBox(width: 3),
+          Text('Add', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppCupertinoTheme.brandAccent)),
+        ],
       ),
     );
   }
 
-  Widget _emptyRow(String text) => CupertinoListTile(
-        title: Text(text, style: TextStyle(fontSize: 14, color: AppCupertinoTheme.secondary(context))),
+  static const Map<String, IconData> _modeIcons = {
+    'walk': CupertinoIcons.person,
+    'bike': CupertinoIcons.cube_box,
+    'bus': CupertinoIcons.bus,
+    'train': CupertinoIcons.tram_fill,
+    'flight': CupertinoIcons.airplane,
+    'car': CupertinoIcons.car_detailed,
+    'taxi': CupertinoIcons.car,
+    'boat': CupertinoIcons.drop,
+    'other': CupertinoIcons.arrow_right,
+  };
+
+  Widget _premiumEntryRow({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    String? cost,
+    required VoidCallback onEdit,
+    required VoidCallback onDelete,
+  }) {
+    final labelColor = AppCupertinoTheme.label(context);
+    final secondary = AppCupertinoTheme.secondary(context);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onEdit,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppCupertinoTheme.brandAccent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 17, color: AppCupertinoTheme.brandAccent),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: labelColor)),
+                  if (subtitle != null && subtitle.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12.5, color: secondary)),
+                    ),
+                ],
+              ),
+            ),
+            if (cost != null && cost.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppCupertinoTheme.subtleFill.resolveFrom(context),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(cost, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: labelColor)),
+              ),
+            ],
+            CupertinoButton(
+              padding: const EdgeInsets.only(left: 8),
+              minimumSize: Size.zero,
+              onPressed: onDelete,
+              child: Icon(CupertinoIcons.delete, size: 17, color: CupertinoColors.systemGrey.resolveFrom(context)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyText(String text) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        child: Text(text, style: TextStyle(fontSize: 14, color: AppCupertinoTheme.tertiary(context))),
       );
 
   @override
   Widget build(BuildContext context) {
-    final secondary = AppCupertinoTheme.secondary(context);
-
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground,
       navigationBar: CupertinoNavigationBar(
@@ -249,69 +310,76 @@ class _TripDayEditorModalState extends State<TripDayEditorModal> {
       ),
       child: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.only(bottom: 40),
+          padding: const EdgeInsets.only(top: 4, bottom: 44),
           children: [
-            CupertinoListSection.insetGrouped(
-              header: const Text('OVERVIEW'),
-              children: [
-                CupertinoListTile(
-                  title: const Text('Date', style: TextStyle(fontSize: 15)),
-                  trailing: CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: _pickDate,
-                    child: Text(_date ?? 'Not set', style: TextStyle(fontSize: 15, color: secondary)),
-                  ),
-                ),
-                CupertinoTextFormFieldRow(controller: _titleController, prefix: const Text('Title'), placeholder: 'Day title'),
-                CupertinoTextFormFieldRow(controller: _placeController, prefix: const Text('Place'), placeholder: 'Primary location'),
-                CupertinoTextFormFieldRow(controller: _weatherController, prefix: const Text('Weather'), placeholder: 'e.g. Sunny'),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  child: Row(
-                    children: [
-                      Text('Mood', style: TextStyle(fontSize: 15, color: AppCupertinoTheme.label(context))),
-                      const Spacer(),
-                      ...List.generate(5, (i) {
-                        final value = i + 1;
-                        final selected = _mood == value;
-                        return GestureDetector(
-                          onTap: () => setState(() => _mood = selected ? null : value),
-                          child: Container(
-                            margin: const EdgeInsets.only(left: 6),
-                            width: 30,
-                            height: 30,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: selected ? AppCupertinoTheme.brandAccent : AppCupertinoTheme.subtleFill.resolveFrom(context),
-                            ),
-                            child: Text('$value',
-                                style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: selected ? CupertinoColors.white : AppCupertinoTheme.label(context))),
+            formSectionLabel(context, 'Overview'),
+            formCard(context, children: [
+              formTapRow(context,
+                  label: 'Date',
+                  value: _date ?? 'Not set',
+                  muted: _date == null,
+                  onTap: _pickDate),
+              formInlineField(context,
+                  label: 'Title', field: formInput(context, _titleController, placeholder: 'Day title')),
+              formInlineField(context,
+                  label: 'Place', field: formInput(context, _placeController, placeholder: 'Primary location')),
+              formInlineField(context,
+                  label: 'Weather', field: formInput(context, _weatherController, placeholder: 'e.g. Sunny')),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Text('Mood', style: TextStyle(fontSize: 15, color: AppCupertinoTheme.label(context))),
+                    const Spacer(),
+                    ...List.generate(5, (i) {
+                      final value = i + 1;
+                      final selected = _mood == value;
+                      return GestureDetector(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() => _mood = selected ? null : value);
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 140),
+                          margin: const EdgeInsets.only(left: 7),
+                          width: 32,
+                          height: 32,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: selected ? AppCupertinoTheme.brandAccent : AppCupertinoTheme.subtleFill.resolveFrom(context),
+                            boxShadow: selected
+                                ? [BoxShadow(color: AppCupertinoTheme.brandAccent.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 2))]
+                                : null,
                           ),
-                        );
-                      }),
-                    ],
-                  ),
+                          child: Text('$value',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: selected ? CupertinoColors.white : AppCupertinoTheme.label(context))),
+                        ),
+                      );
+                    }),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ]),
 
             // Transport
-            CupertinoListSection.insetGrouped(
-              header: _sectionHeader('TRANSPORT', () async {
-                final leg = await editTransportLeg(context, TransportLeg(id: genId('leg')));
-                if (leg != null) setState(() => _transport.add(leg));
-              }),
-              children: _transport.isEmpty
-                  ? [_emptyRow('No transport legs')]
-                  : _transport.map((leg) {
-                      return _entryRow(
-                        leg.routeLabel.isNotEmpty ? '${leg.mode}: ${leg.routeLabel}' : leg.mode,
-                        formatCostTotals(leg.cost != null ? {(leg.currency ?? '').trim(): leg.cost!} : {}),
-                        () async {
+            formSectionLabel(context, 'Transport', trailing: _addButton(() async {
+              final leg = await editTransportLeg(context, TransportLeg(id: genId('leg')));
+              if (leg != null) setState(() => _transport.add(leg));
+            })),
+            formCard(context, children: _transport.isEmpty
+                ? [_emptyText('No transport legs')]
+                : [
+                    for (final leg in _transport)
+                      _premiumEntryRow(
+                        icon: _modeIcons[leg.mode] ?? CupertinoIcons.arrow_right,
+                        title: leg.routeLabel.isNotEmpty ? leg.routeLabel : leg.mode,
+                        subtitle: leg.mode[0].toUpperCase() + leg.mode.substring(1),
+                        cost: formatCostTotals(leg.cost != null ? {(leg.currency ?? '').trim(): leg.cost!} : {}),
+                        onEdit: () async {
                           final updated = await editTransportLeg(context, leg);
                           if (updated != null) {
                             setState(() {
@@ -320,25 +388,30 @@ class _TripDayEditorModalState extends State<TripDayEditorModal> {
                             });
                           }
                         },
-                        () => setState(() => _transport.removeWhere((l) => l.id == leg.id)),
-                      );
-                    }).toList(),
-            ),
+                        onDelete: () => setState(() => _transport.removeWhere((l) => l.id == leg.id)),
+                      ),
+                  ]),
 
             // Food
-            CupertinoListSection.insetGrouped(
-              header: _sectionHeader('FOOD', () async {
-                final meal = await editMeal(context, MealEntry(id: genId('meal')));
-                if (meal != null) setState(() => _meals.add(meal));
-              }),
-              children: _meals.isEmpty
-                  ? [_emptyRow('No meals')]
-                  : _meals.map((meal) {
-                      final label = [meal.type, if (meal.place != null && meal.place!.isNotEmpty) meal.place].join(' · ');
-                      return _entryRow(
-                        label,
-                        formatCostTotals(meal.cost != null ? {(meal.currency ?? '').trim(): meal.cost!} : {}),
-                        () async {
+            formSectionLabel(context, 'Food', trailing: _addButton(() async {
+              final meal = await editMeal(context, MealEntry(id: genId('meal')));
+              if (meal != null) setState(() => _meals.add(meal));
+            })),
+            formCard(context, children: _meals.isEmpty
+                ? [_emptyText('No meals')]
+                : [
+                    for (final meal in _meals)
+                      _premiumEntryRow(
+                        icon: CupertinoIcons.square_favorites_alt,
+                        title: meal.place != null && meal.place!.isNotEmpty
+                            ? meal.place!
+                            : (meal.type[0].toUpperCase() + meal.type.substring(1)),
+                        subtitle: [
+                          meal.type[0].toUpperCase() + meal.type.substring(1),
+                          if (meal.dishes != null && meal.dishes!.isNotEmpty) meal.dishes!,
+                        ].join(' · '),
+                        cost: formatCostTotals(meal.cost != null ? {(meal.currency ?? '').trim(): meal.cost!} : {}),
+                        onEdit: () async {
                           final updated = await editMeal(context, meal);
                           if (updated != null) {
                             setState(() {
@@ -347,24 +420,28 @@ class _TripDayEditorModalState extends State<TripDayEditorModal> {
                             });
                           }
                         },
-                        () => setState(() => _meals.removeWhere((m) => m.id == meal.id)),
-                      );
-                    }).toList(),
-            ),
+                        onDelete: () => setState(() => _meals.removeWhere((m) => m.id == meal.id)),
+                      ),
+                  ]),
 
             // Activities
-            CupertinoListSection.insetGrouped(
-              header: _sectionHeader('ACTIVITIES', () async {
-                final act = await editActivity(context, ActivityEntry(id: genId('act')));
-                if (act != null && act.title.isNotEmpty) setState(() => _activities.add(act));
-              }),
-              children: _activities.isEmpty
-                  ? [_emptyRow('No activities')]
-                  : _activities.map((act) {
-                      return _entryRow(
-                        act.title.isNotEmpty ? act.title : 'Activity',
-                        formatCostTotals(act.cost != null ? {(act.currency ?? '').trim(): act.cost!} : {}),
-                        () async {
+            formSectionLabel(context, 'Activities', trailing: _addButton(() async {
+              final act = await editActivity(context, ActivityEntry(id: genId('act')));
+              if (act != null && act.title.isNotEmpty) setState(() => _activities.add(act));
+            })),
+            formCard(context, children: _activities.isEmpty
+                ? [_emptyText('No activities')]
+                : [
+                    for (final act in _activities)
+                      _premiumEntryRow(
+                        icon: CupertinoIcons.star,
+                        title: act.title.isNotEmpty ? act.title : 'Activity',
+                        subtitle: [
+                          if (act.time != null && act.time!.isNotEmpty) act.time!,
+                          if (act.locationName != null && act.locationName!.isNotEmpty) act.locationName!,
+                        ].join(' · '),
+                        cost: formatCostTotals(act.cost != null ? {(act.currency ?? '').trim(): act.cost!} : {}),
+                        onEdit: () async {
                           final updated = await editActivity(context, act);
                           if (updated != null) {
                             setState(() {
@@ -373,90 +450,79 @@ class _TripDayEditorModalState extends State<TripDayEditorModal> {
                             });
                           }
                         },
-                        () => setState(() => _activities.removeWhere((a) => a.id == act.id)),
-                      );
-                    }).toList(),
-            ),
+                        onDelete: () => setState(() => _activities.removeWhere((a) => a.id == act.id)),
+                      ),
+                  ]),
 
             // Stay
-            CupertinoListSection.insetGrouped(
-              header: const Text('STAY'),
-              children: [
-                CupertinoTextFormFieldRow(controller: _stayNameController, prefix: const Text('Hotel'), placeholder: 'Accommodation name'),
-                CupertinoTextFormFieldRow(controller: _stayCostController, prefix: const Text('Cost'), placeholder: '0', keyboardType: const TextInputType.numberWithOptions(decimal: true)),
-                CupertinoTextFormFieldRow(controller: _stayCurrencyController, prefix: const Text('Currency'), placeholder: '₹ / \$ / €'),
-              ],
-            ),
+            formSectionLabel(context, 'Stay'),
+            formCard(context, children: [
+              formInlineField(context, label: 'Hotel', field: formInput(context, _stayNameController, placeholder: 'Accommodation name')),
+              formInlineField(context,
+                  label: 'Cost',
+                  field: formInput(context, _stayCostController, placeholder: '0', keyboardType: const TextInputType.numberWithOptions(decimal: true))),
+              formInlineField(context, label: 'Currency', field: formInput(context, _stayCurrencyController, placeholder: '₹ / \$ / €')),
+            ]),
 
             // Notes
-            CupertinoListSection.insetGrouped(
-              header: const Text('NOTES'),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: CupertinoTextField(
-                    controller: _notesController,
-                    placeholder: 'Markdown notes for the day...',
-                    maxLines: 5,
-                    minLines: 3,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppCupertinoTheme.subtleFill.resolveFrom(context),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            formSectionLabel(context, 'Notes'),
+            formCard(context, children: [
+              formTextArea(context, _notesController, placeholder: 'Markdown notes for the day...', minLines: 3, maxLines: 6),
+            ]),
 
             // Photos
-            CupertinoListSection.insetGrouped(
-              header: _sectionHeader('PHOTOS', _addPhotos),
-              children: [
-                if (_photos.isEmpty)
-                  _emptyRow('No photos')
-                else
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _photos.map((p) {
-                        return Stack(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: CachedNetworkImage(
-                                cacheManager: PeopleImageCacheManager.instance,
-                                imageUrl: p.url,
-                                width: 76,
-                                height: 76,
-                                fit: BoxFit.cover,
-                                errorWidget: (_, _, _) => Container(
-                                  width: 76,
-                                  height: 76,
-                                  color: AppCupertinoTheme.subtleFill.resolveFrom(context),
-                                  child: const Icon(CupertinoIcons.photo, color: CupertinoColors.systemGrey),
+            formSectionLabel(context, 'Photos', trailing: _addButton(_addPhotos)),
+            formCard(context, children: [
+              if (_photos.isEmpty)
+                _emptyText('No photos')
+              else
+                Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _photos.map((p) {
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: CachedNetworkImage(
+                              cacheManager: PeopleImageCacheManager.instance,
+                              imageUrl: p.url,
+                              width: 78,
+                              height: 78,
+                              fit: BoxFit.cover,
+                              errorWidget: (_, _, _) => Container(
+                                width: 78,
+                                height: 78,
+                                color: AppCupertinoTheme.subtleFill.resolveFrom(context),
+                                child: const Icon(CupertinoIcons.photo, color: CupertinoColors.systemGrey),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: -7,
+                            right: -7,
+                            child: GestureDetector(
+                              onTap: () => setState(() => _photos.remove(p)),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: CupertinoColors.systemRed,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: AppCupertinoTheme.cardBackground.resolveFrom(context), width: 2),
                                 ),
+                                padding: const EdgeInsets.all(2),
+                                child: const Icon(CupertinoIcons.xmark, size: 12, color: CupertinoColors.white),
                               ),
                             ),
-                            Positioned(
-                              top: -6,
-                              right: -6,
-                              child: CupertinoButton(
-                                padding: const EdgeInsets.all(4),
-                                minimumSize: Size.zero,
-                                onPressed: () => setState(() => _photos.remove(p)),
-                                child: const Icon(CupertinoIcons.minus_circle_fill, size: 20, color: CupertinoColors.systemRed),
-                              ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
-                    ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
                   ),
-              ],
-            ),
+                ),
+            ]),
           ],
         ),
       ),

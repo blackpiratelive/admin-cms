@@ -25,6 +25,8 @@ import 'package:mobile_people/core/models/trip_record.dart';
 import 'package:mobile_people/core/models/trip_day.dart';
 import 'package:mobile_people/core/models/trip_detail.dart';
 import 'package:mobile_people/core/util/trip_format.dart';
+import 'package:mobile_people/screens/trip_form_modal.dart';
+import 'package:mobile_people/screens/trip_day_editor_modal.dart';
 import 'package:mobile_people/main.dart';
 
 void main() {
@@ -1274,6 +1276,43 @@ void main() {
       expect(movie.posterUrl, 'https://image.tmdb.org/t/p/w342/abc.jpg');
       final none = TripMovie.fromJson({'title': 'No Poster'});
       expect(none.posterUrl, isNull);
+    });
+  });
+
+  group('Premium trip editors render', () {
+    testWidgets('TripFormModal renders premium sections without overflow', (tester) async {
+      await tester.pumpWidget(CupertinoApp(
+        home: TripFormModal(onSuccess: () {}),
+      ));
+      await tester.pump();
+
+      expect(find.text('New Trip'), findsWidgets);
+      expect(find.text('TRIP'), findsOneWidget);
+      expect(find.text('DATES'), findsOneWidget);
+      expect(find.text('STATUS'), findsOneWidget);
+      expect(find.text('VISIBILITY'), findsOneWidget);
+      expect(find.text('Start date'), findsOneWidget);
+      // Status presented as chips (not a wheel picker).
+      expect(find.text('Planned'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('TripDayEditorModal renders premium sections without overflow', (tester) async {
+      await tester.pumpWidget(CupertinoApp(
+        home: TripDayEditorModal(
+          tripId: 't1',
+          day: const TripDay(id: 'd1', tripId: 't1', dayNumber: 1),
+          onSaved: () {},
+        ),
+      ));
+      await tester.pump();
+
+      expect(find.text('Day 1'), findsOneWidget);
+      expect(find.text('OVERVIEW'), findsOneWidget);
+      expect(find.text('TRANSPORT'), findsOneWidget);
+      expect(find.text('FOOD'), findsOneWidget);
+      expect(find.text('Mood'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }
