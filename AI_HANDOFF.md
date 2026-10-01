@@ -508,6 +508,18 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 - **Unit Test Coverage (`tests/location-geocode.test.ts`)**: 5 comprehensive unit tests verifying coordinate persistence, address backfilling, non-numeric coordinate rejection, out-of-bounds coordinate rejection, and non-existent ID handling.
 - **Quality Gates**: All 117 Vitest unit tests pass across 20 test suites (100%), TypeScript type check passes (`tsc --noEmit`), Next.js production build (`npm run build`) compiles with zero errors, Flutter mobile apps (`mobile-microblog` and `mobile-people`) pass 100% of tests with 0 linter issues, and legacy client `android/` remains 100% clean and untouched.
 
+### October 2026: Itinerary Intermediate Cities & Accurate Map Route Geometry
+- **Transport Leg Waypoints (`TransportWaypoint`)**: Added `waypoints?: TransportWaypoint[]` to `TransportLeg` (`src/features/trips/day-helpers.ts`), allowing users to add intermediate cities / transit stops (e.g. *Paris → Brussels → Antwerp → Rotterdam → Amsterdam*) with full Location entity or Mapbox geocoding autocomplete in `TripDayEditorModal.tsx`.
+- **Sequential Route Ordering & Mode Propagation**: Updated `getTripMapLocationsAction` (`src/features/trips/actions.ts`) to sequence waypoints in exact chronological travel order (`From → Waypoint 1 → Waypoint 2 → To`) with `stopType: "transport_waypoint"` and propagated `transportMode` (`flight`, `car`, `train`, `bus`, `walk`, `bike`).
+- **Automatic Relationship Engine Linking**: Updated `updateTripDayAction` (`src/features/trips/day-actions.ts`) and `getTripLocationsVisitedAction` to auto-link all waypoint `locationId`s to the trip via `includes_location` relationships.
+- **Accurate Mapbox Road Snapping & Geodesic Flight Arcs**:
+  - Implemented Mapbox Directions API route fetching for road/driving/bus legs (`car`, `taxi`, `bus`, `walk`, `bike`) with memoized caching.
+  - Implemented great-circle spherical interpolation (`generateGreatCircleArc`) for flight legs, drawing natural curved flight paths.
+  - Fallback connects direct polylines through all intermediate cities if offline or unroutable.
+- **Subtle Waypoint Pin Styling**: Designed sleek transit waypoint pins (`.trip-mapbox-pin.waypoint`) rendering compact transit dots with city tooltips and popups, reserving large numbered badges (`1, 2, 3...`) for primary destination stops.
+- **Itinerary Card Display**: `TripItineraryTab.tsx` renders full route strings including waypoints (e.g., `train: Paris → Brussels → Antwerp → Rotterdam → Amsterdam`).
+- **Quality Gates**: All 121 Vitest unit tests pass across 21 test suites (100%), `npx tsc --noEmit` reports 0 errors, Next.js production build (`npm run build`) compiles cleanly (29/29 routes), Flutter `mobile-microblog` (13/13) and `mobile-people` (41/41) pass 100% with 0 analyzer issues, and `android/` legacy client remained 100% clean and untouched.
+
 ### October 2026: Itinerary Existing Location Entity Selection Fix & Coordinate Auto-Resolution
 - **Entity Selection Preservation**: Resolved race condition in `EntityCombobox` where `commitOption` fired an extraneous `onCustomChange("")` immediately after `onChange(id)`, which was wiping out `locationId` in `LocationPickerField`.
 - **Custom Value Separation**: Updated `customValue` binding in `LocationPickerField` to pass empty string when `locationId` is present (`locationId ? "" : (name || "")`), preventing collision between custom place text and selected entity identifiers.

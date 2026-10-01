@@ -13,6 +13,14 @@ export const TRANSPORT_MODES: TransportMode[] = [
   "walk", "bike", "bus", "train", "flight", "car", "taxi", "boat", "other",
 ];
 
+export interface TransportWaypoint {
+  id: string;
+  locationId?: string;
+  name?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
 export interface TransportLeg {
   id: string;
   mode: TransportMode;
@@ -24,6 +32,7 @@ export interface TransportLeg {
   toName?: string;
   toLat?: number | null;
   toLng?: number | null;
+  waypoints?: TransportWaypoint[];
   departTime?: string;
   arriveTime?: string;
   cost?: number;

@@ -1,4 +1,5 @@
 import type { TripRecord } from "@/db/schema";
+import type { TransportMode } from "@/features/trips/day-helpers";
 
 export type TripFilterType = "all" | "upcoming" | "ongoing" | "completed" | "favorites";
 export type TripSortType = "recent" | "oldest" | "duration" | "title";
@@ -48,9 +49,11 @@ export interface TripLocationCoordinate {
     | "primary"
     | "transport_from"
     | "transport_to"
+    | "transport_waypoint"
     | "meal"
     | "activity"
     | "accommodation"
     | "associated";
   isAssociatedLocation?: boolean;
+  transportMode?: TransportMode;
 }

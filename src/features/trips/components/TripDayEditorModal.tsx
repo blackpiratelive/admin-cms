@@ -7,6 +7,7 @@ import { LocationPickerField } from "@/features/locations/components/LocationPic
 import { updateTripDayAction } from "@/features/trips/day-actions";
 import {
   TransportLeg,
+  TransportWaypoint,
   MealEntry,
   ActivityEntry,
   Accommodation,
@@ -17,7 +18,7 @@ import {
 } from "@/features/trips/day-helpers";
 import { notify } from "@/lib/notifications";
 import { CloudinaryImageUploader } from "@/features/media/CloudinaryImageUploader";
-import { X, Plus, Trash2 } from "lucide-react";
+import { X, Plus, Trash2, MapPin, ChevronUp, ChevronDown } from "lucide-react";
 
 interface TripDayEditorModalProps {
   isOpen: boolean;
@@ -334,6 +335,160 @@ export function TripDayEditorModal({
                       <Trash2 size={15} />
                     </button>
                   </div>
+
+                  {/* Intermediate Waypoints (Via stops) */}
+                  {leg.waypoints && leg.waypoints.length > 0 ? (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                        padding: "6px 8px",
+                        background: "rgba(255, 102, 0, 0.04)",
+                        border: "1px dashed rgba(255, 102, 0, 0.2)",
+                        borderRadius: "6px",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <span
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            color: "var(--accent, #ff6600)",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                          }}
+                        >
+                          <MapPin size={11} /> Via Intermediate Stops ({leg.waypoints.length})
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ padding: "2px 6px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "3px" }}
+                          onClick={() => {
+                            const curWps = leg.waypoints || [];
+                            upd({
+                              waypoints: [
+                                ...curWps,
+                                { id: rowId("wp"), locationId: undefined, name: "", latitude: null, longitude: null },
+                              ],
+                            });
+                          }}
+                        >
+                          <Plus size={11} /> <span>Add via</span>
+                        </button>
+                      </div>
+                      {leg.waypoints.map((wp, wpIdx) => (
+                        <div key={wp.id} style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              color: "var(--text-muted, #888)",
+                              width: "36px",
+                              flexShrink: 0,
+                              textAlign: "right",
+                            }}
+                          >
+                            #{wpIdx + 1}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <LocationPickerField
+                              locations={allLocations}
+                              priorityIds={localTripLocIds}
+                              recentIds={locationRecentIds}
+                              locationId={wp.locationId}
+                              name={wp.name}
+                              latitude={wp.latitude}
+                              longitude={wp.longitude}
+                              tripId={day.tripId}
+                              placeholder="Intermediate city or station..."
+                              onChange={(next) => {
+                                const nextWps = [...(leg.waypoints || [])];
+                                nextWps[wpIdx] = {
+                                  ...nextWps[wpIdx],
+                                  locationId: next.locationId,
+                                  name: next.name,
+                                  latitude: next.latitude,
+                                  longitude: next.longitude,
+                                };
+                                upd({ waypoints: nextWps });
+                              }}
+                              onLocationCreated={handleLocationCreated}
+                            />
+                          </div>
+                          {wpIdx > 0 && (
+                            <button
+                              type="button"
+                              title="Move Up"
+                              onClick={() => {
+                                const nextWps = [...(leg.waypoints || [])];
+                                const tmp = nextWps[wpIdx - 1];
+                                nextWps[wpIdx - 1] = nextWps[wpIdx];
+                                nextWps[wpIdx] = tmp;
+                                upd({ waypoints: nextWps });
+                              }}
+                              style={{ background: "none", border: "none", color: "var(--text-muted, #888)", cursor: "pointer", padding: "2px" }}
+                            >
+                              <ChevronUp size={13} />
+                            </button>
+                          )}
+                          {wpIdx < leg.waypoints!.length - 1 && (
+                            <button
+                              type="button"
+                              title="Move Down"
+                              onClick={() => {
+                                const nextWps = [...(leg.waypoints || [])];
+                                const tmp = nextWps[wpIdx + 1];
+                                nextWps[wpIdx + 1] = nextWps[wpIdx];
+                                nextWps[wpIdx] = tmp;
+                                upd({ waypoints: nextWps });
+                              }}
+                              style={{ background: "none", border: "none", color: "var(--text-muted, #888)", cursor: "pointer", padding: "2px" }}
+                            >
+                              <ChevronDown size={13} />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            title="Remove via stop"
+                            onClick={() => {
+                              const nextWps = leg.waypoints!.filter((_, idx) => idx !== wpIdx);
+                              upd({ waypoints: nextWps });
+                            }}
+                            style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: "2px" }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{
+                          padding: "2px 8px",
+                          fontSize: "11px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          color: "var(--text-muted, #888)",
+                        }}
+                        onClick={() => {
+                          upd({
+                            waypoints: [
+                              { id: rowId("wp"), locationId: undefined, name: "", latitude: null, longitude: null },
+                            ],
+                          });
+                        }}
+                      >
+                        <Plus size={11} /> <span>+ Add via / intermediate stop</span>
+                      </button>
+                    </div>
+                  )}
+
                   <div style={{ display: "flex", gap: "6px" }}>
                     <input
                       type="time"

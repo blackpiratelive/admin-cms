@@ -414,6 +414,11 @@ async function fetchTripsOverviewRaw(): Promise<TripOverviewItem[]> {
       for (const t of parsed.transport) {
         if (t.fromLocationId) referencedLocIds.add(t.fromLocationId);
         if (t.toLocationId) referencedLocIds.add(t.toLocationId);
+        if (t.waypoints) {
+          for (const wp of t.waypoints) {
+            if (wp.locationId) referencedLocIds.add(wp.locationId);
+          }
+        }
       }
       for (const m of parsed.meals) {
         if (m.placeLocationId) referencedLocIds.add(m.placeLocationId);
@@ -525,6 +530,12 @@ async function fetchTripsOverviewRaw(): Promise<TripOverviewItem[]> {
         for (const tr of parsed.transport) {
           if (tr.fromLocationId) addLocName(locNameMap.get(tr.fromLocationId));
           else if (tr.fromName) addLocName(tr.fromName);
+          if (tr.waypoints) {
+            for (const wp of tr.waypoints) {
+              if (wp.locationId) addLocName(locNameMap.get(wp.locationId));
+              else if (wp.name) addLocName(wp.name);
+            }
+          }
           if (tr.toLocationId) addLocName(locNameMap.get(tr.toLocationId));
           else if (tr.toName) addLocName(tr.toName);
         }
@@ -816,6 +827,11 @@ export async function getTripMapLocationsAction(
       for (const t of parsed.transport) {
         if (t.fromLocationId) referencedLocIds.add(t.fromLocationId);
         if (t.toLocationId) referencedLocIds.add(t.toLocationId);
+        if (t.waypoints) {
+          for (const wp of t.waypoints) {
+            if (wp.locationId) referencedLocIds.add(wp.locationId);
+          }
+        }
       }
       for (const m of parsed.meals) {
         if (m.placeLocationId) referencedLocIds.add(m.placeLocationId);
@@ -849,6 +865,7 @@ export async function getTripMapLocationsAction(
     stopType?: TripLocationCoordinate["stopType"];
     isAssociatedLocation?: boolean;
     locationId?: string;
+    transportMode?: TripLocationCoordinate["transportMode"];
   };
 
   const rawStops: RawStop[] = [];
@@ -929,6 +946,7 @@ export async function getTripMapLocationsAction(
             stopType: "transport_from",
             isAssociatedLocation: isAssoc,
             locationId: fromLoc?.id,
+            transportMode: leg.mode,
           });
         } else if (fromLoc) {
           trackMissing({
@@ -942,6 +960,50 @@ export async function getTripMapLocationsAction(
             longitude: null,
             order: 0,
           });
+        }
+      }
+
+      // Intermediate Waypoints / Cities (Via stops)
+      if (leg.waypoints && Array.isArray(leg.waypoints)) {
+        for (const wp of leg.waypoints) {
+          if (wp.locationId || wp.name || wp.latitude != null) {
+            const wpLoc = wp.locationId ? locMap.get(wp.locationId) : undefined;
+            const lat = wp.latitude ?? wpLoc?.latitude ?? null;
+            const lng = wp.longitude ?? wpLoc?.longitude ?? null;
+            const name = wp.name || wpLoc?.name || "Waypoint";
+            const id = wpLoc?.id || `leg_wp_${wp.id}`;
+            const isAssoc = !!(wpLoc?.id && associatedLocIds.has(wpLoc.id));
+
+            if (lat !== null && lng !== null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+              rawStops.push({
+                id,
+                name,
+                slug: wpLoc?.slug || "",
+                city: wpLoc?.city,
+                state: wpLoc?.state,
+                country: wpLoc?.country,
+                latitude: lat,
+                longitude: lng,
+                dayNumber: d.dayNumber,
+                stopType: "transport_waypoint",
+                isAssociatedLocation: isAssoc,
+                locationId: wpLoc?.id,
+                transportMode: leg.mode,
+              });
+            } else if (wpLoc) {
+              trackMissing({
+                id: wpLoc.id,
+                name: wpLoc.name,
+                slug: wpLoc.slug,
+                city: wpLoc.city,
+                state: wpLoc.state,
+                country: wpLoc.country,
+                latitude: null,
+                longitude: null,
+                order: 0,
+              });
+            }
+          }
         }
       }
 
@@ -968,6 +1030,7 @@ export async function getTripMapLocationsAction(
             stopType: "transport_to",
             isAssociatedLocation: isAssoc,
             locationId: toLoc?.id,
+            transportMode: leg.mode,
           });
         } else if (toLoc) {
           trackMissing({
@@ -1140,6 +1203,7 @@ export async function getTripMapLocationsAction(
     dayNumber: s.dayNumber,
     stopType: s.stopType,
     isAssociatedLocation: s.isAssociatedLocation,
+    transportMode: s.transportMode,
   }));
 
   // 4. Build associated locations

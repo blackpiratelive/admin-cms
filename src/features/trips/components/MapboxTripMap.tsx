@@ -21,6 +21,89 @@ const MAP_STYLES: Record<MapStyleKey, { label: string; url: string }> = {
   outdoors: { label: "Outdoors", url: "mapbox://styles/mapbox/outdoors-v12" },
 };
 
+function toRad(deg: number): number {
+  return (deg * Math.PI) / 180;
+}
+function toDeg(rad: number): number {
+  return (rad * 180) / Math.PI;
+}
+
+/** Generates intermediate spherical coordinates forming a great-circle arc for flight legs */
+function generateGreatCircleArc(
+  start: [number, number],
+  end: [number, number],
+  numPoints = 35
+): [number, number][] {
+  const [lng1, lat1] = start;
+  const [lng2, lat2] = end;
+
+  const rlat1 = toRad(lat1);
+  const rlon1 = toRad(lng1);
+  const rlat2 = toRad(lat2);
+  const rlon2 = toRad(lng2);
+
+  const cosD =
+    Math.sin(rlat1) * Math.sin(rlat2) +
+    Math.cos(rlat1) * Math.cos(rlat2) * Math.cos(rlon2 - rlon1);
+  const d = Math.acos(Math.min(1, Math.max(-1, cosD)));
+
+  if (d < 0.0001) {
+    return [start, end];
+  }
+
+  const sinD = Math.sin(d);
+  const coords: [number, number][] = [];
+
+  for (let i = 0; i <= numPoints; i++) {
+    const f = i / numPoints;
+    const a = Math.sin((1 - f) * d) / sinD;
+    const b = Math.sin(f * d) / sinD;
+
+    const x = a * Math.cos(rlat1) * Math.cos(rlon1) + b * Math.cos(rlat2) * Math.cos(rlon2);
+    const y = a * Math.cos(rlat1) * Math.sin(rlon1) + b * Math.cos(rlat2) * Math.sin(rlon2);
+    const z = a * Math.sin(rlat1) + b * Math.sin(rlat2);
+
+    const lat = toDeg(Math.atan2(z, Math.sqrt(x * x + y * y)));
+    const lng = toDeg(Math.atan2(y, x));
+
+    coords.push([lng, lat]);
+  }
+
+  return coords;
+}
+
+const directionsCache = new Map<string, [number, number][]>();
+
+async function fetchDirectionsRoute(
+  profile: "driving" | "walking" | "cycling",
+  coords: [number, number][],
+  token: string
+): Promise<[number, number][] | null> {
+  if (coords.length < 2) return null;
+  const batch = coords.slice(0, 25);
+  const coordString = batch.map(([lng, lat]) => `${lng.toFixed(5)},${lat.toFixed(5)}`).join(";");
+  const cacheKey = `${profile}:${coordString}`;
+
+  if (directionsCache.has(cacheKey)) {
+    return directionsCache.get(cacheKey)!;
+  }
+
+  try {
+    const url = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coordString}?geometries=geojson&overview=full&access_token=${token}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.routes && data.routes.length > 0 && data.routes[0].geometry?.coordinates) {
+      const line: [number, number][] = data.routes[0].geometry.coordinates;
+      directionsCache.set(cacheKey, line);
+      return line;
+    }
+  } catch (err) {
+    console.warn("Mapbox directions fetch error:", err);
+  }
+  return null;
+}
+
 export function MapboxTripMap({
   locations,
   token,
@@ -125,14 +208,42 @@ export function MapboxTripMap({
     // Connect chronological itinerary route stops (excluding standalone associated pins)
     const itineraryStops = validLocations.filter((l) => l.stopType !== "associated");
     const linePoints = itineraryStops.length >= 2 ? itineraryStops : validLocations;
-    const lineCoordinates = linePoints.map((l) => [l.longitude!, l.latitude!]);
 
+    // Generate initial synchronous geometry
+    const segmentList: [number, number][][] = [];
+    for (let i = 0; i < linePoints.length - 1; i++) {
+      const p1 = linePoints[i];
+      const p2 = linePoints[i + 1];
+      const startCoord: [number, number] = [p1.longitude!, p1.latitude!];
+      const endCoord: [number, number] = [p2.longitude!, p2.latitude!];
+      const mode = p2.transportMode || p1.transportMode;
+
+      if (mode === "flight") {
+        segmentList.push(generateGreatCircleArc(startCoord, endCoord, 35));
+      } else {
+        segmentList.push([startCoord, endCoord]);
+      }
+    }
+
+    const mergeSegments = (segs: [number, number][][]): [number, number][] => {
+      const merged: [number, number][] = [];
+      segs.forEach((seg, sIdx) => {
+        if (sIdx === 0) {
+          merged.push(...seg);
+        } else {
+          merged.push(...seg.slice(1));
+        }
+      });
+      return merged;
+    };
+
+    const initialLineCoords = mergeSegments(segmentList);
     const routeGeoJson = {
       type: "Feature",
       properties: {},
       geometry: {
         type: "LineString",
-        coordinates: lineCoordinates,
+        coordinates: initialLineCoords,
       },
     };
 
@@ -178,7 +289,50 @@ export function MapboxTripMap({
       });
     }
 
-    // 2. Add Numbered Markers with Popups
+    // Asynchronously enhance road segments via Mapbox Directions API
+    if (token && segmentList.length > 0) {
+      (async () => {
+        let changed = false;
+        const enhancedSegments = [...segmentList];
+
+        for (let i = 0; i < linePoints.length - 1; i++) {
+          const p1 = linePoints[i];
+          const p2 = linePoints[i + 1];
+          const mode = p2.transportMode || p1.transportMode;
+
+          if (
+            mode === "walk" ||
+            mode === "bike" ||
+            mode === "car" ||
+            mode === "taxi" ||
+            mode === "bus"
+          ) {
+            const profile: "driving" | "walking" | "cycling" =
+              mode === "walk" ? "walking" : mode === "bike" ? "cycling" : "driving";
+            const startCoord: [number, number] = [p1.longitude!, p1.latitude!];
+            const endCoord: [number, number] = [p2.longitude!, p2.latitude!];
+            const roadCurve = await fetchDirectionsRoute(profile, [startCoord, endCoord], token);
+            if (roadCurve && roadCurve.length > 0) {
+              enhancedSegments[i] = roadCurve;
+              changed = true;
+            }
+          }
+        }
+
+        if (changed && map && map.getSource("trip-route-source")) {
+          map.getSource("trip-route-source").setData({
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "LineString",
+              coordinates: mergeSegments(enhancedSegments),
+            },
+          });
+        }
+      })();
+    }
+
+    // 2. Add Numbered Markers and Transit Waypoint Dots with Popups
     const bounds = new mapboxgl.LngLatBounds();
 
     validLocations.forEach((loc) => {
@@ -186,24 +340,31 @@ export function MapboxTripMap({
       bounds.extend(lngLat);
 
       const isAssoc = !!loc.isAssociatedLocation;
-      const pinContent = isAssoc && loc.stopType === "associated" ? "★" : String(loc.order);
+      const isWaypoint = loc.stopType === "transport_waypoint";
+      const pinContent = isWaypoint ? "•" : isAssoc && loc.stopType === "associated" ? "★" : String(loc.order);
 
       // Create custom DOM element for pin marker
       const el = document.createElement("div");
       el.className = "trip-mapbox-marker";
       el.innerHTML = `
-        <div class="trip-mapbox-pin ${selectedPin?.id === loc.id ? "selected" : ""} ${isAssoc ? "associated" : ""}">
+        <div class="trip-mapbox-pin ${selectedPin?.id === loc.id ? "selected" : ""} ${isAssoc ? "associated" : ""} ${isWaypoint ? "waypoint" : ""}">
           <span>${pinContent}</span>
         </div>
-        <div class="trip-mapbox-pin-label ${isAssoc ? "associated" : ""}">${loc.name}</div>
+        <div class="trip-mapbox-pin-label ${isAssoc ? "associated" : ""} ${isWaypoint ? "waypoint" : ""}">${loc.name}</div>
       `;
 
       // Popup
       const fullLoc = [loc.city, loc.state, loc.country].filter(Boolean).join(", ");
-      const badgeHtml = isAssoc
-        ? `<div class="popup-associated-badge" style="display: inline-block; font-size: 10px; font-weight: 700; color: #f59e0b; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); padding: 2px 6px; border-radius: 4px; margin-bottom: 6px;">⭐ Associated Trip Location</div>`
-        : "";
-      const orderLabel = loc.dayNumber
+      let badgeHtml = "";
+      if (isAssoc) {
+        badgeHtml = `<div class="popup-associated-badge" style="display: inline-block; font-size: 10px; font-weight: 700; color: #f59e0b; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); padding: 2px 6px; border-radius: 4px; margin-bottom: 6px;">⭐ Associated Trip Location</div>`;
+      } else if (isWaypoint) {
+        badgeHtml = `<div class="popup-waypoint-badge" style="display: inline-block; font-size: 10px; font-weight: 700; color: var(--accent, #ff6600); background: rgba(255, 102, 0, 0.15); border: 1px solid rgba(255, 102, 0, 0.35); padding: 2px 6px; border-radius: 4px; margin-bottom: 6px;">📍 Transit Waypoint</div>`;
+      }
+
+      const orderLabel = isWaypoint
+        ? (loc.dayNumber ? `Day ${loc.dayNumber} · Via Intermediate Stop` : "Via Intermediate Stop")
+        : loc.dayNumber
         ? `Day ${loc.dayNumber} Stop`
         : loc.stopType === "associated"
         ? "Associated Location"
@@ -223,7 +384,7 @@ export function MapboxTripMap({
       `;
 
       const popup = new mapboxgl.Popup({
-        offset: 24,
+        offset: isWaypoint ? 14 : 24,
         closeButton: false,
         className: "trip-mapbox-popup-wrap",
       }).setHTML(popupHtml);
@@ -255,6 +416,15 @@ export function MapboxTripMap({
       });
     }
   };
+
+  // Re-render when locations list updates while map is loaded
+  useEffect(() => {
+    if (!mapRef.current || !mapLoaded) return;
+    (async () => {
+      const mapboxgl = (await import("mapbox-gl")).default;
+      renderRouteAndMarkers(mapRef.current, mapboxgl);
+    })();
+  }, [locations, mapLoaded]);
 
   // Switch style safely re-adding layers
   const handleStyleChange = async (styleKey: MapStyleKey) => {

@@ -201,4 +201,63 @@ describe("Itinerary Custom Coordinates & Map Route Sequencing", () => {
     expect(assocInMap!.isAssociatedLocation).toBe(true);
     expect(assocInMap!.stopType).toBe("associated");
   });
+
+  it("supports intermediate transit waypoints in transport legs and places them in sequential route order", async () => {
+    const day3 = await addTripDayAction(TEST_TRIP_ID, { date: "2026-10-03" });
+
+    // Update with a transport leg that has intermediate waypoints (Brussels and Antwerp)
+    const updated = await updateTripDayAction(day3.id, {
+      title: "Paris to Amsterdam via Belgium",
+      transport: [
+        {
+          id: "t_wp_1",
+          mode: "train",
+          fromName: "Paris Nord",
+          fromLat: 48.8809,
+          fromLng: 2.3553,
+          waypoints: [
+            {
+              id: "wp_brussels",
+              name: "Brussels Midi",
+              latitude: 50.8357,
+              longitude: 4.3364,
+            },
+            {
+              id: "wp_antwerp",
+              name: "Antwerpen-Centraal",
+              latitude: 51.2172,
+              longitude: 4.4214,
+            },
+          ],
+          toName: "Amsterdam Centraal",
+          toLat: 52.3791,
+          toLng: 4.9003,
+        },
+      ],
+    });
+
+    expect(updated).not.toBeNull();
+    const parsed = parseTripDay(updated!);
+    expect(parsed.transport[0].waypoints).toBeDefined();
+    expect(parsed.transport[0].waypoints!.length).toBe(2);
+    expect(parsed.transport[0].waypoints![0].name).toBe("Brussels Midi");
+    expect(parsed.transport[0].waypoints![1].name).toBe("Antwerpen-Centraal");
+
+    const mapData = await getTripMapLocationsAction(TEST_TRIP_SLUG);
+    const brusselsStop = mapData.routeStops.find((s) => s.name === "Brussels Midi");
+    const antwerpStop = mapData.routeStops.find((s) => s.name === "Antwerpen-Centraal");
+
+    expect(brusselsStop).toBeDefined();
+    expect(brusselsStop!.stopType).toBe("transport_waypoint");
+    expect(brusselsStop!.transportMode).toBe("train");
+    expect(brusselsStop!.latitude).toBe(50.8357);
+
+    expect(antwerpStop).toBeDefined();
+    expect(antwerpStop!.stopType).toBe("transport_waypoint");
+    expect(antwerpStop!.transportMode).toBe("train");
+    expect(antwerpStop!.latitude).toBe(51.2172);
+
+    // Verify sequential ordering: Brussels comes before Antwerp
+    expect(brusselsStop!.order).toBeLessThan(antwerpStop!.order);
+  });
 });

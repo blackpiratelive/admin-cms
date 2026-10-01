@@ -165,6 +165,11 @@ export async function updateTripDayAction(
     for (const leg of payload.transport) {
       if (leg.fromLocationId) referencedLocIds.add(leg.fromLocationId);
       if (leg.toLocationId) referencedLocIds.add(leg.toLocationId);
+      if (leg.waypoints) {
+        for (const wp of leg.waypoints) {
+          if (wp.locationId) referencedLocIds.add(wp.locationId);
+        }
+      }
     }
   }
   if (payload.meals) {

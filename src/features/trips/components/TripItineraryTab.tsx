@@ -454,14 +454,18 @@ function DayTimelineCard({
               {parsed.transport.map((leg) => {
                 const fromName = resolveLocName(leg.fromLocationId, leg.fromName);
                 const toName = resolveLocName(leg.toLocationId, leg.toName);
+                const waypointNames = (leg.waypoints || [])
+                  .map((wp) => resolveLocName(wp.locationId, wp.name))
+                  .filter(Boolean);
+                const fullRoute = [fromName, ...waypointNames, toName].filter(Boolean).join(" → ");
                 return (
                   <div key={leg.id} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                     <Navigation size={13} style={{ color: "var(--accent, #ff6600)", flexShrink: 0 }} />
                     <span style={{ textTransform: "capitalize", fontWeight: 600, color: "var(--text-primary, #ddd)" }}>
                       {leg.mode}
                     </span>
-                    {(fromName || toName) && (
-                      <span>: {fromName || "?"} → {toName || "?"}</span>
+                    {fullRoute && (
+                      <span>: {fullRoute}</span>
                     )}
                     {typeof leg.cost === "number" && (
                       <span style={{ color: "var(--text-muted, #777)" }}>· {leg.currency || ""}{leg.cost}</span>

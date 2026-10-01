@@ -205,6 +205,7 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
                 {projectedPoints.map((p, idx) => {
                   const isSelected = selectedPin?.id === p.id;
                   const isAssoc = !!p.isAssociatedLocation;
+                  const isWaypoint = p.stopType === "transport_waypoint";
                   return (
                     <g
                       key={p.id}
@@ -215,31 +216,33 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
                       <circle
                         cx={p.pt.x}
                         cy={p.pt.y}
-                        r={isSelected ? 14 : 10}
-                        fill={isAssoc ? "rgba(245, 158, 11, 0.25)" : "rgba(255, 102, 0, 0.2)"}
+                        r={isSelected ? 14 : isWaypoint ? 7 : 10}
+                        fill={isAssoc ? "rgba(245, 158, 11, 0.25)" : isWaypoint ? "rgba(255, 142, 77, 0.2)" : "rgba(255, 102, 0, 0.2)"}
                         filter="url(#glow)"
                       />
                       {/* Inner pin circle */}
                       <circle
                         cx={p.pt.x}
                         cy={p.pt.y}
-                        r={isSelected ? 8 : 6}
-                        fill={isAssoc ? "#f59e0b" : "var(--accent, #ff6600)"}
+                        r={isSelected ? 8 : isWaypoint ? 4 : 6}
+                        fill={isAssoc ? "#f59e0b" : isWaypoint ? "#ff8e4d" : "var(--accent, #ff6600)"}
                         stroke={isAssoc ? "#fef3c7" : "#ffffff"}
                         strokeWidth="1.5"
                       />
                       {/* Order Number Badge */}
-                      <text
-                        x={p.pt.x}
-                        y={p.pt.y - 12}
-                        textAnchor="middle"
-                        fill={isAssoc ? "#fef3c7" : "#ffffff"}
-                        fontSize="10"
-                        fontWeight="bold"
-                        style={{ textShadow: "0 1px 3px rgba(0,0,0,0.9)" }}
-                      >
-                        {isAssoc && p.stopType === "associated" ? "★" : p.order}
-                      </text>
+                      {!isWaypoint && (
+                        <text
+                          x={p.pt.x}
+                          y={p.pt.y - 12}
+                          textAnchor="middle"
+                          fill={isAssoc ? "#fef3c7" : "#ffffff"}
+                          fontSize="10"
+                          fontWeight="bold"
+                          style={{ textShadow: "0 1px 3px rgba(0,0,0,0.9)" }}
+                        >
+                          {isAssoc && p.stopType === "associated" ? "★" : p.order}
+                        </text>
+                      )}
                     </g>
                   );
                 })}
@@ -315,7 +318,11 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
                 width: "28px",
                 height: "28px",
                 borderRadius: "50%",
-                backgroundColor: selectedPin.isAssociatedLocation ? "#f59e0b" : "var(--accent, #ff6600)",
+                backgroundColor: selectedPin.isAssociatedLocation
+                  ? "#f59e0b"
+                  : selectedPin.stopType === "transport_waypoint"
+                  ? "#ff8e4d"
+                  : "var(--accent, #ff6600)",
                 color: "#ffffff",
                 display: "grid",
                 placeItems: "center",
@@ -326,7 +333,11 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
                   : "none",
               }}
             >
-              {selectedPin.isAssociatedLocation && selectedPin.stopType === "associated" ? "★" : selectedPin.order}
+              {selectedPin.isAssociatedLocation && selectedPin.stopType === "associated"
+                ? "★"
+                : selectedPin.stopType === "transport_waypoint"
+                ? "•"
+                : selectedPin.order}
             </div>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
@@ -346,6 +357,21 @@ export function TripMapTab({ tripSlugOrId }: TripMapTabProps) {
                     }}
                   >
                     ⭐ Associated Location
+                  </span>
+                )}
+                {selectedPin.stopType === "transport_waypoint" && (
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      color: "var(--accent, #ff6600)",
+                      backgroundColor: "rgba(255, 102, 0, 0.15)",
+                      border: "1px solid rgba(255, 102, 0, 0.35)",
+                      padding: "1px 6px",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    📍 Transit Waypoint
                   </span>
                 )}
                 {selectedPin.dayNumber && (
