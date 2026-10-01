@@ -122,11 +122,10 @@ export function EntityCombobox({
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
-  const displayLabel = selected?.label ?? (hasCustom ? customValue : "");
+  const displayLabel = selected?.label ?? customValue ?? "";
 
   const commitOption = (id: string | null) => {
     onChange(id);
-    if (id !== null) onCustomChange?.("");
     setOpen(false);
     setQuery("");
     inputRef.current?.blur();
@@ -304,7 +303,7 @@ export function EntityCombobox({
                 ) : o.favorite ? (
                   <Star size={13} style={{ color: "#f5a623", fill: "#f5a623", flexShrink: 0 }} />
                 ) : (
-                  <span style={{ width: "13px", flexShrink: 0 }} />
+                  <MapPin size={13} style={{ color: "var(--text-muted, #888)", flexShrink: 0 }} />
                 )}
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {o.label}

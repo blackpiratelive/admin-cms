@@ -157,13 +157,15 @@ describe("Itinerary Custom Coordinates & Map Route Sequencing", () => {
     expect(allLocations.length).toBe(0);
   });
 
-  it("auto-resolves coordinates from locations table when primaryLocationId is provided", async () => {
+  it("auto-resolves coordinates from locations table when primaryLocationId is provided, even if lat/lng are passed as null", async () => {
     const day2 = await addTripDayAction(TEST_TRIP_ID, { date: "2026-10-02" });
 
-    // Update with primaryLocationId pointing to Amsterdam Centraal Station without manual lat/lng
+    // Update with primaryLocationId pointing to Amsterdam Centraal Station with lat/lng passed as null
     const updated = await updateTripDayAction(day2.id, {
       title: "Arrive in Amsterdam",
       primaryLocationId: TEST_ENTITY_LOC_ID,
+      primaryLocationLat: null,
+      primaryLocationLng: null,
     });
 
     expect(updated).not.toBeNull();

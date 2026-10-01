@@ -129,10 +129,10 @@ export async function updateTripDayAction(
       )[0];
       if (loc) {
         if (!payload.primaryLocationName) updates.primaryLocationName = loc.name;
-        if (payload.primaryLocationLat === undefined && loc.latitude != null) {
+        if ((payload.primaryLocationLat === undefined || payload.primaryLocationLat === null) && loc.latitude != null) {
           updates.primaryLocationLat = loc.latitude;
         }
-        if (payload.primaryLocationLng === undefined && loc.longitude != null) {
+        if ((payload.primaryLocationLng === undefined || payload.primaryLocationLng === null) && loc.longitude != null) {
           updates.primaryLocationLng = loc.longitude;
         }
       }
@@ -141,10 +141,10 @@ export async function updateTripDayAction(
   if (payload.primaryLocationName !== undefined && updates.primaryLocationName === undefined) {
     updates.primaryLocationName = payload.primaryLocationName || null;
   }
-  if (payload.primaryLocationLat !== undefined) {
+  if (payload.primaryLocationLat !== undefined && updates.primaryLocationLat === undefined) {
     updates.primaryLocationLat = payload.primaryLocationLat ?? null;
   }
-  if (payload.primaryLocationLng !== undefined) {
+  if (payload.primaryLocationLng !== undefined && updates.primaryLocationLng === undefined) {
     updates.primaryLocationLng = payload.primaryLocationLng ?? null;
   }
   if (payload.weather !== undefined) updates.weather = payload.weather || null;

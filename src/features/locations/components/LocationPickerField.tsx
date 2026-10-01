@@ -120,8 +120,8 @@ export function LocationPickerField({
     const actions: ComboAction[] = [];
     const lowerQ = q.toLowerCase();
 
-    // 1. Geocoded place suggestions
-    for (const geo of geocodeResults) {
+    // 1. Geocoded place suggestions (top 3)
+    for (const geo of geocodeResults.slice(0, 3)) {
       // 1A. Select directly without creating permanent location entity
       const coordLabel =
         geo.latitude != null && geo.longitude != null
@@ -141,22 +141,25 @@ export function LocationPickerField({
           }),
       });
 
-      // 1B. Optional: Save as permanent Location entity
-      actions.push({
-        id: `geo_create_${geo.id}`,
-        label: `+ Save “${geo.name}” as Location Entity`,
-        sublabel: "Create permanent location entity with coordinates",
-        icon: <Plus size={13} style={{ color: "var(--text-muted, #888)" }} />,
-        onSelect: () =>
-          handleQuickCreate({
-            name: geo.name,
-            city: geo.city,
-            state: geo.state,
-            country: geo.country,
-            latitude: geo.latitude,
-            longitude: geo.longitude,
-          }),
-      });
+      // 1B. Optional: Save as permanent Location entity (if entity doesn't already exist)
+      const alreadyExists = locations.some((l) => l.name.toLowerCase() === geo.name.toLowerCase());
+      if (!alreadyExists) {
+        actions.push({
+          id: `geo_create_${geo.id}`,
+          label: `+ Save “${geo.name}” as Location Entity`,
+          sublabel: "Create permanent location entity with coordinates",
+          icon: <Plus size={13} style={{ color: "var(--text-muted, #888)" }} />,
+          onSelect: () =>
+            handleQuickCreate({
+              name: geo.name,
+              city: geo.city,
+              state: geo.state,
+              country: geo.country,
+              latitude: geo.latitude,
+              longitude: geo.longitude,
+            }),
+        });
+      }
     }
 
     // 2. Generic fallback to create location with typed name if no exact match exists
@@ -191,7 +194,7 @@ export function LocationPickerField({
         priorityIds={priorityIds}
         recentIds={recentIds}
         allowCustom={allowCustom}
-        customValue={name}
+        customValue={locationId ? "" : (name || "")}
         customPlaceholder={placeholder}
         disabled={disabled}
         onQueryChange={setQuery}
@@ -206,17 +209,23 @@ export function LocationPickerField({
               longitude: loc?.longitude ?? null,
             });
           } else {
-            onChange({ locationId: undefined, name, latitude, longitude });
+            onChange({
+              locationId: undefined,
+              name: undefined,
+              latitude: null,
+              longitude: null,
+            });
           }
         }}
-        onCustomChange={(text) =>
+        onCustomChange={(text) => {
+          if (!text || !text.trim()) return;
           onChange({
             locationId: undefined,
-            name: text,
+            name: text.trim(),
             latitude: null,
             longitude: null,
-          })
-        }
+          });
+        }}
         options={locations.map((l) => ({
           id: l.id,
           label: l.name,
