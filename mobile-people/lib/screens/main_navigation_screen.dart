@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import '../core/theme/cupertino_theme.dart';
 import 'directory_screen.dart';
+import 'trips_screen.dart';
 import 'settings_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -43,6 +44,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             label: 'People',
           ),
           BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.map),
+            activeIcon: Icon(CupertinoIcons.map_fill),
+            label: 'Trips',
+          ),
+          BottomNavigationBarItem(
             icon: Icon(CupertinoIcons.gear_alt),
             activeIcon: Icon(CupertinoIcons.gear_alt_fill),
             label: 'Settings',
@@ -56,6 +62,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               builder: (ctx) => DirectoryScreen(onLogout: widget.onLogout),
             );
           case 1:
+            return CupertinoTabView(
+              builder: (ctx) => const TripsScreen(),
+            );
+          case 2:
             return CupertinoTabView(
               builder: (ctx) => SettingsScreen(onLogout: widget.onLogout),
             );

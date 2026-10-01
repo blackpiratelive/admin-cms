@@ -6,6 +6,7 @@ import '../models/person_record.dart';
 import '../models/upcoming_birthday_item.dart';
 import '../models/picker_items.dart';
 import '../models/offline_mutation.dart';
+import '../models/trip_record.dart';
 
 class LocalStore {
   static const _storage = FlutterSecureStorage();
@@ -22,6 +23,12 @@ class LocalStore {
   static const String _keyDetailTimePrefix = 'cached_person_detail_time_';
   static const String _keyLastSyncTime = 'last_sync_timestamp';
   static const String _keyOfflineQueue = 'offline_mutations_queue';
+
+  // Trips cache keys
+  static const String _keyTripsCache = 'cached_trips_list';
+  static const String _keyTripsCacheTime = 'cached_trips_timestamp';
+  static const String _keyTripDetailPrefix = 'cached_trip_detail_';
+  static const String _keyTripDetailTimePrefix = 'cached_trip_detail_time_';
 
   /// Default cache time-to-live: 7 days as requested by user
   static const Duration defaultCacheTtl = Duration(days: 7);
@@ -339,6 +346,99 @@ class LocalStore {
     }
   }
 
+  // --- Cache: Trips ---
+
+  static Future<bool> isTripsCacheStale({Duration ttl = defaultCacheTtl}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final ts = prefs.getInt(_keyTripsCacheTime);
+    if (ts == null) return true;
+    final last = DateTime.fromMillisecondsSinceEpoch(ts);
+    return DateTime.now().difference(last) > ttl;
+  }
+
+  static Future<bool> isTripDetailCacheStale(String idOrSlug, {Duration ttl = defaultCacheTtl}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final ts = prefs.getInt('$_keyTripDetailTimePrefix$idOrSlug');
+    if (ts == null) return true;
+    final last = DateTime.fromMillisecondsSinceEpoch(ts);
+    return DateTime.now().difference(last) > ttl;
+  }
+
+  static Future<void> saveCachedTrips(List<TripRecord> trips, {bool updateTimestamp = true}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonList = trips.map((t) => t.toJson()).toList();
+    await prefs.setString(_keyTripsCache, jsonEncode(jsonList));
+    if (updateTimestamp) {
+      await prefs.setInt(_keyTripsCacheTime, DateTime.now().millisecondsSinceEpoch);
+    }
+  }
+
+  static Future<List<TripRecord>> getCachedTrips() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString(_keyTripsCache);
+    if (data == null || data.isEmpty) return [];
+    try {
+      final List<dynamic> list = jsonDecode(data);
+      return list.map((e) => TripRecord.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> saveCachedTripDetail(
+    String idOrSlug,
+    Map<String, dynamic> detail, {
+    bool updateTimestamp = true,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_keyTripDetailPrefix$idOrSlug', jsonEncode(detail));
+    if (updateTimestamp) {
+      await prefs.setInt('$_keyTripDetailTimePrefix$idOrSlug', DateTime.now().millisecondsSinceEpoch);
+    }
+  }
+
+  static Future<Map<String, dynamic>?> getCachedTripDetail(String idOrSlug) async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString('$_keyTripDetailPrefix$idOrSlug');
+    if (data == null || data.isEmpty) return null;
+    try {
+      return jsonDecode(data) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> upsertCachedTrip(TripRecord trip) async {
+    final current = await getCachedTrips();
+    final idx = current.indexWhere(
+        (t) => t.id == trip.id || (t.slug.isNotEmpty && t.slug == trip.slug));
+    if (idx != -1) {
+      current[idx] = trip;
+    } else {
+      current.insert(0, trip);
+    }
+    await saveCachedTrips(current, updateTimestamp: false);
+  }
+
+  static Future<void> deleteCachedTrip(String id) async {
+    final current = await getCachedTrips();
+    current.removeWhere((t) => t.id == id);
+    await saveCachedTrips(current, updateTimestamp: false);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('$_keyTripDetailPrefix$id');
+    await prefs.remove('$_keyTripDetailTimePrefix$id');
+  }
+
+  static Future<void> toggleCachedTripFavorite(String id, bool favorite) async {
+    final current = await getCachedTrips();
+    final idx = current.indexWhere((t) => t.id == id);
+    if (idx != -1) {
+      current[idx] = current[idx].copyWith(favorite: favorite);
+      await saveCachedTrips(current, updateTimestamp: false);
+    }
+  }
+
   // --- Offline Mutations Queue ---
 
   static Future<List<OfflineMutation>> getOfflineQueue() async {
@@ -413,12 +513,17 @@ class LocalStore {
     await prefs.remove(_keyBirthdaysCacheTime);
     await prefs.remove(_keyPickersCache);
     await prefs.remove(_keyPickersCacheTime);
+    await prefs.remove(_keyTripsCache);
+    await prefs.remove(_keyTripsCacheTime);
     await prefs.remove(_keyLastSyncTime);
 
-    // Remove any cached person details
+    // Remove any cached person & trip details
     final keys = prefs.getKeys();
     for (final k in keys) {
-      if (k.startsWith(_keyDetailPrefix) || k.startsWith(_keyDetailTimePrefix)) {
+      if (k.startsWith(_keyDetailPrefix) ||
+          k.startsWith(_keyDetailTimePrefix) ||
+          k.startsWith(_keyTripDetailPrefix) ||
+          k.startsWith(_keyTripDetailTimePrefix)) {
         await prefs.remove(k);
       }
     }

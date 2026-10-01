@@ -1,6 +1,6 @@
 class OfflineMutation {
   final String id;
-  final String type; // 'create_person', 'update_person', 'delete_person', 'toggle_favorite', 'add_connection', 'remove_connection'
+  final String type; // person: 'create_person','update_person','delete_person','toggle_favorite','add_connection','remove_connection' | trip: 'create_trip','update_trip','delete_trip','toggle_trip_favorite'
   final String entityId;
   final Map<String, dynamic> payload;
   final String timestamp;

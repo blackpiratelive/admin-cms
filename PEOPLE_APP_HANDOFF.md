@@ -49,6 +49,9 @@ mobile-people/
 │   │   │   ├── person_timeline_item.dart  # PersonTimelineItem composite timeline model
 │   │   │   ├── upcoming_birthday_item.dart# UpcomingBirthdayItem model with countdown badges
 │   │   │   ├── picker_items.dart          # PeoplePickersResult & PickerItem models for fast connections
+│   │   │   ├── trip_record.dart           # TripRecord (overview + raw) with tolerant parsing & display derivation
+│   │   │   ├── trip_day.dart              # Read models for itinerary days (transport/meals/activities/stay/photos) + cost roll-up
+│   │   │   ├── trip_detail.dart           # TripDetailResult composite (days, locations, microblogs, photos, people, map stops)
 │   │   │   └── offline_mutation.dart      # OfflineMutation model for offline queue serialization
 │   │   ├── network/
 │   │   │   ├── api_service.dart           # HTTP REST client (Auth, People, Memory Hub, Pickers, Deploy)
@@ -60,6 +63,8 @@ mobile-people/
 │   │   │   └── local_store.dart           # Secure storage, 7-day TTL, mutation queue, optimistic CRUD & local cache
 │   │   └── theme/
 │   │       └── cupertino_theme.dart       # Dynamic Light/Dark iOS Cupertino design tokens
+│   │   └── util/
+│   │       └── trip_format.dart           # Pure trip date/duration/display helpers + in-memory filter/sort/featured
 │   ├── screens/
 │   │   ├── connect_entity_modal.dart      # Multi-entity picker modal (Locations, Trips, Projects, etc.)
 │   │   ├── directory_screen.dart          # Cupertino sliver directory, search, filter sheet & contacts list
@@ -68,10 +73,17 @@ mobile-people/
 │   │   ├── person_detail_screen.dart      # Deep Memory Hub screen (Bio, Dates, Connections, Timeline)
 │   │   ├── person_form_modal.dart         # Full CRUD add/edit modal (Dates editor, Social, Tags)
 │   │   ├── photo_picker_modal.dart        # 3-Tab Photo Connection Modal (Gallery/R2, Cloudinary, Upload)
-│   │   └── settings_screen.dart           # Inset-grouped settings, queue & deployment
+│   │   ├── settings_screen.dart           # Inset-grouped settings, queue & deployment
+│   │   ├── trips_screen.dart              # Cupertino trips directory (search, status filter chips, sort, cards)
+│   │   ├── trip_detail_screen.dart        # Trip hub (hero + segmented tabs: Itinerary/Places/Map/Photos/Posts/People)
+│   │   └── trip_form_modal.dart           # Trip create/edit modal (dates, status, visibility, tags, delete)
 │   └── widgets/
 │       ├── image_lightbox.dart            # Full-screen pinch-to-zoom avatar/image viewer
 │       ├── person_card.dart               # Clean Cupertino person list row with subtle metadata & star action
+│       ├── trip_card.dart                 # Trip overview card (cover/gradient, status badge, meta, favorite)
+│       ├── trip_status_badge.dart         # Shared status pill + deterministic cover-gradient helper
+│       ├── trip_day_timeline.dart         # Read-only day-by-day itinerary cards (transport/food/activities/stay/notes/photos)
+│       ├── trip_map_view.dart             # flutter_map OSM route (polyline + numbered markers) + missing-coords list
 │       └── upcoming_birthdays_widget.dart # Compact Coming up cards with date badges & countdown pills
 └── test/
     └── widget_test.dart                   # 35 comprehensive unit & widget tests (100% passing)
@@ -203,6 +215,12 @@ The app communicates with the following Next.js REST API endpoints:
 | `/api/people/[id]/connections` | `DELETE` | Disconnects an entity relationship. |
 | `/api/people/birthdays` | `GET` | Fetches upcoming birthdays within 60 days with age calculation and days remaining. |
 | `/api/people/pickers` | `GET` | Fetches all connectable entities in 1 query for the connection modal. |
+| `/api/trips?view=overview` | `GET` | Rich trip overview projections for the Trips tab (default no-param response stays raw records for pickers). |
+| `/api/trips` | `POST` | Creates (no `id`) or updates (with `id`) a trip. |
+| `/api/trips/[id]` | `GET` | Composite trip hub: trip + connected entities + itinerary days + ordered map stops. |
+| `/api/trips/[id]` | `PUT` / `DELETE` | Updates / deletes a trip. |
+| `/api/trips/[id]/favorite` | `POST` | Toggles trip favorite flag. |
+| `/api/trips/[id]/duplicate` | `POST` | Deep-clones a trip (metadata, days, location links). |
 | `/api/deploy` | `POST` | Triggers background `VERCEL_DEPLOY_HOOK` for Hugo rebuild. |
 
 ---
@@ -255,7 +273,7 @@ Run all automated checks prior to committing:
 cd mobile-people
 export PATH="/home/dog/flutter/bin:$PATH"
 flutter analyze    # Must report 0 issues
-flutter test       # Must pass 100% of tests (41/41 tests passing)
+flutter test       # Must pass 100% of tests (50/50 tests passing)
 
 # 2. Mobile Microblog App (verify no regression)
 cd mobile-microblog
@@ -288,6 +306,26 @@ git status android/ # Must remain completely clean!
 ---
 
 ## 9. Recent Updates & Architectural Changelog
+
+### Version 1.7.0 — Trips Module: Browse, Trip CRUD & Interactive OSM Map (October 2026)
+
+1. **New Trips Tab (`MainNavigationScreen`)**: Expanded the Cupertino tab bar to three tabs — **People** (`person_2`), **Trips** (`map`), **Settings** (`gear_alt`).
+
+2. **Trips Directory (`trips_screen.dart`)**: `CupertinoSliverNavigationBar`-style header with live trip count + pending-sync badge, pull-to-refresh (force sync), 0ms in-memory search, horizontally scrollable status filter chips (All/Upcoming/Ongoing/Completed/★Favorites), a sort action sheet (Recent/Oldest/Duration/Title), and a vertical list of `TripCard`s. Filtering/sorting/featured selection are pure Dart ports (`core/util/trip_format.dart`) of the web `trip-helpers.ts`.
+
+3. **Trip Detail Hub (`trip_detail_screen.dart`)**: Hero cover (image or deterministic fallback gradient), status badge, favorite toggle, dates · duration · places · photos · spend stats, and an overflow menu (Edit / Duplicate / Delete). A `CupertinoSlidingSegmentedControl` switches read tabs: **Itinerary** (`TripDayTimeline`), **Places**, **Map** (`TripMapView`), **Photos** (grid → `ImageLightbox`), **Posts** (markdown), **People**. Accepts `initialTrip` for 0ms paint.
+
+4. **Read-Only Itinerary (`trip_day_timeline.dart`)**: Day cards with glance chips, wrapping transport route strings (`From › via › To`), food/activities/stay sub-sections with per-entry costs, markdown notes, a day photo strip, and a per-day currency-grouped spend badge (`trip_day.dart` cost roll-up).
+
+5. **Interactive Map (`trip_map_view.dart`)**: Added `flutter_map` + `latlong2`. Draws an OpenStreetMap route polyline with numbered destination markers, smaller waypoint dots, gold associated-location pins, auto-fit bounds, an ordered stop list, and a "Missing coordinates" callout. No map token required.
+
+6. **Trip CRUD (`trip_form_modal.dart`)**: Create/edit modal with auto-slug, description, start/end `CupertinoDatePicker`s, status picker, visibility segmented control, favorite switch, and tag chips. Create/update/delete/favorite are optimistic against `LocalStore` with offline-queue fallback.
+
+7. **Offline-First Parity (`ApiService`, `LocalStore`, `SyncService`)**: Trip list + detail reads use the shared 7-day TTL cache; `SyncService` gained `create_trip`/`update_trip`/`delete_trip`/`toggle_trip_favorite` with temp-ID remapping and fatal-error eviction. Covers over `GET|POST /api/trips`, `GET|PUT|DELETE /api/trips/[id]`, `POST /api/trips/[id]/favorite`, `POST /api/trips/[id]/duplicate`.
+
+8. **Out of Scope (follow-ups)**: itinerary day editing, trip photo add/remove, Movies tab, Mapbox basemaps, in-app connect-to-trip.
+
+9. **Quality Gates**: `flutter analyze` 0 issues; 50/50 unit/widget tests pass (+9 new covering `TripRecord` tolerant parsing, date/duration/display helpers, `filterAndSortTrips`/`selectFeaturedTrip`, and day cost roll-up). Backend `npx tsc --noEmit` 0 errors, `npm run build` compiles with the new `/api/trips/*` routes, 122/122 Vitest pass. `mobile-microblog` 13/13 with 0 analyze issues. `android/` remained 100% clean and untouched.
 
 ### Version 1.6.0 — Sync Queue Unblocking, Temp ID Remapping, Real-Time Birthday Derivation & Android Pull-to-Refresh (September 2026)
 

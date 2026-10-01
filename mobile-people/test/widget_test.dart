@@ -21,6 +21,9 @@ import 'package:mobile_people/screens/main_navigation_screen.dart';
 import 'package:mobile_people/screens/person_form_modal.dart';
 import 'package:mobile_people/screens/photo_picker_modal.dart';
 import 'package:mobile_people/core/network/api_service.dart';
+import 'package:mobile_people/core/models/trip_record.dart';
+import 'package:mobile_people/core/models/trip_day.dart';
+import 'package:mobile_people/core/util/trip_format.dart';
 import 'package:mobile_people/main.dart';
 
 void main() {
@@ -1100,6 +1103,139 @@ void main() {
     testWidgets('Renders CupertinoPeopleApp without crashing', (WidgetTester tester) async {
       await tester.pumpWidget(const CupertinoPeopleApp());
       expect(find.byType(CupertinoPeopleApp), findsOneWidget);
+    });
+  });
+
+  group('TripRecord parsing', () {
+    test('Parses raw trip record with int favorite and JSON-string tags', () {
+      final trip = TripRecord.fromJson({
+        'id': 'trip_1',
+        'slug': 'durgapur-ranchi-delhi',
+        'title': 'Durgapur-Ranchi-Delhi',
+        'startDate': '2026-09-22',
+        'endDate': '2026-09-29',
+        'status': 'completed',
+        'favorite': 1,
+        'tags': '["roadtrip","2026"]',
+      });
+
+      expect(trip.favorite, isTrue);
+      expect(trip.tags, ['roadtrip', '2026']);
+      // Derived display fields when payload omits them.
+      expect(trip.displayTitle, 'Durgapur → Ranchi → Delhi');
+      expect(trip.duration, 8); // inclusive 22..29 Sep
+      expect(trip.dateRangeFormatted, 'Sep 22 – Sep 29, 2026');
+      expect(trip.fallbackCoverTheme, isNotEmpty);
+    });
+
+    test('Honors server-provided overview fields', () {
+      final trip = TripRecord.fromJson({
+        'id': 'trip_2',
+        'slug': 'alps',
+        'title': 'Alps',
+        'displayTitle': 'The Alps',
+        'duration': 5,
+        'favorite': true,
+        'tags': ['mountains'],
+        'spendFormatted': '€1,200',
+        'placesCount': 4,
+      });
+      expect(trip.displayTitle, 'The Alps');
+      expect(trip.duration, 5);
+      expect(trip.favorite, isTrue);
+      expect(trip.spendFormatted, '€1,200');
+      expect(trip.placesCount, 4);
+    });
+  });
+
+  group('trip_format helpers', () {
+    test('formatTripDateRange handles partial and cross-year ranges', () {
+      expect(formatTripDateRange(null, null), 'Dates not set');
+      expect(formatTripDateRange('2026-01-01', null), startsWith('From'));
+      expect(formatTripDateRange('2025-12-28', '2026-01-04'),
+          'Dec 28, 2025 – Jan 4, 2026');
+    });
+
+    test('computeTripDuration is inclusive and never negative', () {
+      expect(computeTripDuration('2026-05-01', '2026-05-01'), 1);
+      expect(computeTripDuration('2026-05-01', '2026-05-10'), 10);
+      expect(computeTripDuration('2026-05-10', '2026-05-01'), 1);
+    });
+
+    test('getDeterministicCoverTheme is stable for a given id', () {
+      final a = getDeterministicCoverTheme('trip_abc');
+      final b = getDeterministicCoverTheme('trip_abc');
+      expect(a, b);
+      expect(['one', 'two', 'three', 'four'], contains(a));
+    });
+  });
+
+  group('filterAndSortTrips & featured selection', () {
+    TripRecord mk(String id, String title, String status, bool fav, String start) {
+      return TripRecord.fromJson({
+        'id': id,
+        'slug': id,
+        'title': title,
+        'status': status,
+        'favorite': fav,
+        'startDate': start,
+        'endDate': start,
+        'createdAt': start,
+      });
+    }
+
+    final trips = [
+      mk('t1', 'Paris', 'completed', true, '2026-01-10'),
+      mk('t2', 'Tokyo', 'planned', false, '2026-06-01'),
+      mk('t3', 'Rome', 'ongoing', false, '2026-03-15'),
+    ];
+
+    test('Status filter narrows results', () {
+      final completed = filterAndSortTrips(trips, '', 'completed', 'recent');
+      expect(completed.length, 1);
+      expect(completed.first.title, 'Paris');
+
+      final favs = filterAndSortTrips(trips, '', 'favorites', 'recent');
+      expect(favs.length, 1);
+      expect(favs.first.title, 'Paris');
+    });
+
+    test('Search matches title and sort by title orders A-Z', () {
+      final searched = filterAndSortTrips(trips, 'tok', 'all', 'recent');
+      expect(searched.length, 1);
+      expect(searched.first.title, 'Tokyo');
+
+      final sorted = filterAndSortTrips(trips, '', 'all', 'title');
+      expect(sorted.map((t) => t.title).toList(), ['Paris', 'Rome', 'Tokyo']);
+    });
+
+    test('selectFeaturedTrip prefers favorite + completed', () {
+      final featured = selectFeaturedTrip(trips);
+      expect(featured?.title, 'Paris');
+      expect(selectFeaturedTrip([]), isNull);
+    });
+  });
+
+  group('TripDay cost roll-up', () {
+    test('Groups spend by currency and formats totals', () {
+      final day = TripDay.fromJson({
+        'id': 'd1',
+        'tripId': 't1',
+        'dayNumber': 1,
+        'transportJson': '[{"id":"l1","mode":"train","cost":4500,"currency":"₹"}]',
+        'mealsJson': '[{"id":"m1","type":"lunch","cost":30,"currency":"\$"}]',
+        'activitiesJson': '[]',
+        'accommodationJson': '{}',
+        'photosJson': '[]',
+      });
+
+      final totals = day.costTotals;
+      expect(totals['₹'], 4500);
+      expect(totals[r'$'], 30);
+
+      final formatted = formatCostTotals(totals);
+      expect(formatted, contains('₹ 4,500'));
+      expect(formatted, contains(r'$ 30'));
     });
   });
 }

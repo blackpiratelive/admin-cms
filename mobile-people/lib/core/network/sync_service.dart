@@ -96,6 +96,29 @@ class SyncService {
               );
               success = true;
               break;
+            case 'create_trip':
+              final savedTrip = await ApiService.saveTrip(mutation.payload);
+              if (mutation.entityId.startsWith('temp_') && savedTrip.id != mutation.entityId) {
+                await LocalStore.deleteCachedTrip(mutation.entityId);
+                await LocalStore.replaceMutationEntityId(mutation.entityId, savedTrip.id);
+              }
+              success = true;
+              break;
+            case 'update_trip':
+              await ApiService.updateTrip(mutation.entityId, mutation.payload);
+              success = true;
+              break;
+            case 'delete_trip':
+              await ApiService.deleteTrip(mutation.entityId);
+              success = true;
+              break;
+            case 'toggle_trip_favorite':
+              await ApiService.toggleTripFavorite(
+                mutation.entityId,
+                mutation.payload['favorite'] == true,
+              );
+              success = true;
+              break;
           }
         } on ApiException catch (e) {
           // If fatal client error (400 Bad Request, 404 Not Found, 422 Unprocessable),

@@ -7,6 +7,8 @@ import '../models/person_connections.dart';
 import '../models/person_timeline_item.dart';
 import '../models/upcoming_birthday_item.dart';
 import '../models/picker_items.dart';
+import '../models/trip_record.dart';
+import '../models/trip_detail.dart';
 
 class PersonDetailResult {
   final PersonRecord person;
@@ -582,6 +584,210 @@ class ApiService {
       return url as String;
     } else {
       throw Exception('Avatar upload failed (${response.statusCode})');
+    }
+  }
+
+  // --- Trips ---
+
+  // Fetch Trips overview (cache-first with 7-day TTL)
+  static Future<List<TripRecord>> getTrips({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final isStale = await LocalStore.isTripsCacheStale();
+      if (!isStale) {
+        final cached = await LocalStore.getCachedTrips();
+        if (cached.isNotEmpty) return cached;
+      }
+    }
+
+    try {
+      final baseUrl = await _getBaseUrl();
+      final uri = Uri.parse('$baseUrl/api/trips?view=overview');
+      final headers = await _getHeaders();
+
+      final response = await http.get(uri, headers: headers).timeout(timeoutDuration);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final list = (data['trips'] as List<dynamic>? ?? [])
+            .map((e) => TripRecord.fromJson(e as Map<String, dynamic>))
+            .toList();
+        await LocalStore.saveCachedTrips(list);
+
+        final covers = list
+            .where((t) => t.hasCover)
+            .map((t) => t.coverImageUrl!)
+            .toList();
+        PeopleImageCacheManager.precacheImages(covers);
+
+        return list;
+      }
+      throw ApiException(response.statusCode, 'Failed to load trips (${response.statusCode})');
+    } catch (_) {
+      final cached = await LocalStore.getCachedTrips();
+      if (cached.isNotEmpty) return cached;
+      rethrow;
+    }
+  }
+
+  // Fetch single Trip hub detail (cache-first with 7-day TTL)
+  static Future<TripDetailResult?> getTripDetail(
+    String idOrSlug, {
+    bool forceRefresh = false,
+  }) async {
+    if (!forceRefresh) {
+      final isStale = await LocalStore.isTripDetailCacheStale(idOrSlug);
+      if (!isStale) {
+        final cached = await LocalStore.getCachedTripDetail(idOrSlug);
+        if (cached != null) return TripDetailResult.fromJson(cached);
+      }
+    }
+
+    try {
+      final baseUrl = await _getBaseUrl();
+      final uri = Uri.parse('$baseUrl/api/trips/$idOrSlug');
+      final headers = await _getHeaders();
+
+      final response = await http.get(uri, headers: headers).timeout(timeoutDuration);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final result = TripDetailResult.fromJson(data);
+
+        await LocalStore.saveCachedTripDetail(idOrSlug, data);
+        if (result.trip.id != idOrSlug) {
+          await LocalStore.saveCachedTripDetail(result.trip.id, data);
+        }
+        if (result.trip.slug.isNotEmpty && result.trip.slug != idOrSlug) {
+          await LocalStore.saveCachedTripDetail(result.trip.slug, data);
+        }
+
+        final photoUrls = <String>[
+          if (result.trip.hasCover) result.trip.coverImageUrl!,
+          ...result.photos.map((p) => p.thumbUrl).where((u) => u.isNotEmpty),
+        ];
+        PeopleImageCacheManager.precacheImages(photoUrls);
+
+        return result;
+      }
+      return null;
+    } catch (_) {
+      final cached = await LocalStore.getCachedTripDetail(idOrSlug);
+      if (cached != null) return TripDetailResult.fromJson(cached);
+      return null;
+    }
+  }
+
+  // Create Trip (POST) with cache update
+  static Future<TripRecord> saveTrip(Map<String, dynamic> input) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/trips');
+    final headers = await _getHeaders();
+
+    final response = await http
+        .post(uri, headers: headers, body: jsonEncode(input))
+        .timeout(timeoutDuration);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = jsonDecode(response.body);
+      final record = TripRecord.fromJson(data['trip'] as Map<String, dynamic>);
+      await LocalStore.upsertCachedTrip(record);
+      return record;
+    } else {
+      String msg = 'Failed to save trip (${response.statusCode})';
+      try {
+        final err = jsonDecode(response.body);
+        if (err['error'] != null) msg = err['error'];
+      } catch (_) {}
+      throw ApiException(response.statusCode, msg);
+    }
+  }
+
+  // Update Trip (PUT) with cache update
+  static Future<TripRecord> updateTrip(String id, Map<String, dynamic> input) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/trips/$id');
+    final headers = await _getHeaders();
+
+    final response = await http
+        .put(uri, headers: headers, body: jsonEncode(input))
+        .timeout(timeoutDuration);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final record = TripRecord.fromJson(data['trip'] as Map<String, dynamic>);
+      await LocalStore.upsertCachedTrip(record);
+      return record;
+    } else {
+      String msg = 'Failed to update trip (${response.statusCode})';
+      try {
+        final err = jsonDecode(response.body);
+        if (err['error'] != null) msg = err['error'];
+      } catch (_) {}
+      throw ApiException(response.statusCode, msg);
+    }
+  }
+
+  // Delete Trip with cache invalidation
+  static Future<bool> deleteTrip(String id) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/trips/$id');
+    final headers = await _getHeaders();
+
+    final response = await http.delete(uri, headers: headers).timeout(timeoutDuration);
+    if (response.statusCode == 200) {
+      await LocalStore.deleteCachedTrip(id);
+      return true;
+    } else {
+      String msg = 'Failed to delete trip (${response.statusCode})';
+      try {
+        final err = jsonDecode(response.body);
+        if (err['error'] != null) msg = err['error'];
+      } catch (_) {}
+      throw ApiException(response.statusCode, msg);
+    }
+  }
+
+  // Toggle Trip favorite with cache update
+  static Future<bool> toggleTripFavorite(String id, bool favorite) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/trips/$id/favorite');
+    final headers = await _getHeaders();
+
+    final response = await http
+        .post(uri, headers: headers, body: jsonEncode({'favorite': favorite}))
+        .timeout(timeoutDuration);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final isFav = data['favorite'] == true;
+      await LocalStore.toggleCachedTripFavorite(id, isFav);
+      return isFav;
+    } else {
+      String msg = 'Failed to toggle trip favorite (${response.statusCode})';
+      try {
+        final err = jsonDecode(response.body);
+        if (err['error'] != null) msg = err['error'];
+      } catch (_) {}
+      throw ApiException(response.statusCode, msg);
+    }
+  }
+
+  // Duplicate Trip
+  static Future<TripRecord?> duplicateTrip(String id) async {
+    final baseUrl = await _getBaseUrl();
+    final uri = Uri.parse('$baseUrl/api/trips/$id/duplicate');
+    final headers = await _getHeaders();
+
+    final response = await http.post(uri, headers: headers).timeout(timeoutDuration);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = jsonDecode(response.body);
+      final record = TripRecord.fromJson(data['trip'] as Map<String, dynamic>);
+      await LocalStore.upsertCachedTrip(record);
+      return record;
+    } else {
+      String msg = 'Failed to duplicate trip (${response.statusCode})';
+      try {
+        final err = jsonDecode(response.body);
+        if (err['error'] != null) msg = err['error'];
+      } catch (_) {}
+      throw ApiException(response.statusCode, msg);
     }
   }
 
