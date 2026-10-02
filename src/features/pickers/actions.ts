@@ -88,7 +88,7 @@ function mergeRecent(
     .map(([id]) => id);
 }
 
-async function deriveRecentLocationIds(): Promise<string[]> {
+async function deriveRecentLocationIdsRaw(): Promise<string[]> {
   await ensureDbInitialized();
   const [mb, gal, td, mv, tv, je] = await Promise.all([
     db.select({ id: microblogs.locationId, ts: microblogs.updatedAt }).from(microblogs).where(isNotNull(microblogs.locationId)).orderBy(desc(microblogs.updatedAt)).limit(SOURCE_SCAN_LIMIT),
@@ -101,7 +101,15 @@ async function deriveRecentLocationIds(): Promise<string[]> {
   return mergeRecent([mb, gal, td, mv, tv, je], RECENT_LIMIT);
 }
 
-async function deriveRecentTripIds(): Promise<string[]> {
+async function deriveRecentLocationIds(): Promise<string[]> {
+  const cached = createCachedQuery(deriveRecentLocationIdsRaw, ["recent-location-ids"], {
+    tags: ["locations-list", "trips-list"],
+    revalidate: 120,
+  });
+  return cached();
+}
+
+async function deriveRecentTripIdsRaw(): Promise<string[]> {
   await ensureDbInitialized();
   const [mb, gal, mv, tv, je] = await Promise.all([
     db.select({ id: microblogs.tripId, ts: microblogs.updatedAt }).from(microblogs).where(isNotNull(microblogs.tripId)).orderBy(desc(microblogs.updatedAt)).limit(SOURCE_SCAN_LIMIT),
@@ -111,6 +119,14 @@ async function deriveRecentTripIds(): Promise<string[]> {
     db.select({ id: journalEntries.tripId, ts: journalEntries.updatedAt }).from(journalEntries).where(isNotNull(journalEntries.tripId)).orderBy(desc(journalEntries.updatedAt)).limit(SOURCE_SCAN_LIMIT),
   ]);
   return mergeRecent([mb, gal, mv, tv, je], RECENT_LIMIT);
+}
+
+async function deriveRecentTripIds(): Promise<string[]> {
+  const cached = createCachedQuery(deriveRecentTripIdsRaw, ["recent-trip-ids"], {
+    tags: ["trips-list"],
+    revalidate: 120,
+  });
+  return cached();
 }
 
 // ---------------------------------------------------------------------------

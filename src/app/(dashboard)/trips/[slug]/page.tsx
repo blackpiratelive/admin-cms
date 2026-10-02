@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { TripRecord, LocationRecord, Microblog, PersonRecord } from "@/db/schema";
+import { TripRecord, TripDayRecord, LocationRecord, Microblog, PersonRecord } from "@/db/schema";
 import {
   getTripHubDataAction,
   deleteTrip,
@@ -60,6 +60,7 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
   const slug = resolvedParams.slug;
 
   const [trip, setTrip] = useState<TripRecord | null>(null);
+  const [days, setDays] = useState<TripDayRecord[]>([]);
   const [entities, setEntities] = useState<TripAssociatedEntities | null>(null);
   const [routeDistanceKm, setRouteDistanceKm] = useState(0);
   const [availableLocations, setAvailableLocations] = useState<LocationPickerOption[]>([]);
@@ -81,6 +82,7 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
 
     if (cached && cached.trip) {
       setTrip(cached.trip);
+      setDays(cached.days || []);
       setEntities(cached.entities);
       setRouteDistanceKm(cached.routeDistanceKm || 0);
       setLoading(false);
@@ -92,6 +94,7 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
       const data = await getTripHubDataAction(slug);
       if (data && data.trip) {
         setTrip(data.trip);
+        setDays(data.days || []);
         setEntities(data.entities);
         setRouteDistanceKm(data.routeDistanceKm || 0);
         setBrowserCache(cacheKey, data);
@@ -541,7 +544,14 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
       </nav>
 
       {/* TAB 0: ITINERARY */}
-      {activeTab === "itinerary" && <TripItineraryTab trip={trip} />}
+      {activeTab === "itinerary" && (
+        <TripItineraryTab
+          trip={trip}
+          initialDays={days}
+          associatedLocations={entities?.associatedLocations}
+          onDaysUpdated={loadTripData}
+        />
+      )}
 
       {/* TAB 1: LOCATIONS VISITED */}
       {activeTab === "locations" && (

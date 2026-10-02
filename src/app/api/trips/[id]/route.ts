@@ -5,7 +5,6 @@ import {
   updateTrip,
   deleteTrip,
 } from "@/features/trips/actions";
-import { getTripDaysAction } from "@/features/trips/day-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -21,16 +20,12 @@ export async function GET(
       return NextResponse.json({ error: "Trip not found" }, { status: 404 });
     }
 
-    // Fetch itinerary days and ordered map stops in parallel.
-    const [days, map] = await Promise.all([
-      getTripDaysAction(hub.trip.id),
-      getTripMapLocationsAction(hub.trip.id),
-    ]);
+    const map = await getTripMapLocationsAction(hub.trip.id);
 
     return NextResponse.json({
       trip: hub.trip,
       entities: hub.entities,
-      days,
+      days: hub.days,
       map,
     });
   } catch (error: any) {

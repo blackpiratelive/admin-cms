@@ -17,6 +17,7 @@ import {
   PersonRecord,
   attachments,
   tripDays,
+  TripDayRecord,
   NewTripDay,
 } from "@/db/schema";
 import { desc, asc, eq, or, and, inArray } from "drizzle-orm";
@@ -245,6 +246,7 @@ export interface TripAssociatedEntities {
 
 export interface TripHubData {
   trip: TripRecord | null;
+  days: TripDayRecord[];
   entities: TripAssociatedEntities;
   /** Geometric route distance in km (great-circle sum over itinerary stops). */
   routeDistanceKm: number;
@@ -270,7 +272,7 @@ async function fetchTripHubDataRaw(slug: string): Promise<TripHubData | null> {
         eq(attachments.kind, "photo")
       )
     ),
-    db.select().from(tripDays).where(eq(tripDays.tripId, tripId)),
+    db.select().from(tripDays).where(eq(tripDays.tripId, tripId)).orderBy(asc(tripDays.dayNumber), asc(tripDays.date)),
     db.select().from(relationships).where(
       or(
         and(eq(relationships.sourceType, "trip"), eq(relationships.sourceId, tripId), eq(relationships.targetType, "location")),
@@ -421,6 +423,7 @@ async function fetchTripHubDataRaw(slug: string): Promise<TripHubData | null> {
 
   return {
     trip,
+    days: tripDaysRows,
     entities: {
       associatedLocations,
       microblogs: directMicroblogs,

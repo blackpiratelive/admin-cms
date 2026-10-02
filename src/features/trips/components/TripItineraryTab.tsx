@@ -44,37 +44,89 @@ function formatMoney(cost?: number, currency?: string): string {
   return cur ? `${cur} ${num}` : num;
 }
 
-export function TripItineraryTab({ trip }: { trip: TripRecord }) {
-  const [days, setDays] = useState<TripDayRecord[]>([]);
+export function TripItineraryTab({
+  trip,
+  initialDays,
+  associatedLocations,
+  onDaysUpdated,
+}: {
+  trip: TripRecord;
+  initialDays?: TripDayRecord[];
+  associatedLocations?: Array<{ relationshipId?: string; location: any }>;
+  onDaysUpdated?: () => void;
+}) {
+  const [days, setDays] = useState<TripDayRecord[]>(initialDays || []);
   const [locations, setLocations] = useState<LocationPickerOption[]>([]);
   const [locationRecentIds, setLocationRecentIds] = useState<string[]>([]);
   const [tripLocationIds, setTripLocationIds] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(initialDays === undefined);
   const [busy, setBusy] = useState(false);
   const [editingDay, setEditingDay] = useState<TripDayRecord | null>(null);
+  const [pickerLoaded, setPickerLoaded] = useState(false);
   const dayRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
+  useEffect(() => {
+    if (initialDays !== undefined) {
+      setDays(initialDays);
+      setLoading(false);
+    }
+  }, [initialDays]);
+
   const load = useCallback(async () => {
-    const [d, locData, tripLocIds] = await Promise.all([
-      getTripDaysAction(trip.id),
-      getLocationPickerData(),
-      getTripLocationIds(trip.id),
-    ]);
-    setDays(d);
-    setLocations(locData.options);
-    setLocationRecentIds(locData.recentIds);
-    setTripLocationIds(tripLocIds);
-    setLoading(false);
-  }, [trip.id]);
+    try {
+      const d = await getTripDaysAction(trip.id);
+      setDays(d);
+    } catch (err) {
+      console.error("Failed to load trip days:", err);
+    } finally {
+      setLoading(false);
+    }
+    onDaysUpdated?.();
+  }, [trip.id, onDaysUpdated]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (initialDays === undefined) {
+      load();
+    }
+  }, [initialDays, load]);
+
+  const loadPickerData = useCallback(async () => {
+    if (pickerLoaded) return;
+    try {
+      const [locData, tripLocIds] = await Promise.all([
+        getLocationPickerData(),
+        getTripLocationIds(trip.id),
+      ]);
+      setLocations(locData.options);
+      setLocationRecentIds(locData.recentIds);
+      setTripLocationIds(tripLocIds);
+      setPickerLoaded(true);
+    } catch (err) {
+      console.error("Failed to load picker data:", err);
+    }
+  }, [trip.id, pickerLoaded]);
+
+  useEffect(() => {
+    if (editingDay !== null) {
+      loadPickerData();
+    }
+  }, [editingDay, loadPickerData]);
 
   const summary = computeTripCostSummary(days);
   const distanceSummary = computeTripDistanceSummary(days);
   const hasDates = Boolean(trip.startDate && trip.endDate);
-  const locationsMap = useMemo(() => new Map(locations.map((l) => [l.id, l])), [locations]);
+  const locationsMap = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    if (associatedLocations) {
+      for (const al of associatedLocations) {
+        if (al.location) map.set(al.location.id, { id: al.location.id, name: al.location.name });
+      }
+    }
+    for (const l of locations) {
+      map.set(l.id, l);
+    }
+    return map;
+  }, [associatedLocations, locations]);
 
   const isDayDocumented = useCallback((d: TripDayRecord): boolean => {
     if (d.title || d.primaryLocationId || d.primaryLocationName || d.weather || d.mood || d.notesMarkdown) {
@@ -267,7 +319,7 @@ function DayTimelineCard({
 }: {
   day: TripDayRecord;
   documented: boolean;
-  locationsMap: Map<string, LocationPickerOption>;
+  locationsMap: Map<string, { id: string; name: string }>;
   costLabel: string;
   distanceLabel: string;
   onEdit: () => void;

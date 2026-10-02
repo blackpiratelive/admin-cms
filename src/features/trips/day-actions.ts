@@ -6,7 +6,7 @@ import { asc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/features/activity/actions";
 import { addRelationship } from "@/features/relationships/actions";
-import { purgeTag } from "@/lib/server-cache";
+import { createCachedQuery, purgeTag } from "@/lib/server-cache";
 import { enumerateDateRange, type TripDayUpdate } from "@/features/trips/day-helpers";
 
 function genDayId(): string {
@@ -26,13 +26,23 @@ async function purgeTripCaches(tripId: string): Promise<void> {
   }
 }
 
-export async function getTripDaysAction(tripId: string): Promise<TripDayRecord[]> {
+async function fetchTripDaysRaw(tripId: string): Promise<TripDayRecord[]> {
   await ensureDbInitialized();
   return db
     .select()
     .from(tripDays)
     .where(eq(tripDays.tripId, tripId))
     .orderBy(asc(tripDays.dayNumber), asc(tripDays.date));
+}
+
+export async function getTripDaysAction(tripId: string): Promise<TripDayRecord[]> {
+  const cachedFn = createCachedQuery(
+    () => fetchTripDaysRaw(tripId),
+    ["trip-days", tripId],
+    { tags: ["trips-list", `trip-${tripId}`], revalidate: 3600 }
+  );
+
+  return cachedFn();
 }
 
 /**
