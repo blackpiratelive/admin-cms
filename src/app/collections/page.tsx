@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { ArrowUpRight, FolderOpen } from "lucide-react";
 import { getPublicCollectionsAction } from "@/features/libraries/actions/collections";
 import { collectionKindLabel } from "@/features/libraries/collection-helpers";
-import type { CollectionOverview } from "@/features/libraries/collection-types";
+import type { PublicCollectionOverview } from "@/features/libraries/collection-types";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   description: "A curated collection of photographs, films, music, and people.",
 };
 
-function countSummary(collection: CollectionOverview): string {
+function countSummary(collection: PublicCollectionOverview): string {
   const parts: string[] = [];
   if (collection.counts.photos) {
     parts.push(`${collection.counts.photos} photo${collection.counts.photos === 1 ? "" : "s"}`);

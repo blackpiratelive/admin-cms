@@ -11,11 +11,24 @@ export interface CollectionCounts {
   total: number;
 }
 
+export interface CollectionAnalyticsSummary {
+  viewCount: number;
+  lastViewedAt: string | null;
+}
+
 export interface CollectionOverview extends CollectionRecord {
   counts: CollectionCounts;
   coverUrl: string | null;
   sharePath: string | null;
+  analytics: CollectionAnalyticsSummary;
 }
+
+export type PublicCollectionOverview = Omit<
+  CollectionOverview,
+  "coverPhotoId" | "shareToken" | "analytics"
+> & {
+  shareToken: null;
+};
 
 export interface CollectionPhotoItem {
   itemType: "photo";
@@ -38,6 +51,7 @@ export interface CollectionPhotoItem {
   iso: number | null;
   locationName: string | null;
   addedAt: string;
+  incompatible?: boolean;
 }
 
 export interface CollectionMovieItem {
@@ -52,6 +66,7 @@ export interface CollectionMovieItem {
   review: string | null;
   visibility: string;
   addedAt: string;
+  incompatible?: boolean;
 }
 
 export interface CollectionShowItem {
@@ -67,6 +82,7 @@ export interface CollectionShowItem {
   review: string | null;
   visibility: string;
   addedAt: string;
+  incompatible?: boolean;
 }
 
 export interface CollectionArtistItem {
@@ -79,6 +95,7 @@ export interface CollectionArtistItem {
   review: string | null;
   visibility: string;
   addedAt: string;
+  incompatible?: boolean;
 }
 
 export interface CollectionAlbumItem {
@@ -92,6 +109,7 @@ export interface CollectionAlbumItem {
   review: string | null;
   visibility: string;
   addedAt: string;
+  incompatible?: boolean;
 }
 
 export interface CollectionTrackItem {
@@ -105,6 +123,7 @@ export interface CollectionTrackItem {
   review: string | null;
   visibility: string;
   addedAt: string;
+  incompatible?: boolean;
 }
 
 export interface CollectionPersonItem {
@@ -114,6 +133,7 @@ export interface CollectionPersonItem {
   avatarUrl: string | null;
   visibility: string;
   addedAt: string;
+  incompatible?: boolean;
 }
 
 export type CollectionMediaItem =
@@ -134,9 +154,19 @@ export interface CollectionDetail {
   tracks: CollectionTrackItem[];
   people: CollectionPersonItem[];
   unsupportedCount: number;
+  incompatibleCount: number;
   counts: CollectionCounts;
+  coverUrl: string | null;
   sharePath: string | null;
+  analytics: CollectionAnalyticsSummary;
 }
+
+export type PublicCollectionDetail = Omit<
+  CollectionDetail,
+  "analytics" | "collection" | "incompatibleCount"
+> & {
+  collection: Omit<CollectionRecord, "coverPhotoId" | "shareToken"> & { shareToken: null };
+};
 
 export interface CollectionPhotoPickerOption {
   id: string;

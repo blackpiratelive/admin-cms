@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { inArray } from "drizzle-orm";
 import { db, ensureDbInitialized } from "../src/db";
 import {
+  collectionAnalytics,
   collectionItems,
   collections,
   gallery,
@@ -18,12 +19,17 @@ import {
   getPhotoCollectionsAction,
   getPublicCollectionAction,
   getPublicCollectionsAction,
+  recordCollectionViewAction,
   regenerateCollectionShareTokenAction,
+  setCollectionCoverAction,
   setCollectionVisibilityAction,
+  updateCollectionAction,
 } from "../src/features/libraries/actions/collections";
 import { deleteGalleryPhoto } from "../src/features/gallery/actions";
-import { getCollectionSharePath } from "../src/features/libraries/collection-helpers";
-import type { CollectionDetail } from "../src/features/libraries/collection-types";
+import {
+  getCollectionPreviewPath,
+  getCollectionSharePath,
+} from "../src/features/libraries/collection-helpers";
 
 const run = `share_${Date.now().toString(36)}`;
 const photoPublicId = `${run}_photo_public`;
@@ -46,9 +52,9 @@ function requireId(result: { success: boolean; id?: string; slug?: string }): {
   return { id: result.id, slug: result.slug };
 }
 
-function requireDetail(detail: CollectionDetail | null): CollectionDetail {
+function requireDetail<T>(detail: T | null): T {
   expect(detail).not.toBeNull();
-  return detail as CollectionDetail;
+  return detail as T;
 }
 
 async function createCollection(
@@ -216,6 +222,9 @@ describe("Shareable collection links", () => {
   afterAll(async () => {
     if (collectionIds.length > 0) {
       await db.delete(collectionItems).where(inArray(collectionItems.collectionId, collectionIds));
+      await db
+        .delete(collectionAnalytics)
+        .where(inArray(collectionAnalytics.collectionId, collectionIds));
       await db.delete(collections).where(inArray(collections.id, collectionIds));
     }
     await db
@@ -271,6 +280,9 @@ describe("Shareable collection links", () => {
     const unlistedDetail = requireDetail(await getPublicCollectionAction(mixed.slug, token));
     expect(unlistedDetail.collection.visibility).toBe("unlisted");
     expect(unlistedDetail.collection.shareToken).toBeNull();
+    expect(unlistedDetail.collection).not.toHaveProperty("coverPhotoId");
+    expect(unlistedDetail).not.toHaveProperty("analytics");
+    expect(unlistedDetail).not.toHaveProperty("incompatibleCount");
     expect(unlistedDetail.sharePath).toBe(`/collections/${mixed.slug}?share=${token}`);
   });
 
@@ -345,9 +357,117 @@ describe("Shareable collection links", () => {
     const mixedOverview = publicCollections.find((collection) => collection.id === mixed.id);
     expect(mixedOverview?.coverUrl).toBe("https://cdn.example/medium-unlisted.jpg");
     expect(mixedOverview?.sharePath).toBe(`/collections/${mixed.slug}`);
+    expect(mixedOverview).not.toHaveProperty("analytics");
+    expect(mixedOverview).not.toHaveProperty("coverPhotoId");
 
     const adminOverview = await getCollectionsOverviewAction();
     expect(adminOverview.some((collection) => collection.id === mediaOnly.id)).toBe(true);
+  });
+
+  it("uses manual covers only for member photos and falls back safely on the public page", async () => {
+    await setCollectionVisibilityAction(mixed.id, "public");
+
+    const privateCover = await setCollectionCoverAction(mixed.id, photoPrivateId);
+    expect(privateCover.success).toBe(true);
+
+    const adminDetail = requireDetail(await getCollectionDetailAction(mixed.slug));
+    expect(adminDetail.collection.coverPhotoId).toBe(photoPrivateId);
+    expect(adminDetail.coverUrl).toBe("https://cdn.example/medium-private.jpg");
+
+    const adminOverview = (await getCollectionsOverviewAction()).find(
+      (collection) => collection.id === mixed.id
+    );
+    expect(adminOverview?.coverUrl).toBe("https://cdn.example/medium-private.jpg");
+
+    const publicDetail = requireDetail(await getPublicCollectionAction(mixed.slug));
+    expect(publicDetail.coverUrl).toBe("https://cdn.example/medium-unlisted.jpg");
+    const publicOverview = (await getPublicCollectionsAction()).find(
+      (collection) => collection.id === mixed.id
+    );
+    expect(publicOverview?.coverUrl).toBe("https://cdn.example/medium-unlisted.jpg");
+
+    const nonMember = await setCollectionCoverAction(mixed.id, photoDisposableId);
+    expect(nonMember.success).toBe(false);
+    expect((await getCollectionDetailAction(mixed.slug))?.collection.coverPhotoId).toBe(
+      photoPrivateId
+    );
+
+    const publicCover = await setCollectionCoverAction(mixed.id, photoPublicId);
+    expect(publicCover.success).toBe(true);
+    expect((await getPublicCollectionAction(mixed.slug))?.coverUrl).toBe(
+      "https://cdn.example/medium-public.jpg"
+    );
+
+    const automatic = await setCollectionCoverAction(mixed.id, null);
+    expect(automatic.success).toBe(true);
+    const reset = requireDetail(await getCollectionDetailAction(mixed.slug));
+    expect(reset.collection.coverPhotoId).toBeNull();
+    expect(reset.coverUrl).toBe("https://cdn.example/medium-unlisted.jpg");
+  });
+
+  it("counts total views only for accessible pages and excludes previews", async () => {
+    const analyticsCollection = await createCollection(`${run} Analytics`, "photo");
+    await addPhotosToCollectionAction(analyticsCollection.id, [photoPublicId]);
+
+    expect((await recordCollectionViewAction(analyticsCollection.id)).counted).toBe(false);
+    let detail = requireDetail(await getCollectionDetailAction(analyticsCollection.slug));
+    expect(detail.analytics).toEqual({ viewCount: 0, lastViewedAt: null });
+
+    const unlisted = await setCollectionVisibilityAction(analyticsCollection.id, "unlisted");
+    if (!("sharePath" in unlisted) || !unlisted.sharePath) {
+      throw new Error("Expected an unlisted share path");
+    }
+    const token = tokenFromPath(unlisted.sharePath);
+
+    expect(
+      (await recordCollectionViewAction(analyticsCollection.id, "wrong-token")).counted
+    ).toBe(false);
+    expect((await recordCollectionViewAction(analyticsCollection.id, token)).counted).toBe(
+      true
+    );
+    expect(
+      (await recordCollectionViewAction(analyticsCollection.id, token, true)).counted
+    ).toBe(false);
+    expect((await recordCollectionViewAction(analyticsCollection.id, token)).counted).toBe(
+      true
+    );
+
+    await setCollectionVisibilityAction(analyticsCollection.id, "public");
+    expect((await recordCollectionViewAction(analyticsCollection.id)).counted).toBe(true);
+
+    detail = requireDetail(await getCollectionDetailAction(analyticsCollection.slug));
+    expect(detail.analytics.viewCount).toBe(3);
+    expect(detail.analytics.lastViewedAt).not.toBeNull();
+
+    const overview = (await getCollectionsOverviewAction()).find(
+      (collection) => collection.id === analyticsCollection.id
+    );
+    expect(overview?.analytics.viewCount).toBe(3);
+
+    const publicOverview = (await getPublicCollectionsAction()).find(
+      (collection) => collection.id === analyticsCollection.id
+    );
+    expect(publicOverview).toBeDefined();
+    expect(publicOverview).not.toHaveProperty("analytics");
+  });
+
+  it("flags items hidden by a kind change without deleting them", async () => {
+    const updated = await updateCollectionAction(mixed.id, { kind: "media" });
+    expect(updated.success).toBe(true);
+
+    const adminDetail = requireDetail(await getCollectionDetailAction(mixed.slug));
+    expect(adminDetail.incompatibleCount).toBe(3);
+    expect(adminDetail.photos).toHaveLength(3);
+    expect(adminDetail.photos.every((photo) => photo.incompatible)).toBe(true);
+
+    const publicDetail = requireDetail(await getPublicCollectionAction(mixed.slug));
+    expect(publicDetail.photos).toHaveLength(0);
+    expect(publicDetail.counts.photos).toBe(0);
+
+    await updateCollectionAction(mixed.id, { kind: "mixed" });
+    const restored = requireDetail(await getCollectionDetailAction(mixed.slug));
+    expect(restored.incompatibleCount).toBe(0);
+    expect(restored.photos.every((photo) => !photo.incompatible)).toBe(true);
   });
 
   it("keeps slugs unique when collection names normalize to the same slug", async () => {
@@ -369,11 +489,15 @@ describe("Shareable collection links", () => {
     ).toBe("/collections/album");
 
     await addPhotosToCollectionAction(photoOnly.id, [photoDisposableId]);
+    const coverResult = await setCollectionCoverAction(photoOnly.id, photoDisposableId);
+    expect(coverResult.success).toBe(true);
     const beforeDelete = requireDetail(await getCollectionDetailAction(photoOnly.slug));
     expect(beforeDelete.photos.some((photo) => photo.id === photoDisposableId)).toBe(true);
+    expect(beforeDelete.collection.coverPhotoId).toBe(photoDisposableId);
 
     await deleteGalleryPhoto(photoDisposableId);
     const afterDelete = requireDetail(await getCollectionDetailAction(photoOnly.slug));
     expect(afterDelete.photos.some((photo) => photo.id === photoDisposableId)).toBe(false);
+    expect(afterDelete.collection.coverPhotoId).toBeNull();
   });
 });

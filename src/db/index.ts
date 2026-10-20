@@ -307,6 +307,7 @@ export async function ensureDbInitialized(): Promise<void> {
           kind TEXT NOT NULL DEFAULT 'media',
           visibility TEXT NOT NULL DEFAULT 'private',
           share_token TEXT,
+          cover_photo_id TEXT,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
@@ -317,6 +318,13 @@ export async function ensureDbInitialized(): Promise<void> {
           item_type TEXT NOT NULL,
           item_id TEXT NOT NULL,
           added_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS collection_analytics (
+          collection_id TEXT PRIMARY KEY,
+          view_count INTEGER NOT NULL DEFAULT 0,
+          last_viewed_at TEXT,
+          updated_at TEXT NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS activities (
@@ -922,6 +930,9 @@ export async function ensureDbInitialized(): Promise<void> {
       try {
         await client.execute(`ALTER TABLE collections ADD COLUMN share_token TEXT;`);
       } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE collections ADD COLUMN cover_photo_id TEXT;`);
+      } catch (err) {}
 
       // Comprehensive performance indexes covering all single-column & multi-column queries
       await client.executeMultiple(`
@@ -947,6 +958,7 @@ export async function ensureDbInitialized(): Promise<void> {
         CREATE INDEX IF NOT EXISTS collection_items_col_idx ON collection_items(collection_id, item_type, item_id);
         CREATE INDEX IF NOT EXISTS collections_visibility_idx ON collections(visibility);
         CREATE UNIQUE INDEX IF NOT EXISTS collections_share_token_idx ON collections(share_token) WHERE share_token IS NOT NULL;
+        CREATE INDEX IF NOT EXISTS collection_analytics_last_viewed_idx ON collection_analytics(last_viewed_at DESC);
         CREATE INDEX IF NOT EXISTS search_index_query_idx ON search_index(title, subtitle, keywords);
         CREATE INDEX IF NOT EXISTS journal_entries_entry_date_idx ON journal_entries(entry_date DESC);
         CREATE INDEX IF NOT EXISTS journal_entries_created_at_idx ON journal_entries(created_at DESC);

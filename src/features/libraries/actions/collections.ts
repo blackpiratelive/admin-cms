@@ -4,6 +4,7 @@ import { ensureDbInitialized, db } from "@/db";
 import {
   collections,
   collectionItems,
+  collectionAnalytics,
   type CollectionRecord,
   gallery,
   traktMovies,
@@ -30,7 +31,7 @@ import {
   type LastfmAlbumRecord,
   type LastfmTrackRecord,
 } from "@/db/schema";
-import { eq, and, desc, inArray, or } from "drizzle-orm";
+import { eq, and, desc, inArray, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { randomBytes, timingSafeEqual } from "crypto";
 import { purgeTag, createCachedQuery } from "@/lib/server-cache";
@@ -48,6 +49,7 @@ import {
   emptyCollectionCounts,
   sumCollectionCounts,
   type CollectionAlbumItem,
+  type CollectionAnalyticsSummary,
   type CollectionArtistItem,
   type CollectionCounts,
   type CollectionDetail,
@@ -58,6 +60,8 @@ import {
   type CollectionPhotoPickerOption,
   type CollectionShowItem,
   type CollectionTrackItem,
+  type PublicCollectionDetail,
+  type PublicCollectionOverview,
 } from "../collection-types";
 
 const SUPPORTED_ITEM_TYPES = new Set([
@@ -73,6 +77,11 @@ const SUPPORTED_ITEM_TYPES = new Set([
 function nowIso() {
   return new Date().toISOString();
 }
+
+const EMPTY_ANALYTICS: CollectionAnalyticsSummary = {
+  viewCount: 0,
+  lastViewedAt: null,
+};
 
 function generateShareToken() {
   return randomBytes(24).toString("hex");
@@ -410,11 +419,69 @@ function buildPersonItem(person: PersonRecord, addedAt: string): CollectionPerso
   };
 }
 
-function buildCollectionDetail(
+async function loadAnalyticsSummaries(
+  collectionIds: string[]
+): Promise<Map<string, CollectionAnalyticsSummary>> {
+  if (collectionIds.length === 0) return new Map();
+  const rows = await db
+    .select()
+    .from(collectionAnalytics)
+    .where(inArray(collectionAnalytics.collectionId, collectionIds));
+  return new Map(
+    rows.map((row) => [
+      row.collectionId,
+      { viewCount: row.viewCount, lastViewedAt: row.lastViewedAt },
+    ])
+  );
+}
+
+function manualCoverUrl(
   collection: CollectionRecord,
   items: Array<{ itemType: string; itemId: string; addedAt: string }>,
   data: CollectionItemData,
   publicOnly: boolean
+): string | null {
+  if (!collection.coverPhotoId) return null;
+  if (
+    !items.some(
+      (item) => item.itemType === "photo" && item.itemId === collection.coverPhotoId
+    )
+  ) {
+    return null;
+  }
+  const photo = data.photos.get(collection.coverPhotoId);
+  if (!photo) return null;
+  if (
+    publicOnly &&
+    (!isVisible(photo.visibility) || !itemAllowedForKind(collection.kind, "photo"))
+  ) {
+    return null;
+  }
+  return photo.mediumUrl || photo.thumbnailUrl || null;
+}
+
+function autoDetailCoverUrl(
+  photos: CollectionPhotoItem[],
+  movies: CollectionMovieItem[],
+  shows: CollectionShowItem[],
+  people: CollectionPersonItem[]
+): string | null {
+  const firstPhoto = photos[0];
+  return (
+    (firstPhoto ? firstPhoto.mediumUrl || firstPhoto.thumbnailUrl : null) ||
+    movies[0]?.posterUrl ||
+    shows[0]?.posterUrl ||
+    people[0]?.avatarUrl ||
+    null
+  );
+}
+
+function buildCollectionDetail(
+  collection: CollectionRecord,
+  items: Array<{ itemType: string; itemId: string; addedAt: string }>,
+  data: CollectionItemData,
+  publicOnly: boolean,
+  analytics: CollectionAnalyticsSummary = EMPTY_ANALYTICS
 ): CollectionDetail {
   const photoItems: CollectionPhotoItem[] = [];
   const movies: CollectionMovieItem[] = [];
@@ -424,65 +491,83 @@ function buildCollectionDetail(
   const tracks: CollectionTrackItem[] = [];
   const people: CollectionPersonItem[] = [];
   let unsupportedCount = 0;
+  let incompatibleCount = 0;
 
   for (const item of items) {
     if (!SUPPORTED_ITEM_TYPES.has(item.itemType)) {
       unsupportedCount += 1;
       continue;
     }
-    if (publicOnly && !itemAllowedForKind(collection.kind, item.itemType)) {
+
+    const compatible = itemAllowedForKind(collection.kind, item.itemType);
+    if (publicOnly && !compatible) {
       unsupportedCount += 1;
       continue;
     }
+    if (!publicOnly && !compatible) incompatibleCount += 1;
 
     switch (item.itemType) {
       case "photo": {
         const photo = data.photos.get(item.itemId);
         if (!photo) break;
         if (publicOnly && !isVisible(photo.visibility)) break;
-        photoItems.push(buildPhotoItem(photo, item.addedAt));
+        const built = buildPhotoItem(photo, item.addedAt);
+        if (!compatible) built.incompatible = true;
+        photoItems.push(built);
         break;
       }
       case "movie": {
         const row = data.movies.get(item.itemId);
         if (!row) break;
         if (publicOnly && !isVisible(movieVisibility(row))) break;
-        movies.push(buildMovieItem(row, item.addedAt));
+        const built = buildMovieItem(row, item.addedAt);
+        if (!compatible) built.incompatible = true;
+        movies.push(built);
         break;
       }
       case "show": {
         const row = data.shows.get(item.itemId);
         if (!row) break;
         if (publicOnly && !isVisible(showVisibility(row))) break;
-        shows.push(buildShowItem(row, item.addedAt));
+        const built = buildShowItem(row, item.addedAt);
+        if (!compatible) built.incompatible = true;
+        shows.push(built);
         break;
       }
       case "artist": {
         const row = data.artists.get(item.itemId);
         if (!row) break;
         if (publicOnly && !isVisible(musicVisibility(row.artist.hidden, row.metadata?.visibility))) break;
-        artists.push(buildArtistItem(row, item.addedAt));
+        const built = buildArtistItem(row, item.addedAt);
+        if (!compatible) built.incompatible = true;
+        artists.push(built);
         break;
       }
       case "album": {
         const row = data.albums.get(item.itemId);
         if (!row) break;
         if (publicOnly && !isVisible(musicVisibility(row.album.hidden, row.metadata?.visibility))) break;
-        albums.push(buildAlbumItem(row, item.addedAt));
+        const built = buildAlbumItem(row, item.addedAt);
+        if (!compatible) built.incompatible = true;
+        albums.push(built);
         break;
       }
       case "track": {
         const row = data.tracks.get(item.itemId);
         if (!row) break;
         if (publicOnly && !isVisible(musicVisibility(row.track.hidden, row.metadata?.visibility))) break;
-        tracks.push(buildTrackItem(row, item.addedAt));
+        const built = buildTrackItem(row, item.addedAt);
+        if (!compatible) built.incompatible = true;
+        tracks.push(built);
         break;
       }
       case "person": {
         const person = data.people.get(item.itemId);
         if (!person) break;
         if (publicOnly && !isVisible(person.visibility || "private")) break;
-        people.push(buildPersonItem(person, item.addedAt));
+        const built = buildPersonItem(person, item.addedAt);
+        if (!compatible) built.incompatible = true;
+        people.push(built);
         break;
       }
     }
@@ -516,8 +601,13 @@ function buildCollectionDetail(
     tracks,
     people,
     unsupportedCount,
+    incompatibleCount,
     counts,
+    coverUrl:
+      manualCoverUrl(collection, items, data, publicOnly) ||
+      autoDetailCoverUrl(photoItems, movies, shows, people),
     sharePath: getCollectionSharePath(collection),
+    analytics,
   };
 }
 
@@ -565,7 +655,8 @@ function buildCollectionOverview(
   collection: CollectionRecord,
   items: Array<{ itemType: string; itemId: string; addedAt: string }>,
   data: CollectionItemData,
-  publicOnly: boolean
+  publicOnly: boolean,
+  analytics: CollectionAnalyticsSummary = EMPTY_ANALYTICS
 ): CollectionOverview {
   const counts = emptyCollectionCounts();
   const coverCandidates: GalleryPhoto[] = [];
@@ -627,6 +718,7 @@ function buildCollectionOverview(
   coverCandidates.sort((a, b) => photoDate(a).localeCompare(photoDate(b)));
   const coverPhoto = coverCandidates[0];
   const coverUrl =
+    manualCoverUrl(collection, items, data, publicOnly) ||
     (coverPhoto ? coverPhoto.mediumUrl || coverPhoto.thumbnailUrl : null) ||
     firstMoviePoster ||
     firstShowPoster ||
@@ -639,6 +731,7 @@ function buildCollectionOverview(
     counts,
     coverUrl,
     sharePath: getCollectionSharePath(collection),
+    analytics,
   };
 }
 
@@ -663,6 +756,9 @@ async function buildOverviews(publicOnly: boolean): Promise<CollectionOverview[]
 
   const items = await loadAllItemsForCollections(collectionRows.map((collection) => collection.id));
   const data = await loadCollectionItemData(items);
+  const analytics = publicOnly
+    ? new Map<string, CollectionAnalyticsSummary>()
+    : await loadAnalyticsSummaries(collectionRows.map((collection) => collection.id));
   const itemsByCollection = new Map<string, typeof items>();
   for (const item of items) {
     const bucket = itemsByCollection.get(item.collectionId);
@@ -671,8 +767,41 @@ async function buildOverviews(publicOnly: boolean): Promise<CollectionOverview[]
   }
 
   return collectionRows.map((collection) =>
-    buildCollectionOverview(collection, itemsByCollection.get(collection.id) || [], data, publicOnly)
+    buildCollectionOverview(
+      collection,
+      itemsByCollection.get(collection.id) || [],
+      data,
+      publicOnly,
+      analytics.get(collection.id) || EMPTY_ANALYTICS
+    )
   );
+}
+
+function toPublicOverview(collection: CollectionOverview): PublicCollectionOverview {
+  const {
+    coverPhotoId: _coverPhotoId,
+    analytics: _analytics,
+    ...publicCollection
+  } = collection;
+  return { ...publicCollection, shareToken: null };
+}
+
+function toPublicDetail(detail: CollectionDetail): PublicCollectionDetail {
+  const {
+    analytics: _analytics,
+    incompatibleCount: _incompatibleCount,
+    collection,
+    ...publicDetail
+  } = detail;
+  const {
+    coverPhotoId: _coverPhotoId,
+    shareToken: _shareToken,
+    ...publicCollection
+  } = collection;
+  return {
+    ...publicDetail,
+    collection: { ...publicCollection, shareToken: null },
+  };
 }
 
 const getCollectionsOverviewCached = createCachedQuery(
@@ -702,8 +831,9 @@ export async function getCollectionsOverviewAction(): Promise<CollectionOverview
   return getCollectionsOverviewCached();
 }
 
-export async function getPublicCollectionsAction(): Promise<CollectionOverview[]> {
-  return getPublicCollectionsCached();
+export async function getPublicCollectionsAction(): Promise<PublicCollectionOverview[]> {
+  const collections = await getPublicCollectionsCached();
+  return collections.map(toPublicOverview);
 }
 
 export async function getPhotoCollectionsAction(): Promise<CollectionPhotoPickerOption[]> {
@@ -786,6 +916,7 @@ export async function createCollectionAction(
     kind,
     visibility: "private",
     shareToken: null,
+    coverPhotoId: null,
     createdAt: now,
     updatedAt: now,
   });
@@ -876,10 +1007,81 @@ export async function regenerateCollectionShareTokenAction(id: string) {
   return { success: true, sharePath: getCollectionSharePath(updated) };
 }
 
+export async function setCollectionCoverAction(collectionId: string, photoId: string | null) {
+  await ensureDbInitialized();
+  const collection = await findCollection(collectionId);
+  if (!collection) return { success: false, error: "Collection not found." };
+
+  if (photoId) {
+    const membership = await db
+      .select({ id: collectionItems.id })
+      .from(collectionItems)
+      .where(
+        and(
+          eq(collectionItems.collectionId, collection.id),
+          eq(collectionItems.itemType, "photo"),
+          eq(collectionItems.itemId, photoId)
+        )
+      )
+      .limit(1);
+    if (!membership[0]) {
+      return { success: false, error: "Choose a photo that belongs to this collection." };
+    }
+  }
+
+  await db
+    .update(collections)
+    .set({ coverPhotoId: photoId, updatedAt: nowIso() })
+    .where(eq(collections.id, collection.id));
+
+  purgeCollectionCaches({ id: collection.id, slug: collection.slug });
+  return { success: true, coverPhotoId: photoId };
+}
+
+export async function recordCollectionViewAction(
+  key: string,
+  token?: string | null,
+  preview = false
+) {
+  await ensureDbInitialized();
+  if (preview) return { success: true, counted: false };
+
+  const collection = await findCollection(key);
+  if (!collection) return { success: false, counted: false, error: "Collection not found." };
+
+  if (collection.visibility !== "public" && collection.visibility !== "unlisted") {
+    return { success: true, counted: false };
+  }
+  if (collection.visibility === "unlisted" && !tokensMatch(collection.shareToken, token)) {
+    return { success: true, counted: false };
+  }
+
+  const now = nowIso();
+  await db
+    .insert(collectionAnalytics)
+    .values({
+      collectionId: collection.id,
+      viewCount: 1,
+      lastViewedAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: collectionAnalytics.collectionId,
+      set: {
+        viewCount: sql`${collectionAnalytics.viewCount} + 1`,
+        lastViewedAt: now,
+        updatedAt: now,
+      },
+    });
+
+  return { success: true, counted: true };
+}
+
 export async function deleteCollectionAction(id: string) {
   await ensureDbInitialized();
   const current = await findCollection(id);
   await db.delete(collectionItems).where(eq(collectionItems.collectionId, id));
+  await db.delete(collectionAnalytics).where(eq(collectionAnalytics.collectionId, id));
   await db.delete(collections).where(eq(collections.id, id));
   purgeCollectionCaches({ id, slug: current?.slug || null });
   return { success: true };
@@ -919,6 +1121,11 @@ export async function addItemToCollectionAction(
     })
     .onConflictDoNothing();
 
+  await db
+    .update(collections)
+    .set({ updatedAt: nowIso() })
+    .where(eq(collections.id, collectionId));
+
   purgeCollectionCaches({ id: collectionId, slug: collection.slug });
   return { success: true };
 }
@@ -934,6 +1141,17 @@ export async function removeItemFromCollectionAction(
   const id = `${collectionId}_${itemType}_${itemIdStr}`;
 
   await db.delete(collectionItems).where(eq(collectionItems.id, id));
+  if (collection) {
+    const updates: Partial<CollectionRecord> = { updatedAt: nowIso() };
+    if (
+      itemType === "photo" &&
+      collection.coverPhotoId &&
+      collection.coverPhotoId === itemIdStr
+    ) {
+      updates.coverPhotoId = null;
+    }
+    await db.update(collections).set(updates).where(eq(collections.id, collectionId));
+  }
   purgeCollectionCaches({ id: collectionId, slug: collection?.slug || null });
   return { success: true };
 }
@@ -971,6 +1189,13 @@ export async function addPhotosToCollectionAction(collectionId: string, photoIds
       .onConflictDoNothing();
   }
 
+  if (validIds.length > 0) {
+    await db
+      .update(collections)
+      .set({ updatedAt: now })
+      .where(eq(collections.id, collectionId));
+  }
+
   purgeCollectionCaches({ id: collectionId, slug: collection.slug });
   return { success: true, count: validIds.length };
 }
@@ -989,11 +1214,13 @@ export async function getCollectionDetailAction(key: string): Promise<Collection
     .from(collectionItems)
     .where(eq(collectionItems.collectionId, collection.id));
   const data = await loadCollectionItemData(items);
-  return buildCollectionDetail(collection, items, data, false);
+  const analytics =
+    (await loadAnalyticsSummaries([collection.id])).get(collection.id) || EMPTY_ANALYTICS;
+  return buildCollectionDetail(collection, items, data, false, analytics);
 }
 
 const getPublicCollectionCached = createCachedQuery(
-  async (slug: string, token?: string | null): Promise<CollectionDetail | null> => {
+  async (slug: string, token?: string | null): Promise<PublicCollectionDetail | null> => {
     await ensureDbInitialized();
     const collection = await findCollection(slug);
     if (!collection) return null;
@@ -1008,11 +1235,7 @@ const getPublicCollectionCached = createCachedQuery(
       .from(collectionItems)
       .where(eq(collectionItems.collectionId, collection.id));
     const data = await loadCollectionItemData(items);
-    const detail = buildCollectionDetail(collection, items, data, true);
-    return {
-      ...detail,
-      collection: { ...detail.collection, shareToken: null },
-    };
+    return toPublicDetail(buildCollectionDetail(collection, items, data, true));
   },
   ["public-collection-detail"],
   { tags: ["collections-public"], revalidate: 60 }
@@ -1021,7 +1244,7 @@ const getPublicCollectionCached = createCachedQuery(
 export async function getPublicCollectionAction(
   slug: string,
   token?: string | null
-): Promise<CollectionDetail | null> {
+): Promise<PublicCollectionDetail | null> {
   return getPublicCollectionCached(slug, token);
 }
 

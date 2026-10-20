@@ -1,8 +1,8 @@
 "use server";
 
 import { db, ensureDbInitialized } from "@/db";
-import { gallery, type GalleryPhoto, collectionItems } from "@/db/schema";
-import { count, desc, eq, and, sql } from "drizzle-orm";
+import { gallery, type GalleryPhoto, collectionItems, collections } from "@/db/schema";
+import { count, desc, eq, and, inArray, sql } from "drizzle-orm";
 import { galleryPhotoInputSchema, type GalleryPhotoInput, generatePhotoSlug } from "./schema";
 import { triggerVercelDeployHook, triggerVercelDeployHookBackground } from "@/lib/deploy-hook";
 import { purgeTag } from "@/lib/server-cache";
@@ -228,18 +228,45 @@ export async function getGalleryPhotoBySlug(slug: string): Promise<GalleryPhoto 
 export async function deleteGalleryPhoto(id: string) {
   try {
     await ensureDbInitialized();
+    const affectedLinks = await db
+      .select({ collectionId: collectionItems.collectionId })
+      .from(collectionItems)
+      .where(and(eq(collectionItems.itemType, "photo"), eq(collectionItems.itemId, id)));
+    const affectedCollectionIds = Array.from(
+      new Set(affectedLinks.map((link) => link.collectionId))
+    );
+
     await db.delete(collectionItems).where(
       and(eq(collectionItems.itemType, "photo"), eq(collectionItems.itemId, id))
     );
     await db.delete(gallery).where(eq(gallery.id, id));
+
+    if (affectedCollectionIds.length > 0) {
+      await db
+        .update(collections)
+        .set({ updatedAt: new Date().toISOString() })
+        .where(inArray(collections.id, affectedCollectionIds));
+      await db
+        .update(collections)
+        .set({ coverPhotoId: null })
+        .where(
+          and(
+            inArray(collections.id, affectedCollectionIds),
+            eq(collections.coverPhotoId, id)
+          )
+        );
+    }
+
     usageStatsCache = null;
     purgeTag("gallery-list");
     purgeTag(`gallery-${id}`);
     purgeTag("collections-list");
     purgeTag("collections-public");
+    affectedCollectionIds.forEach((collectionId) => purgeTag(`collection-${collectionId}`));
     try {
       revalidatePath("/gallery");
       revalidatePath("/collections", "layout");
+      revalidatePath("/libraries/collections");
     } catch {}
     return { success: true };
   } catch (error: any) {

@@ -15,7 +15,10 @@ import {
   removeItemFromCollectionAction,
   setCollectionVisibilityAction,
 } from "@/features/libraries/actions/collections";
-import { collectionVisibilityLabel } from "@/features/libraries/collection-helpers";
+import {
+  collectionVisibilityLabel,
+  getCollectionPreviewPath,
+} from "@/features/libraries/collection-helpers";
 import type { CollectionPhotoPickerOption } from "@/features/libraries/collection-types";
 import {
   Trash2,
@@ -598,7 +601,7 @@ export function GalleryGrid({ initialPhotos, initialCollections = [], onRefresh 
             </button>
             {selectedCollection.sharePath && (
               <a
-                href={selectedCollection.sharePath}
+                href={getCollectionPreviewPath(selectedCollection.sharePath)}
                 target="_blank"
                 rel="noreferrer"
                 className="btn btn-sm"

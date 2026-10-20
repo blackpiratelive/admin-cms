@@ -19,17 +19,17 @@ import {
 import type {
   CollectionAlbumItem,
   CollectionArtistItem,
-  CollectionDetail,
   CollectionMovieItem,
   CollectionPersonItem,
   CollectionPhotoItem,
   CollectionShowItem,
   CollectionTrackItem,
+  PublicCollectionDetail,
 } from "@/features/libraries/collection-types";
 import { collectionKindLabel } from "@/features/libraries/collection-helpers";
 
 interface PublicCollectionContentProps {
-  detail: CollectionDetail;
+  detail: PublicCollectionDetail;
 }
 
 function formatDate(value: string | null | undefined): string {
@@ -43,7 +43,7 @@ function photoSummary(count: number): string {
   return `${count} photo${count === 1 ? "" : "s"}`;
 }
 
-function sectionSummary(counts: CollectionDetail["counts"]): string[] {
+function sectionSummary(counts: PublicCollectionDetail["counts"]): string[] {
   const parts: string[] = [];
   if (counts.photos) parts.push(photoSummary(counts.photos));
   const films = counts.movies + counts.shows;

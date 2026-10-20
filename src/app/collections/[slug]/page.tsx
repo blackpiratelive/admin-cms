@@ -2,13 +2,15 @@ import React, { cache } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPublicCollectionAction } from "@/features/libraries/actions/collections";
+import { CollectionViewTracker } from "@/features/libraries/components/CollectionViewTracker";
 import { PublicCollectionContent } from "@/features/libraries/components/public/PublicCollectionContent";
+import type { PublicCollectionDetail } from "@/features/libraries/collection-types";
 
 export const dynamic = "force-dynamic";
 
 interface PublicCollectionPageProps {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ share?: string | string[] }>;
+  searchParams: Promise<{ share?: string | string[]; preview?: string | string[] }>;
 }
 
 const getCollectionForRequest = cache(async (slug: string, token?: string) =>
@@ -23,14 +25,17 @@ function readToken(searchParams: { share?: string | string[] }): string | undefi
       : undefined;
 }
 
-function coverFor(detail: NonNullable<Awaited<ReturnType<typeof getPublicCollectionAction>>>): string | undefined {
-  return (
-    detail.photos[0]?.mediumUrl ||
-    detail.movies[0]?.posterUrl ||
-    detail.shows[0]?.posterUrl ||
-    detail.people[0]?.avatarUrl ||
-    undefined
-  );
+function readPreview(searchParams: { preview?: string | string[] }): boolean {
+  const value = typeof searchParams.preview === "string"
+    ? searchParams.preview
+    : Array.isArray(searchParams.preview)
+      ? searchParams.preview[0]
+      : undefined;
+  return value === "1" || value === "true";
+}
+
+function coverFor(detail: PublicCollectionDetail): string | undefined {
+  return detail.coverUrl || undefined;
 }
 
 export async function generateMetadata({ params, searchParams }: PublicCollectionPageProps): Promise<Metadata> {
@@ -73,10 +78,21 @@ export async function generateMetadata({ params, searchParams }: PublicCollectio
 
 export default async function PublicCollectionPage({ params, searchParams }: PublicCollectionPageProps) {
   const { slug } = await params;
-  const { share } = await searchParams;
-  const detail = await getCollectionForRequest(slug, readToken({ share }));
+  const { share, preview } = await searchParams;
+  const token = readToken({ share });
+  const isPreview = readPreview({ preview });
+  const detail = await getCollectionForRequest(slug, token);
 
   if (!detail) notFound();
 
-  return <PublicCollectionContent detail={detail} />;
+  return (
+    <>
+      <CollectionViewTracker
+        slug={detail.collection.slug}
+        token={token}
+        preview={isPreview}
+      />
+      <PublicCollectionContent detail={detail} />
+    </>
+  );
 }

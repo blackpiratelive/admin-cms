@@ -503,6 +503,7 @@ export const collections = sqliteTable("collections", {
   kind: text("kind", { enum: ["photo", "media", "mixed"] }).notNull().default("media"),
   visibility: text("visibility", { enum: ["private", "unlisted", "public"] }).notNull().default("private"),
   shareToken: text("share_token"),
+  coverPhotoId: text("cover_photo_id"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
@@ -513,6 +514,13 @@ export const collectionItems = sqliteTable("collection_items", {
   itemType: text("item_type").notNull(), // 'movie' | 'show' | 'artist' | 'album' | 'track' | 'book' | 'project' | 'photo' | 'location' | 'trip' | 'note' | 'bookmark' | 'quote'
   itemId: text("item_id").notNull(),
   addedAt: text("added_at").notNull(),
+});
+
+export const collectionAnalytics = sqliteTable("collection_analytics", {
+  collectionId: text("collection_id").primaryKey(),
+  viewCount: integer("view_count").notNull().default(0),
+  lastViewedAt: text("last_viewed_at"),
+  updatedAt: text("updated_at").notNull(),
 });
 
 // Activity Timeline Stream
@@ -568,6 +576,7 @@ export type AlbumMetadataRecord = typeof albumMetadata.$inferSelect;
 export type TrackMetadataRecord = typeof trackMetadata.$inferSelect;
 export type CollectionRecord = typeof collections.$inferSelect;
 export type CollectionItemRecord = typeof collectionItems.$inferSelect;
+export type CollectionAnalyticsRecord = typeof collectionAnalytics.$inferSelect;
 export type ActivityRecord = typeof activities.$inferSelect;
 
 export const dashboardCache = sqliteTable("dashboard_cache", {
