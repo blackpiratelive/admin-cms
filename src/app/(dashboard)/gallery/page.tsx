@@ -1,12 +1,16 @@
 import React from "react";
 import { getGalleryPhotos } from "@/features/gallery/actions";
+import { getPhotoCollectionsAction } from "@/features/libraries/actions/collections";
 import { GalleryUploader } from "@/features/gallery/GalleryUploader";
 import { GalleryGrid } from "@/features/gallery/GalleryGrid";
 
 export const dynamic = "force-dynamic";
 
 export default async function GalleryPage() {
-  const initialPhotos = await getGalleryPhotos();
+  const [initialPhotos, photoCollections] = await Promise.all([
+    getGalleryPhotos(),
+    getPhotoCollectionsAction(),
+  ]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -22,7 +26,7 @@ export default async function GalleryPage() {
         <h2 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "12px", paddingBottom: "6px", borderBottom: "1px solid var(--border-color)" }}>
           Uploaded Photo Portfolio ({initialPhotos.length})
         </h2>
-        <GalleryGrid initialPhotos={initialPhotos} />
+        <GalleryGrid initialPhotos={initialPhotos} initialCollections={photoCollections} />
       </div>
     </div>
   );

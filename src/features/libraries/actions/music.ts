@@ -220,6 +220,7 @@ export async function updateArtistMetadataAction(
 
   try {
     purgeTag("music-artists");
+    purgeTag("collections-public");
     revalidatePath(`/libraries/music`);
     revalidatePath(`/libraries/music/artists/${encodeURIComponent(artistName)}`);
   } catch {}
@@ -402,6 +403,7 @@ export async function updateAlbumMetadataAction(
   }
 
   purgeTag("music-albums");
+  purgeTag("collections-public");
   revalidatePath(`/libraries/music`);
   return { success: true };
 }
@@ -582,6 +584,7 @@ export async function updateTrackMetadataAction(
   }
 
   purgeTag("music-tracks");
+  purgeTag("collections-public");
   revalidatePath(`/libraries/music`);
   return { success: true };
 }

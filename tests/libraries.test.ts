@@ -105,6 +105,7 @@ describe("Personal Libraries System", () => {
   it("should manage Generic Collections and items", async () => {
     const col = await createCollectionAction("Sci-Fi Masterpieces", "Best sci fi movies");
     expect(col.success).toBe(true);
+    if (!col.id) throw new Error("Collection creation did not return an id");
 
     await addItemToCollectionAction(col.id, "movie", 99991);
 

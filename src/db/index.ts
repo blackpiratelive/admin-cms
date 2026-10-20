@@ -304,6 +304,9 @@ export async function ensureDbInitialized(): Promise<void> {
           description TEXT,
           color TEXT,
           icon TEXT,
+          kind TEXT NOT NULL DEFAULT 'media',
+          visibility TEXT NOT NULL DEFAULT 'private',
+          share_token TEXT,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
@@ -910,6 +913,16 @@ export async function ensureDbInitialized(): Promise<void> {
         await client.execute(`ALTER TABLE trip_days ADD COLUMN primary_location_lng REAL;`);
       } catch (err) {}
 
+      try {
+        await client.execute(`ALTER TABLE collections ADD COLUMN kind TEXT NOT NULL DEFAULT 'media';`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE collections ADD COLUMN visibility TEXT NOT NULL DEFAULT 'private';`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE collections ADD COLUMN share_token TEXT;`);
+      } catch (err) {}
+
       // Comprehensive performance indexes covering all single-column & multi-column queries
       await client.executeMultiple(`
         CREATE INDEX IF NOT EXISTS microblogs_created_at_idx ON microblogs(created_at DESC);
@@ -932,6 +945,8 @@ export async function ensureDbInitialized(): Promise<void> {
         CREATE INDEX IF NOT EXISTS relationships_target_idx ON relationships(target_type, target_id);
         CREATE INDEX IF NOT EXISTS attachments_entity_idx ON attachments(entity_type, entity_id);
         CREATE INDEX IF NOT EXISTS collection_items_col_idx ON collection_items(collection_id, item_type, item_id);
+        CREATE INDEX IF NOT EXISTS collections_visibility_idx ON collections(visibility);
+        CREATE UNIQUE INDEX IF NOT EXISTS collections_share_token_idx ON collections(share_token) WHERE share_token IS NOT NULL;
         CREATE INDEX IF NOT EXISTS search_index_query_idx ON search_index(title, subtitle, keywords);
         CREATE INDEX IF NOT EXISTS journal_entries_entry_date_idx ON journal_entries(entry_date DESC);
         CREATE INDEX IF NOT EXISTS journal_entries_created_at_idx ON journal_entries(created_at DESC);

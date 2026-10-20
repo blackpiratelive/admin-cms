@@ -1,8 +1,8 @@
 "use server";
 
 import { db, ensureDbInitialized } from "@/db";
-import { gallery, type GalleryPhoto } from "@/db/schema";
-import { count, desc, eq, sql } from "drizzle-orm";
+import { gallery, type GalleryPhoto, collectionItems } from "@/db/schema";
+import { count, desc, eq, and, sql } from "drizzle-orm";
 import { galleryPhotoInputSchema, type GalleryPhotoInput, generatePhotoSlug } from "./schema";
 import { triggerVercelDeployHook, triggerVercelDeployHookBackground } from "@/lib/deploy-hook";
 import { purgeTag } from "@/lib/server-cache";
@@ -181,8 +181,10 @@ export async function saveGalleryPhoto(input: GalleryPhotoInput) {
     usageStatsCache = null;
     purgeTag("gallery-list");
     purgeTag(`gallery-${id}`);
+    purgeTag("collections-public");
     try {
       revalidatePath("/gallery");
+      revalidatePath("/collections", "layout");
     } catch {}
     return { success: true, id, slug };
   } catch (error: any) {
@@ -226,12 +228,18 @@ export async function getGalleryPhotoBySlug(slug: string): Promise<GalleryPhoto 
 export async function deleteGalleryPhoto(id: string) {
   try {
     await ensureDbInitialized();
+    await db.delete(collectionItems).where(
+      and(eq(collectionItems.itemType, "photo"), eq(collectionItems.itemId, id))
+    );
     await db.delete(gallery).where(eq(gallery.id, id));
     usageStatsCache = null;
     purgeTag("gallery-list");
     purgeTag(`gallery-${id}`);
+    purgeTag("collections-list");
+    purgeTag("collections-public");
     try {
       revalidatePath("/gallery");
+      revalidatePath("/collections", "layout");
     } catch {}
     return { success: true };
   } catch (error: any) {

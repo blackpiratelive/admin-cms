@@ -229,6 +229,7 @@ export async function createPersonAction(rawInput: unknown): Promise<{ success: 
 
     // Invalidate Vercel Data Cache instantly
     purgeTag("people-list");
+    purgeTag("collections-public");
     purgeTag("upcoming-birthdays");
 
     try {
@@ -302,6 +303,7 @@ export async function updatePersonAction(
 
     // Invalidate Vercel Data Cache instantly
     purgeTag("people-list");
+    purgeTag("collections-public");
     purgeTag(`person-${id}`);
     purgeTag(`person-${existing[0].slug}`);
     if (updates.slug) purgeTag(`person-${updates.slug}`);
@@ -345,6 +347,7 @@ export async function toggleFavoritePersonAction(id: string): Promise<boolean> {
     .where(eq(persons.id, id));
 
   purgeTag("people-list");
+  purgeTag("collections-public");
   purgeTag(`person-${id}`);
   purgeTag(`person-${existing[0].slug}`);
   purgeTag("upcoming-birthdays");
@@ -383,6 +386,7 @@ export async function deletePersonAction(id: string): Promise<{ success: boolean
     });
 
     purgeTag("people-list");
+    purgeTag("collections-public");
     purgeTag(`person-${id}`);
     purgeTag(`person-${existing[0].slug}`);
     purgeTag("upcoming-birthdays");
@@ -555,6 +559,7 @@ export async function connectPersonToEntityAction(
     await addRelationship("person", personId, targetType, targetId, relationship);
     
     purgeTag("people-list");
+    purgeTag("collections-public");
     purgeTag(`person-${personId}`);
     purgeTag(`person-connections-${personId}`);
     purgeTag(`person-timeline-${personId}`);
@@ -614,6 +619,7 @@ export async function connectPersonPhotosBatchAction(
     }
 
     purgeTag("people-list");
+    purgeTag("collections-public");
     purgeTag(`person-${personId}`);
     purgeTag(`person-connections-${personId}`);
     purgeTag(`person-timeline-${personId}`);
@@ -655,6 +661,7 @@ export async function removePersonEntityConnectionAction(
   }
 
   purgeTag("people-list");
+  purgeTag("collections-public");
   if (personSlug) {
     purgeTag(`person-${personSlug}`);
     try {

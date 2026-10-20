@@ -25,7 +25,7 @@ export default async function ShowDetailPage({ params }: PageProps) {
   const data = await getShowDetailAction(traktId);
   if (!data) notFound();
 
-  const collections = await getCollectionsAction();
+  const collections = (await getCollectionsAction()).filter((collection) => collection.kind !== "photo");
 
   return <ShowDetailView showData={data} allCollections={collections} />;
 }

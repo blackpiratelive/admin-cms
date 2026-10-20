@@ -25,7 +25,7 @@ export default async function MovieDetailPage({ params }: PageProps) {
   const data = await getMovieDetailAction(traktId);
   if (!data) notFound();
 
-  const collections = await getCollectionsAction();
+  const collections = (await getCollectionsAction()).filter((collection) => collection.kind !== "photo");
 
   return <MovieDetailView movieData={data} allCollections={collections} />;
 }

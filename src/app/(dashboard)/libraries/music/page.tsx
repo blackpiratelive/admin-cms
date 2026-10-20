@@ -7,6 +7,7 @@ import {
 } from "@/features/libraries/actions/music";
 import { MusicTabs } from "@/features/libraries/components/MusicTabs";
 import { GlobalSearchModal } from "@/features/libraries/components/GlobalSearchModal";
+import { getCollectionsAction } from "@/features/libraries/actions/collections";
 import { Music } from "lucide-react";
 
 export const metadata = {
@@ -23,11 +24,12 @@ export default async function MusicLibraryPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const activeTab = params.tab || "artists";
 
-  const [artistsRes, albumsRes, tracksRes, historyRes] = await Promise.all([
+  const [artistsRes, albumsRes, tracksRes, historyRes, collections] = await Promise.all([
     getPaginatedArtistsAction({ page: 1, limit: 25 }),
     getPaginatedAlbumsAction({ page: 1, limit: 25 }),
     getPaginatedTracksAction({ page: 1, limit: 25 }),
     getPaginatedHistoryAction({ page: 1, limit: 25 }),
+    getCollectionsAction(),
   ]);
 
   return (
@@ -51,6 +53,7 @@ export default async function MusicLibraryPage({ searchParams }: PageProps) {
         initialTracks={tracksRes}
         initialHistory={historyRes}
         activeTab={activeTab}
+        collections={collections}
       />
     </div>
   );

@@ -12,6 +12,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/journal/status") ||
     pathname.startsWith("/api/microblogs") ||
     pathname.startsWith("/api/gallery") ||
+    pathname === "/collections" ||
+    pathname.startsWith("/collections/") ||
     (pathname.startsWith("/gallery/") && pathname.split("/").filter(Boolean).length === 2) ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon.ico")
@@ -32,8 +34,6 @@ export async function middleware(request: NextRequest) {
     loginUrl.searchParams.set("from", pathname);
     return NextResponse.redirect(loginUrl);
   }
-
-  return NextResponse.next();
 
   return NextResponse.next();
 }

@@ -44,7 +44,9 @@ export function ConnectEntityModal({
 
   useEffect(() => {
     if (isOpen) {
-      getCollectionsAction().then((cols) => setAvailableCollections(cols));
+      getCollectionsAction().then((cols) =>
+        setAvailableCollections(cols.filter((collection) => collection.kind !== "photo"))
+      );
       setSelectedTargetId("");
       setRelationshipLabel("visited");
       setError(null);

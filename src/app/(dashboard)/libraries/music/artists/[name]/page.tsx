@@ -24,7 +24,7 @@ export default async function ArtistDetailPage({ params }: PageProps) {
   const data = await getArtistDetailAction(artistName);
   if (!data) notFound();
 
-  const collections = await getCollectionsAction();
+  const collections = (await getCollectionsAction()).filter((collection) => collection.kind !== "photo");
 
   return <ArtistDetailView artistData={data} allCollections={collections} />;
 }

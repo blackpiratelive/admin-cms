@@ -1,12 +1,22 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
+import Link from "next/link";
 import { type GalleryPhoto, type LocationRecord, type TripRecord } from "@/db/schema";
 import { deleteGalleryPhoto, saveGalleryPhoto } from "./actions";
 import { notify } from "@/lib/notifications";
 import { generatePhotoSlug } from "./schema";
 import { getLocations } from "@/features/locations/actions";
 import { getTrips } from "@/features/trips/actions";
+import {
+  addItemToCollectionAction,
+  createCollectionAction,
+  getPhotoCollectionsAction,
+  removeItemFromCollectionAction,
+  setCollectionVisibilityAction,
+} from "@/features/libraries/actions/collections";
+import { collectionVisibilityLabel } from "@/features/libraries/collection-helpers";
+import type { CollectionPhotoPickerOption } from "@/features/libraries/collection-types";
 import {
   Trash2,
   Camera,
@@ -18,14 +28,19 @@ import {
   Compass,
   Loader2,
   Globe,
+  Folder,
+  FolderPlus,
+  Link2,
+  ExternalLink,
 } from "lucide-react";
 
 interface GalleryGridProps {
   initialPhotos: GalleryPhoto[];
+  initialCollections?: CollectionPhotoPickerOption[];
   onRefresh?: () => void;
 }
 
-export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
+export function GalleryGrid({ initialPhotos, initialCollections = [], onRefresh }: GalleryGridProps) {
   const [photos, setPhotos] = useState<GalleryPhoto[]>(initialPhotos);
   const [selectedPhoto, setSelectedPhoto] = useState<GalleryPhoto | null>(null);
   const [editingPhoto, setEditingPhoto] = useState<GalleryPhoto | null>(null);
@@ -33,6 +48,28 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [albumFilter, setAlbumFilter] = useState("all");
+  const [collectionFilter, setCollectionFilter] = useState("all");
+  const [photoCollections, setPhotoCollections] = useState<CollectionPhotoPickerOption[]>(initialCollections);
+  const [copiedCollectionId, setCopiedCollectionId] = useState<string | null>(null);
+  const [isCreatingCollection, setIsCreatingCollection] = useState(false);
+
+  const collectionPhotoIds = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const collection of photoCollections) {
+      map.set(collection.id, new Set(collection.photoIds));
+    }
+    return map;
+  }, [photoCollections]);
+
+  const selectedCollection = photoCollections.find((collection) => collection.id === collectionFilter) || null;
+
+  const reloadPhotoCollections = async () => {
+    try {
+      setPhotoCollections(await getPhotoCollectionsAction());
+    } catch (error) {
+      console.error("Failed to reload photo collections:", error);
+    }
+  };
 
   const [locationsList, setLocationsList] = useState<LocationRecord[]>([]);
   const [tripsList, setTripsList] = useState<TripRecord[]>([]);
@@ -87,10 +124,89 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
       (p.description && p.description.toLowerCase().includes(search.toLowerCase()));
 
     const matchesAlbum = albumFilter === "all" || p.album === albumFilter;
-    return matchesSearch && matchesAlbum;
+    const matchesCollection =
+      collectionFilter === "all" || Boolean(collectionPhotoIds.get(collectionFilter)?.has(p.id));
+    return matchesSearch && matchesAlbum && matchesCollection;
   });
 
   const albums = Array.from(new Set(photos.map((p) => p.album).filter(Boolean)));
+
+  const handleTogglePhotoCollection = (photoId: string, collectionId: string, add: boolean) => {
+    const collection = photoCollections.find((item) => item.id === collectionId);
+    if (!collection) return;
+
+    setPhotoCollections((previous) =>
+      previous.map((item) =>
+        item.id === collectionId
+          ? {
+              ...item,
+              photoIds: add
+                ? Array.from(new Set([...item.photoIds, photoId]))
+                : item.photoIds.filter((id) => id !== photoId),
+            }
+          : item
+      )
+    );
+
+    notify.bg({
+      title: add ? "Add to Collection" : "Remove from Collection",
+      loadingMessage: add
+        ? `Adding photo to '${collection.name}'...`
+        : `Removing photo from '${collection.name}'...`,
+      successMessage: add
+        ? `Photo added to '${collection.name}'.`
+        : `Photo removed from '${collection.name}'.`,
+      errorMessage: "Could not update collection membership.",
+      task: () =>
+        add
+          ? addItemToCollectionAction(collectionId, "photo", photoId)
+          : removeItemFromCollectionAction(collectionId, "photo", photoId),
+      onError: () => reloadPhotoCollections(),
+    });
+  };
+
+  const handleCopyCollectionLink = async (collection: CollectionPhotoPickerOption) => {
+    try {
+      let path = collection.sharePath;
+      if (!path) {
+        const result = await setCollectionVisibilityAction(collection.id, "unlisted");
+        if (result.success && "sharePath" in result && result.sharePath) {
+          path = result.sharePath;
+        }
+        await reloadPhotoCollections();
+      }
+      if (!path) {
+        notify.show({ type: "error", message: "Could not create a share link." });
+        return;
+      }
+      await navigator.clipboard.writeText(`${window.location.origin}${path}`);
+      setCopiedCollectionId(collection.id);
+      setTimeout(() => setCopiedCollectionId(null), 2000);
+      notify.show({ type: "success", message: `Share link for '${collection.name}' copied.` });
+    } catch {
+      notify.show({ type: "error", message: "Could not copy the link." });
+    }
+  };
+
+  const handleCreateAlbum = async () => {
+    const name = window.prompt("Name your photo album:");
+    if (!name?.trim()) return;
+    setIsCreatingCollection(true);
+    try {
+      const result = await createCollectionAction(name.trim(), undefined, "#ff6600", "Folder", "photo");
+      if (!result.success) {
+        notify.show({ type: "error", message: "Could not create the album." });
+        return;
+      }
+      await reloadPhotoCollections();
+      if (result.id) setCollectionFilter(result.id);
+      notify.show({ type: "success", message: `Album '${name.trim()}' created.` });
+    } catch (error: any) {
+      notify.show({ type: "error", message: error?.message || "Could not create the album." });
+    } finally {
+      setIsCreatingCollection(false);
+    }
+  };
 
   const handleOpenEdit = (photo: GalleryPhoto) => {
     let tagsStr = "";
@@ -401,15 +517,106 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
           value={albumFilter}
           onChange={(e) => setAlbumFilter(e.target.value)}
           className="select-input"
+          title="Filter by legacy album label"
         >
-          <option value="all">All Albums ({photos.length})</option>
+          <option value="all">All Legacy Albums ({photos.length})</option>
           {albums.map((alb) => (
             <option key={alb!} value={alb!}>
               {alb}
             </option>
           ))}
         </select>
+
+        <select
+          value={collectionFilter}
+          onChange={(e) => setCollectionFilter(e.target.value)}
+          className="select-input"
+          title="Filter by collection"
+        >
+          <option value="all">All Collections ({photoCollections.length})</option>
+          {photoCollections.map((collection) => (
+            <option key={collection.id} value={collection.id}>
+              {collection.name} ({collection.photoIds.length})
+            </option>
+          ))}
+        </select>
+
+        <button
+          type="button"
+          className="btn btn-sm"
+          onClick={handleCreateAlbum}
+          disabled={isCreatingCollection}
+          style={{ display: "inline-flex", alignItems: "center", gap: "5px", whiteSpace: "nowrap" }}
+        >
+          {isCreatingCollection ? <Loader2 size={13} className="animate-spin" /> : <FolderPlus size={13} />}
+          New Album
+        </button>
       </div>
+
+      {selectedCollection && (
+        <div
+          className="card"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            flexWrap: "wrap",
+            padding: "11px 14px",
+            borderLeft: `4px solid var(--accent-color)`,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+            <Folder size={17} style={{ color: "var(--accent-color)", flexShrink: 0 }} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: "13px", fontWeight: 700, display: "flex", alignItems: "center", gap: "7px", flexWrap: "wrap" }}>
+                {selectedCollection.name}
+                <span className="badge" style={{ fontSize: "9px" }}>
+                  {collectionVisibilityLabel(selectedCollection.visibility)}
+                </span>
+              </div>
+              <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                {selectedCollection.photoIds.length} photo{selectedCollection.photoIds.length === 1 ? "" : "s"} in this
+                collection
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              onClick={() => handleCopyCollectionLink(selectedCollection)}
+              style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}
+            >
+              {copiedCollectionId === selectedCollection.id ? <Check size={13} /> : <Link2 size={13} />}
+              {copiedCollectionId === selectedCollection.id
+                ? "Copied"
+                : selectedCollection.sharePath
+                  ? "Copy link"
+                  : "Share album"}
+            </button>
+            {selectedCollection.sharePath && (
+              <a
+                href={selectedCollection.sharePath}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-sm"
+                style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}
+              >
+                <ExternalLink size={13} /> Open
+              </a>
+            )}
+            <Link
+              href={`/libraries/collections/${selectedCollection.slug}`}
+              className="btn btn-sm"
+              style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}
+            >
+              <Folder size={13} /> Manage
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Grid Display */}
       {filteredPhotos.length === 0 ? (
@@ -765,7 +972,7 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", minWidth: 0 }}>
                   <div className="form-group" style={{ minWidth: 0 }}>
-                    <label className="form-label">Album / Collection</label>
+                    <label className="form-label">Legacy Album Label</label>
                     <input
                       type="text"
                       className="text-input"
@@ -806,6 +1013,84 @@ export function GalleryGrid({ initialPhotos, onRefresh }: GalleryGridProps) {
                       <option value="private">Private</option>
                       <option value="unlisted">Unlisted (Shareable Short Link)</option>
                     </select>
+                  </div>
+                </div>
+
+                {/* Shared photo collections */}
+                <div
+                  style={{
+                    background: "var(--bg-sidebar)",
+                    border: "1px solid var(--border-color)",
+                    padding: "10px",
+                    borderRadius: "4px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "7px",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "12px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <Folder size={13} style={{ color: "var(--accent)" }} /> Photo Collections
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={handleCreateAlbum}
+                      disabled={isCreatingCollection}
+                      style={{ padding: "1px 7px" }}
+                    >
+                      + New Album
+                    </button>
+                  </div>
+
+                  {photoCollections.length === 0 ? (
+                    <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                      No photo albums yet. Create one to share this photo without exposing the CMS.
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "7px" }}>
+                      {photoCollections.map((collection) => {
+                        const checked = collectionPhotoIds.get(collection.id)?.has(editingPhoto.id) ?? false;
+                        return (
+                          <label
+                            key={collection.id}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "5px",
+                              padding: "4px 8px",
+                              border: checked ? "1px solid var(--accent)" : "1px solid var(--border-color)",
+                              borderRadius: "999px",
+                              background: checked ? "var(--bg-card)" : "transparent",
+                              cursor: "pointer",
+                              fontSize: "11px",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(event) =>
+                                handleTogglePhotoCollection(
+                                  editingPhoto.id,
+                                  collection.id,
+                                  event.target.checked
+                                )
+                              }
+                            />
+                            {collection.name}
+                            {collection.visibility !== "public" && (
+                              <span style={{ color: "var(--text-muted)", fontSize: "9px", textTransform: "uppercase" }}>
+                                {collectionVisibilityLabel(collection.visibility)}
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>
+                    Collections control the shared album. The legacy album label is only used for local filtering.
                   </div>
                 </div>
 

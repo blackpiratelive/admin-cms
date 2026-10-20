@@ -348,6 +348,7 @@ export async function updateMovieMetadataAction(
 
   try {
     purgeTag("movies-list");
+    purgeTag("collections-public");
     purgeTag(`movie-${traktId}`);
     revalidatePath(`/libraries/movies`);
     revalidatePath(`/libraries/movies/${traktId}`);
@@ -399,6 +400,7 @@ export async function bulkUpdateMoviesAction(
   }
 
   purgeTag("movies-list");
+  purgeTag("collections-public");
   revalidatePath(`/libraries/movies`);
   return { success: true };
 }

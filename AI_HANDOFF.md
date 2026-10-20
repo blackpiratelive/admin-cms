@@ -13,7 +13,7 @@
 
 ## 1. High-Level Summary
 
-This repository is **`admin-cms`**, a private, single-user **Personal Knowledge Platform** built with Next.js 15 App Router, React 19, Drizzle ORM, and Turso (libSQL) for managing, connecting, enriching, and publishing every aspect of digital life to a Hugo website.
+This repository is **`admin-cms`**, a private, single-user **Personal Knowledge Platform** built with Next.js 16 App Router, React 19, Drizzle ORM, and Turso (libSQL) for managing, connecting, enriching, and publishing every aspect of digital life to a Hugo website.
 
 - **Strict Separation of Concerns**: Hugo site is read-only static; CMS is the sole writer to Turso. Provider data (Trakt, Last.fm) is owned by external providers, while CMS personal metadata (ratings, notes, tags, reviews, visibility) belongs exclusively to the CMS.
 - **Entity-Driven Interconnected Architecture**: Reusable core entities (Locations, Trips, Projects, Persons, Tags, Collections) connected seamlessly via a generic Relationship Engine and Attachment System without redundant join tables.
@@ -46,6 +46,7 @@ admin-cms/
 │   │   │   ├── settings/        # Centralized Settings Hub (General, Storage, Providers, etc.)
 │   │   │   ├── libraries/       # Personal Media Libraries (Movies, TV, Music, Collections)
 │   │   │   └── sync/            # Sync Center integration hub (Trakt, Last.fm, FreshRSS, Bluesky, Mastodon)
+│   │   ├── collections/         # Public shareable collection pages (/collections, /collections/[slug])
 │   │   ├── api/
 │   │   │   ├── auth/login/      # Mobile & API authentication endpoint
 │   │   │   ├── microblogs/      # Public REST API for Hugo adapter
@@ -85,7 +86,7 @@ admin-cms/
 │   │   ├── event-bus.ts         # Internal event pub-sub bus
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
-├── tests/                       # Vitest unit test suite (132 unit tests across 23 test files)
+├── tests/                       # Vitest unit test suite (139 unit tests across 24 test files)
 ├── freshrss.md                  # FreshRSS Sync Provider feature specification
 ├── android-journal.md           # Native Android Journal Application specification
 ├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
@@ -118,7 +119,7 @@ The database consists of **53 SQLite tables** managed via Drizzle ORM:
 - **`lastfm_scrobbles`**, **`lastfm_artists`**, **`lastfm_albums`**, **`lastfm_tracks`**: Provider data synced from Last.fm.
 - **`rss_articles`**, **`rss_feeds`**, **`rss_categories`**, **`rss_read_events`**, **`rss_starred_articles`**, **`rss_sync_state`**: FreshRSS reading history, starred articles, feed metadata, and incremental sync checkpoints.
 - **`movie_metadata`**, **`tv_show_metadata`**, **`artist_metadata`**, **`album_metadata`**, **`track_metadata`**: CMS-owned personal metadata tables (`favorite`, `personalRating`, `review`, `notes`, `tags`, `visibility`, `watchedWith`, `watchLocation`, `locationId`, `tripId`, `relatedPhotos`, `relatedMicroblogs`).
-- **`collections`** & **`collection_items`**: Generic curated collections grouping any media items (`movie`, `show`, `artist`, `album`, `track`, `book`, `project`, `photo`, `location`, `trip`, `note`, `bookmark`, `quote`).
+- **`collections`** & **`collection_items`**: Generic curated collections grouping any media items (`movie`, `show`, `artist`, `album`, `track`, `book`, `project`, `photo`, `location`, `trip`, `note`, `bookmark`, `quote`). Collections now also carry a `kind` (`photo` | `media` | `mixed`), a `visibility` (`private` | `unlisted` | `public`, default `private`), and an optional `share_token` used for unlisted links.
 - **`activities`**: System and user activity stream (`action`, `entityType`, `entityId`, `title`, `metadataJson`).
 
 ### 3.3 Sync & Performance Caching Tables
@@ -355,6 +356,18 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 ---
 
 ## 8. Standalone Apps & Release Signing Changelog
+
+### October 2026: Shareable Album & Collection Links (Public `/collections`)
+
+- **Schema & Migration**: Added `collections.kind` (`photo` | `media` | `mixed`, default `media`), `collections.visibility` (`private` | `unlisted` | `public`, default `private`), and `collections.share_token`. DDL, dynamic `ALTER TABLE` migrations, `collections_visibility_idx`, and a partial unique index on `share_token` were added to `src/db/index.ts`. Existing rows remain private media collections, so no album becomes public accidentally.
+- **Collections are the album model**: `collection_items` is the source of truth for photo membership. The legacy `gallery.album` string remains only as a local label/filter. Deleting a gallery photo also removes its collection memberships.
+- **Public routes**: `/collections` lists only `visibility = 'public'` collections. `/collections/[slug]` renders public collections, while unlisted collections require `?share=<token>`. Middleware allows both paths without login; admin routes remain protected. Private collections return 404, unlisted tokens are compared with `timingSafeEqual`, and regenerating the token revokes the previous link.
+- **Public projection**: Photos are filtered to `public`/`unlisted` visibility and sorted chronologically by `takenAt` with `createdAt` fallback. Public DTOs expose derivative URLs only, never `originalUrl`, GPS latitude/longitude, or personal notes. Reviews, favorites, and ratings are included for media; people cards expose only name/avatar. Public collection records are sanitized so `share_token` is never serialized to the client.
+- **Public experience**: `/collections` index cards use automatic covers and visible-item counts. Collection detail includes a responsive photo grid, keyboard/arrow/swipe lightbox with captions and EXIF (camera, lens, exposure, location name), media sections for movies/shows/artists/albums/tracks/people, review disclosure blocks, OG/Twitter metadata, `noindex` for unlisted pages, and `referrer: no-referrer`. No download controls or original-file links are provided.
+- **Admin UI**: `/libraries/collections` now shows kind/visibility badges, covers, counts, copy/open links, and a kind-aware create form. `/libraries/collections/[slug]` adds a sharing panel (Private/Unlisted/Public, copy link, token regeneration), photo add/remove via the gallery-only `CollectionPhotoPickerModal`, media removal, settings, and deletion. The Gallery page adds a collection filter, selected-album share bar, New Album flow, and per-photo collection checkboxes in the edit modal. Music album/track cards expose `CollectionAddModal`; existing media collection selectors are filtered to `media`/`mixed` kinds.
+- **Caching**: Public index/detail and admin overview reads use `createCachedQuery` with `collections-public` / `collections-list` tags. Mutations, photo deletion, and photo metadata changes purge/revalidate those tags and the public collection layout.
+- **Unit Test Coverage (`tests/collections-sharing.test.ts`)**: 7 tests covering private/unlisted/public gating, timing-safe token paths, token rotation/revocation, photo visibility filtering and chronological ordering, no notes/originals/GPS in public DTOs, kind compatibility, public index filtering, cover selection, slug collisions, share-path helpers, and photo-membership cleanup on deletion.
+- **Quality Gates**: `npx tsc --noEmit` reports 0 errors, `npm run build` compiles cleanly with the new `/collections` and `/collections/[slug]` routes, and all 139 Vitest tests pass across 24 test files (100%). `android/`, `mobile-microblog/`, and `mobile-people/` were untouched.
 
 ### October 2026: Mobile People — Trips Follow-ups (Day Editing, Photo Management, Connections, Movies)
 - **Itinerary day editing in `mobile-people/`**: Itinerary tab adds **Add day** / **Generate days** and a per-day editor (`trip_day_editor_modal.dart` + `trip_day_entry_editors.dart`) covering date, title, place, weather, mood, notes, transport legs, meals, activities, accommodation, and day photos — saved via `PUT /api/trips/[id]/days/[dayId]`.

@@ -21,7 +21,7 @@ export function purgeTag(tag: string) {
     return;
   }
   try {
-    (revalidateTag as any)(tag);
+    (revalidateTag as any)(tag, "max");
   } catch {
     // ignore outside active Next server context
   }

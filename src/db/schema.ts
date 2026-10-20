@@ -500,6 +500,9 @@ export const collections = sqliteTable("collections", {
   description: text("description"),
   color: text("color"),
   icon: text("icon"),
+  kind: text("kind", { enum: ["photo", "media", "mixed"] }).notNull().default("media"),
+  visibility: text("visibility", { enum: ["private", "unlisted", "public"] }).notNull().default("private"),
+  shareToken: text("share_token"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });

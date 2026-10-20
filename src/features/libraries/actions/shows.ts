@@ -325,6 +325,7 @@ export async function updateShowMetadataAction(
 
   try {
     purgeTag("shows-list");
+    purgeTag("collections-public");
     purgeTag(`show-${traktId}`);
     revalidatePath(`/libraries/shows`);
     revalidatePath(`/libraries/shows/${traktId}`);
@@ -376,6 +377,7 @@ export async function bulkUpdateShowsAction(
   }
 
   purgeTag("shows-list");
+  purgeTag("collections-public");
   revalidatePath(`/libraries/shows`);
   return { success: true };
 }

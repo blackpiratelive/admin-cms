@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { CombinedArtist, CombinedAlbum, CombinedTrack, PaginatedResult } from "../types";
-import { LastfmScrobbleRecord } from "@/db/schema";
+import { LastfmScrobbleRecord, CollectionRecord } from "@/db/schema";
 import {
   getPaginatedArtistsAction,
   getPaginatedAlbumsAction,
@@ -10,6 +10,7 @@ import {
   getPaginatedHistoryAction,
 } from "../actions/music";
 import { CoverImage } from "@/components/CoverImage";
+import { CollectionAddModal } from "./CollectionAddModal";
 import { getBrowserCache, setBrowserCache } from "@/lib/client-cache";
 import {
   Music,
@@ -23,6 +24,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  FolderPlus,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -32,6 +34,7 @@ interface MusicTabsProps {
   initialTracks: PaginatedResult<CombinedTrack>;
   initialHistory: PaginatedResult<LastfmScrobbleRecord>;
   activeTab: "artists" | "albums" | "tracks" | "history";
+  collections: CollectionRecord[];
 }
 
 export function MusicTabs({
@@ -40,6 +43,7 @@ export function MusicTabs({
   initialTracks,
   initialHistory,
   activeTab: initialTab,
+  collections,
 }: MusicTabsProps) {
   const [tab, setTab] = useState(initialTab);
   const [query, setQuery] = useState("");
@@ -47,6 +51,11 @@ export function MusicTabs({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [isFetching, setIsFetching] = useState(false);
+  const [collectionTarget, setCollectionTarget] = useState<{
+    itemType: "album" | "track";
+    itemId: string;
+    itemLabel: string;
+  } | null>(null);
 
   const [artistsRes, setArtistsRes] = useState<PaginatedResult<CombinedArtist>>(initialArtists);
   const [albumsRes, setAlbumsRes] = useState<PaginatedResult<CombinedAlbum>>(initialAlbums);
@@ -324,6 +333,20 @@ export function MusicTabs({
                       </Link>
                       <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>{alb.album.artist}</div>
                       <div style={{ fontSize: "11px", color: "var(--accent-color)", marginTop: "4px" }}>{alb.album.playCount} plays</div>
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={() =>
+                          setCollectionTarget({
+                            itemType: "album",
+                            itemId: alb.album.id,
+                            itemLabel: `${alb.album.albumName} · ${alb.album.artist}`,
+                          })
+                        }
+                        style={{ display: "inline-flex", alignItems: "center", gap: "4px", marginTop: "7px" }}
+                      >
+                        <FolderPlus size={12} /> Collection
+                      </button>
                     </div>
                   </div>
                 ))
@@ -341,12 +364,13 @@ export function MusicTabs({
                     <th style={{ padding: "10px 16px" }}>Artist</th>
                     <th style={{ padding: "10px 16px" }}>Plays</th>
                     <th style={{ padding: "10px 16px" }}>Loved</th>
+                    <th style={{ padding: "10px 16px" }}>Collection</th>
                   </tr>
                 </thead>
                 <tbody>
                   {tracksRes.items.length === 0 ? (
                     <tr>
-                      <td colSpan={4} style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}>
+                      <td colSpan={5} style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}>
                         No tracks matching filters.
                       </td>
                     </tr>
@@ -366,6 +390,22 @@ export function MusicTabs({
                           ) : (
                             "-"
                           )}
+                        </td>
+                        <td style={{ padding: "10px 16px" }}>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            onClick={() =>
+                              setCollectionTarget({
+                                itemType: "track",
+                                itemId: tr.track.id,
+                                itemLabel: `${tr.track.trackName} · ${tr.track.artist}`,
+                              })
+                            }
+                            style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
+                          >
+                            <FolderPlus size={12} /> Add
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -489,6 +529,14 @@ export function MusicTabs({
           </div>
         </div>
       )}
+      <CollectionAddModal
+        isOpen={collectionTarget !== null}
+        onClose={() => setCollectionTarget(null)}
+        itemType={collectionTarget?.itemType || "album"}
+        itemId={collectionTarget?.itemId || ""}
+        itemLabel={collectionTarget?.itemLabel || ""}
+        collections={collections}
+      />
     </div>
   );
 }
