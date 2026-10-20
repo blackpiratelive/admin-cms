@@ -46,11 +46,11 @@ admin-cms/
 │   │   │   ├── settings/        # Centralized Settings Hub (General, Storage, Providers, etc.)
 │   │   │   ├── libraries/       # Personal Media Libraries (Movies, TV, Music, Collections)
 │   │   │   └── sync/            # Sync Center integration hub (Trakt, Last.fm, FreshRSS, Bluesky, Mastodon)
-│   │   ├── collections/         # Public shareable collection pages (/collections, /collections/[slug])
+│   │   ├── collections/         # Public shareable collection pages (/collections, /collections/[slug], /collections/[slug]/knockout)
 │   │   ├── api/
 │   │   │   ├── auth/login/      # Mobile & API authentication endpoint
 │   │   │   ├── microblogs/      # Public REST API for Hugo adapter
-│   │   │   ├── gallery/         # Public REST API for gallery photos
+│   │   │   ├── gallery/         # Public REST API (incl. signed Best Pic Knockout image proxy)
 │   │   │   ├── movies/          # Public REST API for movies
 │   │   │   ├── people/          # People & Memory Hub REST API (CRUD, /birthdays, /pickers, /[id]/favorite, /[id]/connections)
 │   │   │   ├── geocode/         # Mapbox forward-geocoding proxy for Location search autocomplete (keeps MAPBOX_TOKEN server-side)
@@ -76,7 +76,7 @@ admin-cms/
 │   │   ├── pickers/             # Shared Location/Trip picker data: light option projections + server-derived recents (actions.ts, types.ts)
 │   │   ├── auth/                # Session cookies, password check, login server actions
 │   │   ├── microblog/           # Microblog actions, Zod validation, Editor & List
-│   │   ├── libraries/           # Personal media libraries & metadata preservation
+│   │   ├── libraries/           # Personal media libraries, collections & Best Pic Knockout engine
 │   │   └── sync/                # Extensible Provider integration registry (Trakt, Last.fm, FreshRSS, Bluesky, Mastodon)
 │   ├── lib/
 │   │   ├── server-cache.ts      # Vercel Data Cache helper (createCachedQuery, purgeTag)
@@ -86,7 +86,7 @@ admin-cms/
 │   │   ├── event-bus.ts         # Internal event pub-sub bus
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
-├── tests/                       # Vitest unit test suite (145 unit tests across 25 test files)
+├── tests/                       # Vitest unit test suite (181 tests across 27 test files)
 ├── freshrss.md                  # FreshRSS Sync Provider feature specification
 ├── android-journal.md           # Native Android Journal Application specification
 ├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
@@ -98,7 +98,7 @@ admin-cms/
 
 ## 3. Database Schema Reference (`src/db/schema.ts`)
 
-The database consists of **61 SQLite tables** managed via Drizzle ORM:
+The database consists of **63 SQLite tables** managed via Drizzle ORM:
 
 ### 3.1 Core Entity Tables
 - **`locations`**: Stores geographical locations. `id` (`loc_${ts}_${rand}`), `name`, `slug`, `country`, `state`, `city`, `latitude`, `longitude`, `elevation`, `timezone`, `firstVisited`, `lastVisited`, `visitCount`, `privateNotes`, `publicDescription`, `tags` (JSON string array), `visibility` (`public` | `private` | `unlisted`), `favorite`, `photographyNotes`, `parkingNotes`, `walkingDifficulty`, `weatherNotes`, `bestSeason`, `bestTimeOfDay`, `cameraRecommendations`, `personalRating`.
@@ -119,7 +119,7 @@ The database consists of **61 SQLite tables** managed via Drizzle ORM:
 - **`lastfm_scrobbles`**, **`lastfm_artists`**, **`lastfm_albums`**, **`lastfm_tracks`**: Provider data synced from Last.fm.
 - **`rss_articles`**, **`rss_feeds`**, **`rss_categories`**, **`rss_read_events`**, **`rss_starred_articles`**, **`rss_sync_state`**: FreshRSS reading history, starred articles, feed metadata, and incremental sync checkpoints.
 - **`movie_metadata`**, **`tv_show_metadata`**, **`artist_metadata`**, **`album_metadata`**, **`track_metadata`**: CMS-owned personal metadata tables (`favorite`, `personalRating`, `review`, `notes`, `tags`, `visibility`, `watchedWith`, `watchLocation`, `locationId`, `tripId`, `relatedPhotos`, `relatedMicroblogs`).
-- **`collections`** & **`collection_items`**: Generic curated collections grouping any media items (`movie`, `show`, `artist`, `album`, `track`, `book`, `project`, `photo`, `location`, `trip`, `note`, `bookmark`, `quote`). Collections carry a `kind` (`photo` | `media` | `mixed`), a `visibility` (`private` | `unlisted` | `public`, default `private`), an optional `share_token` used for unlisted links, and an optional `cover_photo_id` pointing at a member gallery photo. `collection_analytics` stores the aggregate `view_count` and `last_viewed_at` per collection (no per-day or unique-visitor tracking).
+- **`collections`** & **`collection_items`**: Generic curated collections grouping any media items (`movie`, `show`, `artist`, `album`, `track`, `book`, `project`, `photo`, `location`, `trip`, `note`, `bookmark`, `quote`). Collections carry a `kind` (`photo` | `media` | `mixed`), a `visibility` (`private` | `unlisted` | `public`, default `private`), an optional `share_token` used for unlisted links, an optional `cover_photo_id` pointing at a member gallery photo, and `knockout_enabled` (default `1`) for the Best Pic Knockout. `collection_analytics` stores the aggregate `view_count` and `last_viewed_at` per collection (no per-day or unique-visitor tracking).
 - **`activities`**: System and user activity stream (`action`, `entityType`, `entityId`, `title`, `metadataJson`).
 
 ### 3.3 Sync & Performance Caching Tables
@@ -147,6 +147,8 @@ The database consists of **61 SQLite tables** managed via Drizzle ORM:
 - **`analytics_search`**: Search ranking weights & score boosts.
 - **`analytics_trends`**: Multi-period trend metrics cache.
 - **`collection_analytics`**: Aggregate page-view totals for shareable collections (`collection_id` primary key, `view_count`, `last_viewed_at`, `updated_at`). Views are recorded client-side after a public/unlisted page mounts; `?preview=1` and admin previews are excluded, and deleting a collection removes its analytics row.
+- **`collection_knockout_votes`**: Anonymous blind-match vote records (`collection_id`, `session_id`, `seed`, `round`, `match_index`, `winner_photo_id`, `loser_photo_id`, `created_at`). A unique index on (`collection_id`, `session_id`, `seed`, `round`, `match_index`) makes retries idempotent. Votes are replayed chronologically to compute Elo and are never exposed as session-level data.
+- **`collection_knockout_runs`**: Anonymous bracket-run records (`collection_id`, `session_id`, `seed`, `pool_hash`, `bracket_size`, `status` `started`/`completed`, `champion_photo_id`, `matches_played`, `started_at`, `completed_at`). A unique index on (`collection_id`, `session_id`, `seed`) prevents duplicate runs. Rows track completion totals without storing names, IPs, or user agents.
 
 ---
 
@@ -357,6 +359,20 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 ---
 
 ## 8. Standalone Apps & Release Signing Changelog
+
+### October 2026: Best Pic Knockout — Blind Photo Tournament & Anonymous Crowd Elo
+
+- **Scope & eligibility**: Public **photo albums only** (`collection.kind === "photo"`) with at least 2 visible photos. The feature is on by default for photo collections via `collections.knockout_enabled`; media/mixed albums and private collections are excluded. `preview=1` renders the full flow but never writes votes or runs.
+- **Public route & CTA**: Dedicated `/collections/[slug]/knockout` route with its own metadata (`noindex`, canonical for public albums) and a prominent album-level CTA above the photo grid. The album page shows **only** the CTA/resume state; crowd standings never appear there. Unlisted albums require the existing `?share=` token, validated with `timingSafeEqual`.
+- **Pure tournament engine (`src/features/libraries/collection-knockout.ts`)**: Seeded shuffle and sampling for **8 / 16 / full album**; next-power-of-two bracket with randomly distributed byes auto-advanced through the opening round; deterministic state suitable for localStorage resume; no ties. The blind deck DTO exposes only `id`, `largeUrl`, `mediumUrl`, `thumbnailUrl`, `width`, and `height` — no title, date, location, camera, lens, EXIF, filename, or original URL. Deck image URLs are signed opaque `/api/gallery/knockout-image` paths rather than real gallery derivatives, so the title/date-bearing storage path is not visible until the reveal.
+- **Blind-image proxy (`src/features/libraries/knockout-images.ts` + `src/app/api/gallery/knockout-image/route.ts`)**: The deck receives HMAC-SHA256-signed URLs that bind the collection, photo, and requested derivative size. The route verifies the signature, re-checks that the album is still a knockout-enabled public/unlisted photo album, confirms the photo is a visible member of that album, then streams the real derivative from storage. The title/date-bearing gallery path never reaches the arena DOM or network log before the reveal; tampered or stale URLs return 404.
+- **Client flow (`PublicCollectionKnockout` + `KnockoutIntro` / `KnockoutArena` / `KnockoutReveal`)**: Fresh seeded bracket per start, versioned localStorage state keyed by collection, pool-hash validation against the current deck, keyboard controls (`1/A/←`, `2/B/→`, `U` undo), progress/round labels, and a 2-second undo pill. Picking again flushes the previous queued vote; the final pick shows a crowning state; unmount/background completion flushes the last vote and completion. Failed crowd writes are retried on `online`; personal results remain local and are never blocked by network errors.
+- **Reveal**: Personal champion card with title, description, date, location, camera/lens/focal length/aperture/shutter/ISO, the final four (semifinalists), and the crowd top 3. Crowd results require **10 total votes** and each displayed photo needs **3+ matchups**. Elo starts at **1500**, uses **K=32**, and is replayed chronologically from votes (no standings table). The crowd threshold copy is explicit while waiting.
+- **Schema, DDL & indexes**: Added `collections.knockout_enabled` (default `1`), `collection_knockout_votes` (idempotent unique index on collection/session/seed/round/match), and `collection_knockout_runs` (unique index on collection/session/seed) to `src/db/schema.ts` and `src/db/index.ts` (fresh DDL + dynamic `ALTER TABLE` + indexes). Existing rows default to enabled without changing visibility.
+- **Server actions (`src/features/libraries/actions/collection-knockout.ts`)**: Public deck/summary reads, start/vote/complete writes, reveal, admin stats, reset, and enable/disable. Writes validate session/seed/pool-hash patterns, current photo-pool hash, collection kind, knockout toggle, and visible-photo membership; votes are idempotent via the unique index. Deck caching is 60s (`collections-public`, `knockout-deck`); summary is 30s (`knockout-summary`); admin mutations purge both.
+- **Admin UI**: Settings tab gains an auto-on **Best Pic Knockout** toggle with explanatory copy and a pause-without-delete note. Insights gains a lazy-loaded Best Pic Knockout section with status badge, brackets started, champions crowned, completion rate, anonymous votes, unique voters, last vote, top-5 crowd Elo leaderboard, threshold notes, and an album-scoped reset with inline confirmation. **Reset deletes only that album's votes and runs; photos are untouched.**
+- **Cleanup & lifecycle**: Deleting a collection deletes its votes/runs and analytics. Removing a photo from an album deletes votes involving that photo and runs championed by it; deleting a gallery photo does the same globally. Changing a collection to media/mixed pauses the knockout but keeps its results. Photo save/metadata changes purge deck/summary caches.
+- **Tests & quality gates**: Added 24 pure engine tests (`tests/collection-knockout.test.ts`) and 12 action/integration tests (`tests/collection-knockout-actions.test.ts`) covering blind projections, opaque proxy URLs, token gating, toggles, idempotency, invalid matchups, reveal metadata, 10-vote/3-matchup thresholds, reset, preview exclusions, and cleanup on photo/collection deletion. Full suite: **181 tests across 27 files, 100% passing**; `npx tsc --noEmit` 0 errors; `npm run build` succeeds; `android/` remains untouched.
 
 ### October 2026: Collections Admin Redesign — Manual Covers & Aggregate View Analytics
 

@@ -504,6 +504,7 @@ export const collections = sqliteTable("collections", {
   visibility: text("visibility", { enum: ["private", "unlisted", "public"] }).notNull().default("private"),
   shareToken: text("share_token"),
   coverPhotoId: text("cover_photo_id"),
+  knockoutEnabled: integer("knockout_enabled").notNull().default(1),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
@@ -521,6 +522,32 @@ export const collectionAnalytics = sqliteTable("collection_analytics", {
   viewCount: integer("view_count").notNull().default(0),
   lastViewedAt: text("last_viewed_at"),
   updatedAt: text("updated_at").notNull(),
+});
+
+export const collectionKnockoutVotes = sqliteTable("collection_knockout_votes", {
+  id: text("id").primaryKey(),
+  collectionId: text("collection_id").notNull(),
+  sessionId: text("session_id").notNull(),
+  seed: text("seed").notNull(),
+  round: integer("round").notNull(),
+  matchIndex: integer("match_index").notNull(),
+  winnerPhotoId: text("winner_photo_id").notNull(),
+  loserPhotoId: text("loser_photo_id").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export const collectionKnockoutRuns = sqliteTable("collection_knockout_runs", {
+  id: text("id").primaryKey(),
+  collectionId: text("collection_id").notNull(),
+  sessionId: text("session_id").notNull(),
+  seed: text("seed").notNull(),
+  poolHash: text("pool_hash").notNull(),
+  bracketSize: integer("bracket_size").notNull(),
+  status: text("status", { enum: ["started", "completed"] }).notNull().default("started"),
+  championPhotoId: text("champion_photo_id"),
+  matchesPlayed: integer("matches_played").notNull().default(0),
+  startedAt: text("started_at").notNull(),
+  completedAt: text("completed_at"),
 });
 
 // Activity Timeline Stream
@@ -577,6 +604,8 @@ export type TrackMetadataRecord = typeof trackMetadata.$inferSelect;
 export type CollectionRecord = typeof collections.$inferSelect;
 export type CollectionItemRecord = typeof collectionItems.$inferSelect;
 export type CollectionAnalyticsRecord = typeof collectionAnalytics.$inferSelect;
+export type CollectionKnockoutVoteRecord = typeof collectionKnockoutVotes.$inferSelect;
+export type CollectionKnockoutRunRecord = typeof collectionKnockoutRuns.$inferSelect;
 export type ActivityRecord = typeof activities.$inferSelect;
 
 export const dashboardCache = sqliteTable("dashboard_cache", {

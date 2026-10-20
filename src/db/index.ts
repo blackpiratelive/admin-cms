@@ -308,6 +308,7 @@ export async function ensureDbInitialized(): Promise<void> {
           visibility TEXT NOT NULL DEFAULT 'private',
           share_token TEXT,
           cover_photo_id TEXT,
+          knockout_enabled INTEGER NOT NULL DEFAULT 1,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
@@ -325,6 +326,32 @@ export async function ensureDbInitialized(): Promise<void> {
           view_count INTEGER NOT NULL DEFAULT 0,
           last_viewed_at TEXT,
           updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS collection_knockout_votes (
+          id TEXT PRIMARY KEY,
+          collection_id TEXT NOT NULL,
+          session_id TEXT NOT NULL,
+          seed TEXT NOT NULL,
+          round INTEGER NOT NULL,
+          match_index INTEGER NOT NULL,
+          winner_photo_id TEXT NOT NULL,
+          loser_photo_id TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS collection_knockout_runs (
+          id TEXT PRIMARY KEY,
+          collection_id TEXT NOT NULL,
+          session_id TEXT NOT NULL,
+          seed TEXT NOT NULL,
+          pool_hash TEXT NOT NULL,
+          bracket_size INTEGER NOT NULL,
+          status TEXT NOT NULL DEFAULT 'started',
+          champion_photo_id TEXT,
+          matches_played INTEGER NOT NULL DEFAULT 0,
+          started_at TEXT NOT NULL,
+          completed_at TEXT
         );
 
         CREATE TABLE IF NOT EXISTS activities (
@@ -933,6 +960,11 @@ export async function ensureDbInitialized(): Promise<void> {
       try {
         await client.execute(`ALTER TABLE collections ADD COLUMN cover_photo_id TEXT;`);
       } catch (err) {}
+      try {
+        await client.execute(
+          `ALTER TABLE collections ADD COLUMN knockout_enabled INTEGER NOT NULL DEFAULT 1;`
+        );
+      } catch (err) {}
 
       // Comprehensive performance indexes covering all single-column & multi-column queries
       await client.executeMultiple(`
@@ -959,6 +991,11 @@ export async function ensureDbInitialized(): Promise<void> {
         CREATE INDEX IF NOT EXISTS collections_visibility_idx ON collections(visibility);
         CREATE UNIQUE INDEX IF NOT EXISTS collections_share_token_idx ON collections(share_token) WHERE share_token IS NOT NULL;
         CREATE INDEX IF NOT EXISTS collection_analytics_last_viewed_idx ON collection_analytics(last_viewed_at DESC);
+        CREATE INDEX IF NOT EXISTS collection_knockout_votes_col_idx ON collection_knockout_votes(collection_id, created_at);
+        CREATE UNIQUE INDEX IF NOT EXISTS collection_knockout_votes_match_idx ON collection_knockout_votes(collection_id, session_id, seed, round, match_index);
+        CREATE INDEX IF NOT EXISTS collection_knockout_votes_winner_idx ON collection_knockout_votes(collection_id, winner_photo_id);
+        CREATE INDEX IF NOT EXISTS collection_knockout_runs_col_idx ON collection_knockout_runs(collection_id, status);
+        CREATE UNIQUE INDEX IF NOT EXISTS collection_knockout_runs_session_idx ON collection_knockout_runs(collection_id, session_id, seed);
         CREATE INDEX IF NOT EXISTS search_index_query_idx ON search_index(title, subtitle, keywords);
         CREATE INDEX IF NOT EXISTS journal_entries_entry_date_idx ON journal_entries(entry_date DESC);
         CREATE INDEX IF NOT EXISTS journal_entries_created_at_idx ON journal_entries(created_at DESC);

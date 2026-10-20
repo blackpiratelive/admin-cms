@@ -1,8 +1,15 @@
 "use server";
 
 import { db, ensureDbInitialized } from "@/db";
-import { gallery, type GalleryPhoto, collectionItems, collections } from "@/db/schema";
-import { count, desc, eq, and, inArray, sql } from "drizzle-orm";
+import {
+  gallery,
+  type GalleryPhoto,
+  collectionItems,
+  collections,
+  collectionKnockoutVotes,
+  collectionKnockoutRuns,
+} from "@/db/schema";
+import { count, desc, eq, and, inArray, or, sql } from "drizzle-orm";
 import { galleryPhotoInputSchema, type GalleryPhotoInput, generatePhotoSlug } from "./schema";
 import { triggerVercelDeployHook, triggerVercelDeployHookBackground } from "@/lib/deploy-hook";
 import { purgeTag } from "@/lib/server-cache";
@@ -182,6 +189,8 @@ export async function saveGalleryPhoto(input: GalleryPhotoInput) {
     purgeTag("gallery-list");
     purgeTag(`gallery-${id}`);
     purgeTag("collections-public");
+    purgeTag("knockout-deck");
+    purgeTag("knockout-summary");
     try {
       revalidatePath("/gallery");
       revalidatePath("/collections", "layout");
@@ -236,6 +245,17 @@ export async function deleteGalleryPhoto(id: string) {
       new Set(affectedLinks.map((link) => link.collectionId))
     );
 
+    await db
+      .delete(collectionKnockoutVotes)
+      .where(
+        or(
+          eq(collectionKnockoutVotes.winnerPhotoId, id),
+          eq(collectionKnockoutVotes.loserPhotoId, id)
+        )
+      );
+    await db
+      .delete(collectionKnockoutRuns)
+      .where(eq(collectionKnockoutRuns.championPhotoId, id));
     await db.delete(collectionItems).where(
       and(eq(collectionItems.itemType, "photo"), eq(collectionItems.itemId, id))
     );
@@ -262,6 +282,8 @@ export async function deleteGalleryPhoto(id: string) {
     purgeTag(`gallery-${id}`);
     purgeTag("collections-list");
     purgeTag("collections-public");
+    purgeTag("knockout-deck");
+    purgeTag("knockout-summary");
     affectedCollectionIds.forEach((collectionId) => purgeTag(`collection-${collectionId}`));
     try {
       revalidatePath("/gallery");

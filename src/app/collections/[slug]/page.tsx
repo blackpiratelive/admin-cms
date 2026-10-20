@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { getPublicCollectionAction } from "@/features/libraries/actions/collections";
 import { CollectionViewTracker } from "@/features/libraries/components/CollectionViewTracker";
 import { PublicCollectionContent } from "@/features/libraries/components/public/PublicCollectionContent";
+import { getKnockoutPath } from "@/features/libraries/collection-knockout";
 import type { PublicCollectionDetail } from "@/features/libraries/collection-types";
 
 export const dynamic = "force-dynamic";
@@ -85,6 +86,11 @@ export default async function PublicCollectionPage({ params, searchParams }: Pub
 
   if (!detail) notFound();
 
+  const knockoutPath =
+    detail.collection.kind === "photo" && detail.collection.knockoutEnabled !== 0
+      ? getKnockoutPath(detail.collection.slug, { token, preview: isPreview })
+      : null;
+
   return (
     <>
       <CollectionViewTracker
@@ -92,7 +98,11 @@ export default async function PublicCollectionPage({ params, searchParams }: Pub
         token={token}
         preview={isPreview}
       />
-      <PublicCollectionContent detail={detail} />
+      <PublicCollectionContent
+        detail={detail}
+        knockoutPath={knockoutPath}
+        preview={isPreview}
+      />
     </>
   );
 }

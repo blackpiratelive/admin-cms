@@ -1,4 +1,5 @@
 import type { CollectionRecord } from "@/db/schema";
+import type { KnockoutStanding } from "./collection-knockout";
 
 export interface CollectionCounts {
   photos: number;
@@ -176,6 +177,84 @@ export interface CollectionPhotoPickerOption {
   visibility: string;
   photoIds: string[];
   sharePath: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Best Pic Knockout
+// ---------------------------------------------------------------------------
+
+export interface KnockoutDeckPhoto {
+  id: string;
+  largeUrl: string;
+  mediumUrl: string;
+  thumbnailUrl: string;
+  width: number | null;
+  height: number | null;
+}
+
+export interface CollectionKnockoutDeck {
+  collection: {
+    id: string;
+    name: string;
+    slug: string;
+    description: string | null;
+    color: string | null;
+    visibility: string;
+  };
+  photos: KnockoutDeckPhoto[];
+}
+
+export type CollectionKnockoutDeckResult =
+  | { state: "ready"; deck: CollectionKnockoutDeck }
+  | { state: "disabled" };
+
+export interface CollectionKnockoutSummary {
+  completedRuns: number;
+  totalVotes: number;
+  crowdReady: boolean;
+}
+
+export interface KnockoutRevealPhoto {
+  id: string;
+  title: string;
+  description: string | null;
+  takenAt: string | null;
+  createdAt: string;
+  locationName: string | null;
+  camera: string | null;
+  lens: string | null;
+  focalLength: string | null;
+  aperture: string | null;
+  shutterSpeed: string | null;
+  iso: number | null;
+  mediumUrl: string;
+  largeUrl: string;
+  width: number | null;
+  height: number | null;
+}
+
+export interface CollectionKnockoutReveal {
+  photos: KnockoutRevealPhoto[];
+  crowd: {
+    totalVotes: number;
+    completedRuns: number;
+    ready: boolean;
+    standings: KnockoutStanding[];
+  };
+}
+
+export interface CollectionKnockoutAdminStats {
+  enabled: boolean;
+  eligible: boolean;
+  photoCount: number;
+  startedRuns: number;
+  completedRuns: number;
+  completionRate: number | null;
+  totalVotes: number;
+  uniqueSessions: number;
+  lastVoteAt: string | null;
+  crowdReady: boolean;
+  standings: KnockoutStanding[];
 }
 
 export function emptyCollectionCounts(): CollectionCounts {

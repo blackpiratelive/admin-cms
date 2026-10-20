@@ -27,9 +27,12 @@ import type {
   PublicCollectionDetail,
 } from "@/features/libraries/collection-types";
 import { collectionKindLabel } from "@/features/libraries/collection-helpers";
+import { CollectionKnockoutCta } from "../CollectionKnockoutCta";
 
 interface PublicCollectionContentProps {
   detail: PublicCollectionDetail;
+  knockoutPath?: string | null;
+  preview?: boolean;
 }
 
 function formatDate(value: string | null | undefined): string {
@@ -356,8 +359,17 @@ function PersonCard({ person }: { person: CollectionPersonItem }) {
   );
 }
 
-export function PublicCollectionContent({ detail }: PublicCollectionContentProps) {
+export function PublicCollectionContent({
+  detail,
+  knockoutPath,
+  preview = false,
+}: PublicCollectionContentProps) {
   const { collection, photos, movies, shows, artists, albums, tracks, people, counts } = detail;
+  const showKnockoutCta =
+    collection.kind === "photo" &&
+    collection.knockoutEnabled !== 0 &&
+    photos.length >= 2 &&
+    Boolean(knockoutPath);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const showPhotos = collection.kind === "photo" || collection.kind === "mixed";
   const showMedia = collection.kind === "media" || collection.kind === "mixed";
@@ -397,6 +409,16 @@ export function PublicCollectionContent({ detail }: PublicCollectionContentProps
         {collection.description && <p>{collection.description}</p>}
         {summary.length > 0 && <div className="public-collection-summary">{summary.join(" · ")}</div>}
       </header>
+
+      {showKnockoutCta && knockoutPath && (
+        <CollectionKnockoutCta
+          collectionId={collection.id}
+          photoIds={photos.map((photo) => photo.id)}
+          knockoutPath={knockoutPath}
+          accentColor={collection.color}
+          preview={preview}
+        />
+      )}
 
       {!hasAnything && (
         <div className="public-collections-empty">

@@ -5,6 +5,8 @@ import {
   collections,
   collectionItems,
   collectionAnalytics,
+  collectionKnockoutVotes,
+  collectionKnockoutRuns,
   type CollectionRecord,
   gallery,
   traktMovies,
@@ -112,6 +114,7 @@ function revalidateCollectionRoutes(slug?: string | null) {
 function purgeCollectionCaches(input: { id?: string | null; slug?: string | null }) {
   purgeTag("collections-list");
   purgeTag("collections-public");
+  purgeTag("knockout-deck");
   if (input.id) purgeTag(`collection-${input.id}`);
   if (input.slug) {
     purgeTag(`collection-${input.slug}`);
@@ -1080,10 +1083,20 @@ export async function recordCollectionViewAction(
 export async function deleteCollectionAction(id: string) {
   await ensureDbInitialized();
   const current = await findCollection(id);
-  await db.delete(collectionItems).where(eq(collectionItems.collectionId, id));
-  await db.delete(collectionAnalytics).where(eq(collectionAnalytics.collectionId, id));
-  await db.delete(collections).where(eq(collections.id, id));
-  purgeCollectionCaches({ id, slug: current?.slug || null });
+  const collectionId = current?.id || id;
+  await db
+    .delete(collectionKnockoutVotes)
+    .where(eq(collectionKnockoutVotes.collectionId, collectionId));
+  await db
+    .delete(collectionKnockoutRuns)
+    .where(eq(collectionKnockoutRuns.collectionId, collectionId));
+  await db.delete(collectionItems).where(eq(collectionItems.collectionId, collectionId));
+  await db
+    .delete(collectionAnalytics)
+    .where(eq(collectionAnalytics.collectionId, collectionId));
+  await db.delete(collections).where(eq(collections.id, collectionId));
+  purgeTag("knockout-summary");
+  purgeCollectionCaches({ id: collectionId, slug: current?.slug || null });
   return { success: true };
 }
 
@@ -1151,6 +1164,28 @@ export async function removeItemFromCollectionAction(
       updates.coverPhotoId = null;
     }
     await db.update(collections).set(updates).where(eq(collections.id, collectionId));
+  }
+  if (collection && itemType === "photo") {
+    await db
+      .delete(collectionKnockoutVotes)
+      .where(
+        and(
+          eq(collectionKnockoutVotes.collectionId, collection.id),
+          or(
+            eq(collectionKnockoutVotes.winnerPhotoId, itemIdStr),
+            eq(collectionKnockoutVotes.loserPhotoId, itemIdStr)
+          )
+        )
+      );
+    await db
+      .delete(collectionKnockoutRuns)
+      .where(
+        and(
+          eq(collectionKnockoutRuns.collectionId, collection.id),
+          eq(collectionKnockoutRuns.championPhotoId, itemIdStr)
+        )
+      );
+    purgeTag("knockout-summary");
   }
   purgeCollectionCaches({ id: collectionId, slug: collection?.slug || null });
   return { success: true };

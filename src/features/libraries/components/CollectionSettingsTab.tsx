@@ -10,12 +10,14 @@ import {
   Save,
   Sparkles,
   Trash2,
+  Trophy,
 } from "lucide-react";
 import { notify } from "@/lib/notifications";
 import {
   deleteCollectionAction,
   updateCollectionAction,
 } from "../actions/collections";
+import { setCollectionKnockoutEnabledAction } from "../actions/collection-knockout";
 import {
   collectionKindLabel,
   type CollectionKind,
@@ -86,17 +88,23 @@ export function CollectionSettingsTab({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [knockoutEnabled, setKnockoutEnabled] = useState(
+    collection.knockoutEnabled !== 0
+  );
+  const [knockoutBusy, setKnockoutBusy] = useState(false);
 
   useEffect(() => {
     setName(collection.name);
     setDescription(collection.description || "");
     setKind(collection.kind);
     setColor(collection.color || "#ff6600");
+    setKnockoutEnabled(collection.knockoutEnabled !== 0);
   }, [
     collection.name,
     collection.description,
     collection.kind,
     collection.color,
+    collection.knockoutEnabled,
   ]);
 
   const mediaCount = useMemo(
@@ -171,6 +179,37 @@ export function CollectionSettingsTab({
       setError(err instanceof Error ? err.message : "Could not reset the cover.");
     } finally {
       setResetBusy(false);
+    }
+  };
+
+  const toggleKnockout = async () => {
+    if (knockoutBusy) return;
+    const next = !knockoutEnabled;
+    setKnockoutEnabled(next);
+    setKnockoutBusy(true);
+    setError(null);
+    try {
+      const result = await setCollectionKnockoutEnabledAction(collection.id, next);
+      if (!result.success) {
+        setKnockoutEnabled(!next);
+        notify.show({
+          type: "error",
+          message: result.error || "Could not update Best Pic Knockout.",
+        });
+        return;
+      }
+      notify.show({
+        type: "success",
+        message: next ? "Best Pic Knockout enabled." : "Best Pic Knockout paused.",
+      });
+      await onRefresh();
+    } catch (err) {
+      setKnockoutEnabled(!next);
+      setError(
+        err instanceof Error ? err.message : "Could not update Best Pic Knockout."
+      );
+    } finally {
+      setKnockoutBusy(false);
     }
   };
 
@@ -363,12 +402,59 @@ export function CollectionSettingsTab({
         </div>
       </section>
 
+      {collection.kind === "photo" && (
+        <section className="collection-settings-card">
+          <div className="collection-settings-card-head">
+            <h3><Trophy size={15} /> Best Pic Knockout</h3>
+            <p>
+              Let visitors play a blind single-elimination tournament with this
+              album&apos;s visible photos. The knockout has its own page and a
+              call-to-action on the shared album.
+            </p>
+          </div>
+          <div className="collections-knockout-setting">
+            <div>
+              <strong>Enable the knockout</strong>
+              <span>
+                {knockoutEnabled
+                  ? "Visitors can start or resume a bracket from the shared album."
+                  : "The knockout page and album call-to-action are hidden. Existing votes and results are kept."}
+              </span>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={knockoutEnabled}
+              aria-label="Enable Best Pic Knockout"
+              className={`collections-switch${knockoutEnabled ? " is-on" : ""}`}
+              onClick={toggleKnockout}
+              disabled={knockoutBusy}
+            >
+              <span className="collections-switch-track">
+                <span className="collections-switch-thumb" />
+              </span>
+              {knockoutBusy ? (
+                <Loader2 size={14} className="spin" />
+              ) : (
+                <em>{knockoutEnabled ? "On" : "Off"}</em>
+              )}
+            </button>
+          </div>
+          <p className="collections-knockout-setting-note">
+            Votes are anonymous. The crowd champion appears after 10 total votes,
+            and each photo needs at least 3 matchups to rank. Switching to a media or
+            mixed collection pauses the knockout but keeps its results.
+          </p>
+        </section>
+      )}
+
       <section className="collection-settings-card is-danger">
         <div className="collection-settings-card-head">
           <h3><Trash2 size={15} /> Danger zone</h3>
           <p>
             Deleting a collection removes its item links, share token, cover choice,
-            and analytics. The photos and media themselves are not deleted.
+            analytics, and Best Pic Knockout votes. The photos and media themselves
+            are not deleted.
           </p>
         </div>
         <div className="collection-danger-row">
@@ -401,7 +487,8 @@ export function CollectionSettingsTab({
             will not appear on the shared page after this change. They will remain
             in the collection and be flagged in the Content tab, so you can remove
             them or switch the type back. A manual photo cover may also fall back
-            automatically on the shared page.
+            automatically on the shared page. Best Pic Knockout will pause and keep
+            its existing results.
           </>
         }
         confirmLabel="Change type"
@@ -418,8 +505,9 @@ export function CollectionSettingsTab({
         title="Delete this collection?"
         description={
           <>
-            <strong>{collection.name}</strong> and its analytics will be deleted.
-            Items inside it will stay in your library. This cannot be undone.
+            <strong>{collection.name}</strong>, its analytics, and its Best Pic
+            Knockout votes will be deleted. Items inside it will stay in your
+            library. This cannot be undone.
             {deleteError && <span className="collections-form-error">{deleteError}</span>}
           </>
         }
