@@ -1289,6 +1289,50 @@
   transition: width 0.35s ease;
 }
 
+.public-knockout-image-warning {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 10px auto 0;
+  padding: 7px 12px;
+  border: 1px solid var(--pc-border);
+  border-radius: 10px;
+  background: var(--pc-surface);
+  color: var(--pc-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.public-knockout-image-warning.is-error {
+  border-color: rgba(248, 113, 113, 0.42);
+  background: rgba(127, 29, 29, 0.18);
+  color: #fca5a5;
+}
+
+.public-knockout-image-warning button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  border-radius: 999px;
+  background: rgba(248, 113, 113, 0.12);
+  color: #fecaca;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.public-knockout-image-warning button:hover {
+  background: rgba(248, 113, 113, 0.2);
+}
+
 .public-knockout-match {
   position: relative;
   display: grid;
@@ -1331,6 +1375,36 @@
   max-height: calc(100vh - 150px);
   object-fit: contain;
   user-select: none;
+}
+
+.public-knockout-panel.is-loading img,
+.public-knockout-panel.has-error img {
+  opacity: 0.45;
+}
+
+.public-knockout-panel.is-loading {
+  cursor: progress;
+}
+
+.public-knockout-panel-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: rgba(9, 9, 11, 0.4);
+  color: var(--pc-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.public-knockout-panel-loading.is-error {
+  color: #fca5a5;
 }
 
 .public-knockout-panel-letter {

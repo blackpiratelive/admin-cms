@@ -254,6 +254,22 @@ export function PublicCollectionKnockout({
     };
   }, [deck.collection.slug, token, preview]);
 
+  // Warm the browser cache with every arena image while the visitor reads the
+  // intro or resumes a bracket. Current-match images are fetched with a higher
+  // priority by the arena itself.
+  useEffect(() => {
+    const images = deck.photos.map((photo) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.fetchPriority = "low";
+      image.src = photo.mediumUrl;
+      return image;
+    });
+    return () => {
+      images.length = 0;
+    };
+  }, [deck.photos]);
+
   useEffect(() => {
     const sessionId = getKnockoutSessionId();
     sessionIdRef.current = sessionId;

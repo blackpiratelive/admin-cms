@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Loader2, Undo2 } from "lucide-react";
+import { ArrowLeft, Check, ImageOff, Loader2, RefreshCw, Undo2 } from "lucide-react";
 import type {
   KnockoutDeckPhoto,
 } from "@/features/libraries/collection-types";
@@ -22,6 +22,13 @@ interface KnockoutArenaProps {
   onUndo: () => void;
 }
 
+type PhotoLoadState = "loading" | "loaded" | "error";
+
+function versionedImageUrl(url: string, retryKey: number): string {
+  if (!retryKey) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}retry=${retryKey}`;
+}
+
 export function KnockoutArena({
   match,
   photosById,
@@ -35,6 +42,83 @@ export function KnockoutArena({
   onPick,
   onUndo,
 }: KnockoutArenaProps) {
+  const [photoStates, setPhotoStates] = useState<Record<string, PhotoLoadState>>({});
+  const [retryKeys, setRetryKeys] = useState<Record<string, number>>({});
+  const [imageWarning, setImageWarning] = useState<string | null>(null);
+  const imageRefs = useRef<Record<string, HTMLImageElement | null>>({});
+
+  const matchPhotoIds = [match.a, match.b].filter(
+    (id): id is string => Boolean(id)
+  );
+  const bothLoaded =
+    matchPhotoIds.length === 2 &&
+    matchPhotoIds.every((id) => photoStates[id] === "loaded");
+  const imageError = matchPhotoIds.some((id) => photoStates[id] === "error");
+  const retryKeyA = match.a ? retryKeys[match.a] ?? 0 : 0;
+  const retryKeyB = match.b ? retryKeys[match.b] ?? 0 : 0;
+
+  const markPhotoLoaded = useCallback((photoId: string) => {
+    setPhotoStates((previous) =>
+      previous[photoId] === "loaded"
+        ? previous
+        : { ...previous, [photoId]: "loaded" }
+    );
+  }, []);
+
+  const markPhotoError = useCallback((photoId: string) => {
+    setPhotoStates((previous) =>
+      previous[photoId] === "error"
+        ? previous
+        : { ...previous, [photoId]: "error" }
+    );
+  }, []);
+
+  useEffect(() => {
+    for (const id of [match.a, match.b]) {
+      if (!id) continue;
+      const image = imageRefs.current[id];
+      if (!image || !image.complete) continue;
+      if (image.naturalWidth > 0) {
+        markPhotoLoaded(id);
+      } else {
+        markPhotoError(id);
+      }
+    }
+  }, [match.a, match.b, retryKeyA, retryKeyB, markPhotoLoaded, markPhotoError]);
+
+  useEffect(() => {
+    setImageWarning(null);
+  }, [match.a, match.b]);
+
+  useEffect(() => {
+    if (bothLoaded) setImageWarning(null);
+  }, [bothLoaded]);
+
+  const attemptPick = useCallback(
+    (photoId: string) => {
+      if (crowning) return;
+      // The displayed <img> elements are the source of truth: a photo that was
+      // loaded in an earlier round might no longer be in the browser cache.
+      const imagesComplete =
+        Boolean(match.a && match.b) &&
+        [match.a, match.b].every((id) => {
+          const image = id ? imageRefs.current[id] : null;
+          return Boolean(image && image.complete && image.naturalWidth > 0);
+        });
+      if (!imagesComplete) {
+        setImageWarning(
+          imageError
+            ? "One of these photos could not be downloaded. Retry the download before voting."
+            : "Voting is locked until both photos finish downloading."
+        );
+        return;
+      }
+      setImageWarning(null);
+      onPick(photoId);
+    },
+    [crowning, imageError, match.a, match.b, onPick]
+  );
+
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -61,56 +145,93 @@ export function KnockoutArena({
       if (key === "1" || key === "a" || event.key === "ArrowLeft") {
         if (match.a) {
           event.preventDefault();
-          onPick(match.a);
+          attemptPick(match.a);
         }
       } else if (key === "2" || key === "b" || event.key === "ArrowRight") {
         if (match.b) {
           event.preventDefault();
-          onPick(match.b);
+          attemptPick(match.b);
         }
       }
     };
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [canUndo, crowning, match.a, match.b, onPick, onUndo]);
+  }, [attemptPick, canUndo, crowning, match.a, match.b, onUndo]);
 
-  useEffect(() => {
-    for (const id of [match.a, match.b]) {
-      const photo = id ? photosById.get(id) : null;
-      if (!photo) continue;
-      const image = new Image();
-      image.src = photo.mediumUrl;
-    }
-  }, [match.a, match.b, photosById]);
+  const retryImages = () => {
+    const failedIds = matchPhotoIds.filter(
+      (id) => photoStates[id] === "error"
+    );
+    if (failedIds.length === 0) return;
+    setImageWarning(null);
+    setPhotoStates((previous) => {
+      const next = { ...previous };
+      for (const id of failedIds) next[id] = "loading";
+      return next;
+    });
+    setRetryKeys((previous) => {
+      const next = { ...previous };
+      for (const id of failedIds) next[id] = (next[id] ?? 0) + 1;
+      return next;
+    });
+  };
 
   const renderPanel = (side: "a" | "b", photoId: string | null) => {
     const photo = photoId ? photosById.get(photoId) : null;
     const letter = side.toUpperCase();
     const isWinner = Boolean(photoId && match.winner === photoId);
     const isLoser = Boolean(crowning && match.winner && photoId && match.winner !== photoId);
+    const loadState = photoId ? photoStates[photoId] ?? "loading" : null;
+    const isLoading = loadState === "loading";
+    const hasError = loadState === "error";
 
     return (
       <button
         type="button"
         className={`public-knockout-panel${isWinner ? " is-winner" : ""}${
           isLoser ? " is-loser" : ""
-        }`}
-        onClick={() => photoId && !crowning && onPick(photoId)}
+        }${isLoading ? " is-loading" : ""}${hasError ? " has-error" : ""}`}
+        onClick={() => photoId && attemptPick(photoId)}
         disabled={!photoId || crowning}
-        aria-label={photo ? `Choose photo ${letter}` : `Photo ${letter} unavailable`}
+        aria-busy={isLoading || undefined}
+        aria-label={
+          photo
+            ? hasError
+              ? `Photo ${letter} could not be downloaded`
+              : isLoading
+                ? `Photo ${letter} is still downloading`
+                : `Choose photo ${letter}`
+            : `Photo ${letter} unavailable`
+        }
       >
         <span className="public-knockout-panel-letter">{letter}</span>
         {photo ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={photo.mediumUrl}
+            key={photo.id}
+            ref={(node) => {
+              imageRefs.current[photo.id] = node;
+            }}
+            src={versionedImageUrl(photo.mediumUrl, retryKeys[photo.id] ?? 0)}
             alt={`Photo ${letter}`}
             draggable={false}
             decoding="async"
+            fetchPriority="high"
+            onLoad={() => markPhotoLoaded(photo.id)}
+            onError={() => markPhotoError(photo.id)}
           />
         ) : (
           <span className="public-knockout-panel-placeholder">Photo {letter}</span>
+        )}
+        {photo && loadState !== "loaded" && (
+          <span
+            className={`public-knockout-panel-loading${hasError ? " is-error" : ""}`}
+            aria-hidden="true"
+          >
+            {hasError ? <ImageOff size={15} /> : <Loader2 size={15} className="spin" />}
+            {hasError ? "Download failed" : "Downloading"}
+          </span>
         )}
         {isWinner && (
           <span className="public-knockout-panel-check">
@@ -144,6 +265,30 @@ export function KnockoutArena({
           <span style={{ width: `${percent}%` }} />
         </div>
       </header>
+
+      {!crowning && (!bothLoaded || imageWarning) && (
+        <div
+          className={`public-knockout-image-warning${
+            imageWarning || imageError ? " is-error" : ""
+          }`}
+          role={imageWarning ? "alert" : "status"}
+        >
+          {!imageWarning && !imageError && (
+            <Loader2 size={13} className="spin" aria-hidden="true" />
+          )}
+          <span>
+            {imageWarning ??
+              (imageError
+                ? "A photo could not be downloaded."
+                : "Downloading both photos… voting unlocks when they finish.")}
+          </span>
+          {imageError && (
+            <button type="button" onClick={retryImages}>
+              <RefreshCw size={12} /> Retry download
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="public-knockout-match">
         {renderPanel("a", match.a)}
