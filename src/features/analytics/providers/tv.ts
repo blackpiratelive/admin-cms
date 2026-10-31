@@ -1,5 +1,5 @@
 import { db, ensureDbInitialized } from "@/db";
-import { traktShows, traktEpisodes, tvShowMetadata } from "@/db/schema";
+import { shows, episodes, tvShowMetadata } from "@/db/schema";
 import { AnalyticsProvider, TvAnalyticsData, TimeFilterRange, CustomDateRange } from "../types";
 import { getTimeFilterStartEnd } from "../config";
 
@@ -12,12 +12,12 @@ export const tvAnalyticsProvider: AnalyticsProvider = {
     await ensureDbInitialized();
 
     const [allShows, allEpisodes, allMeta] = await Promise.all([
-      db.select().from(traktShows),
-      db.select().from(traktEpisodes),
+      db.select().from(shows),
+      db.select().from(episodes),
       db.select().from(tvShowMetadata),
     ]);
 
-    const metaMap = new Map(allMeta.map((m) => [m.traktId, m]));
+    const metaMap = new Map(allMeta.map((m) => [m.showId, m]));
 
     let filteredShows = allShows;
     let filteredEpisodes = allEpisodes;
@@ -55,7 +55,7 @@ export const tvAnalyticsProvider: AnalyticsProvider = {
         showsWatching += 1;
       }
 
-      const meta = metaMap.get(s.traktId);
+      const meta = metaMap.get(s.id);
       if (meta?.personalRating) {
         totalRating += meta.personalRating;
         ratedCount += 1;

@@ -71,7 +71,7 @@ export function SyncLogsView({ initialProvider }: { initialProvider?: string }) 
           >
             <option value="">All Providers</option>
             <option value="freshrss">FreshRSS</option>
-            <option value="trakt">Trakt</option>
+            <option value="movie_tracker">Movie Tracker</option>
             <option value="lastfm">Last.fm</option>
           </select>
 
@@ -106,7 +106,7 @@ export function SyncLogsView({ initialProvider }: { initialProvider?: string }) 
               logs.map((log) => (
                 <tr key={log.id}>
                   <td style={{ fontWeight: "bold", textTransform: "capitalize" }}>
-                    {log.provider === "trakt" ? "🎬 Trakt" : log.provider === "lastfm" ? "🎵 Last.fm" : log.provider}
+                    {log.provider === "movie_tracker" ? "🎬 Movie Tracker" : log.provider === "trakt" ? "🎬 Trakt (Legacy)" : log.provider === "lastfm" ? "🎵 Last.fm" : log.provider}
                   </td>
                   <td>{getStatusBadge(log.status)}</td>
                   <td style={{ fontFamily: "var(--font-mono)", fontSize: "12px" }}>

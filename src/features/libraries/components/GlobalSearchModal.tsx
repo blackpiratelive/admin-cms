@@ -123,8 +123,8 @@ export function GlobalSearchModal() {
                   </div>
                   {results.movies.map((m) => (
                     <Link
-                      key={m.movie.traktId}
-                      href={`/libraries/movies/${m.movie.traktId}`}
+                      key={m.movie.id}
+                      href={`/libraries/movies/${m.movie.id}`}
                       onClick={() => setIsOpen(false)}
                       style={{
                         display: "flex",
@@ -162,8 +162,8 @@ export function GlobalSearchModal() {
                   </div>
                   {results.shows.map((s) => (
                     <Link
-                      key={s.show.traktId}
-                      href={`/libraries/shows/${s.show.traktId}`}
+                      key={s.show.id}
+                      href={`/libraries/shows/${s.show.id}`}
                       onClick={() => setIsOpen(false)}
                       style={{
                         display: "flex",

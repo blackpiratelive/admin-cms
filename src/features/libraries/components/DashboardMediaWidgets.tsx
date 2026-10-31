@@ -42,8 +42,8 @@ export function DashboardMediaWidgets({
             )}
             {recentMovies.slice(0, 4).map((m) => (
               <Link
-                key={m.movie.traktId}
-                href={`/libraries/movies/${m.movie.traktId}`}
+                key={m.movie.id}
+                href={`/libraries/movies/${m.movie.id}`}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -94,8 +94,8 @@ export function DashboardMediaWidgets({
             )}
             {recentShows.slice(0, 4).map((s) => (
               <Link
-                key={s.show.traktId}
-                href={`/libraries/shows/${s.show.traktId}`}
+                key={s.show.id}
+                href={`/libraries/shows/${s.show.id}`}
                 style={{
                   display: "flex",
                   alignItems: "center",

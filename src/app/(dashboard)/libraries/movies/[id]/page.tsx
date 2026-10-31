@@ -10,8 +10,8 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps) {
   const p = await params;
-  const traktId = parseInt(p.id, 10);
-  const data = await getMovieDetailAction(traktId);
+  const movieId = parseInt(p.id, 10);
+  const data = await getMovieDetailAction(movieId);
   return {
     title: data ? `${data.movie.title} - Movies Library` : "Movie Detail",
   };
@@ -19,10 +19,10 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function MovieDetailPage({ params }: PageProps) {
   const p = await params;
-  const traktId = parseInt(p.id, 10);
-  if (isNaN(traktId)) notFound();
+  const movieId = parseInt(p.id, 10);
+  if (isNaN(movieId)) notFound();
 
-  const data = await getMovieDetailAction(traktId);
+  const data = await getMovieDetailAction(movieId);
   if (!data) notFound();
 
   const collections = (await getCollectionsAction()).filter((collection) => collection.kind !== "photo");

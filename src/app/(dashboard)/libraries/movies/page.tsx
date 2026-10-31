@@ -46,7 +46,7 @@ export default async function MoviesLibraryPage({ searchParams }: PageProps) {
             <Film size={24} style={{ color: "var(--accent-color)" }} /> Movies Library
           </h1>
           <p style={{ fontSize: "13px", color: "var(--text-muted)", margin: "4px 0 0 0" }}>
-            Canonical movies synced from Trakt. Enrich with your personal metadata, ratings, reviews, and tags.
+            Canonical movies synced from Movie Tracker. Enrich with your personal metadata, ratings, reviews, and tags.
           </p>
         </div>
       </div>

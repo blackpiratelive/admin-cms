@@ -862,7 +862,7 @@ export default function TripDetailPage({ params }: { params: Promise<{ slug: str
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "12px" }}>
               {entities?.movies.map((m) => (
                 <div
-                  key={m.traktId}
+                  key={m.id || (m as any).traktId}
                   style={{
                     backgroundColor: "var(--bg-card, #1c1c1c)",
                     border: "1px solid var(--border-color, #333)",

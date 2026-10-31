@@ -121,8 +121,8 @@ export async function ensureDbInitialized(): Promise<void> {
           metadata_json TEXT NOT NULL DEFAULT '{}'
         );
 
-        CREATE TABLE IF NOT EXISTS trakt_movies (
-          trakt_id INTEGER PRIMARY KEY,
+        CREATE TABLE IF NOT EXISTS movies (
+          id INTEGER PRIMARY KEY,
           tmdb_id INTEGER,
           title TEXT NOT NULL,
           year INTEGER,
@@ -142,8 +142,8 @@ export async function ensureDbInitialized(): Promise<void> {
           updated_at TEXT NOT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS trakt_shows (
-          trakt_id INTEGER PRIMARY KEY,
+        CREATE TABLE IF NOT EXISTS shows (
+          id INTEGER PRIMARY KEY,
           tmdb_id INTEGER,
           title TEXT NOT NULL,
           overview TEXT,
@@ -160,9 +160,9 @@ export async function ensureDbInitialized(): Promise<void> {
           updated_at TEXT NOT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS trakt_episodes (
+        CREATE TABLE IF NOT EXISTS episodes (
           id TEXT PRIMARY KEY,
-          show_trakt_id INTEGER NOT NULL,
+          show_id INTEGER NOT NULL,
           episode_number INTEGER NOT NULL,
           season_number INTEGER NOT NULL,
           title TEXT,
@@ -224,7 +224,7 @@ export async function ensureDbInitialized(): Promise<void> {
         );
 
         CREATE TABLE IF NOT EXISTS movie_metadata (
-          trakt_id INTEGER PRIMARY KEY,
+          movie_id INTEGER PRIMARY KEY,
           favorite INTEGER NOT NULL DEFAULT 0,
           personal_rating REAL,
           review TEXT,
@@ -242,7 +242,7 @@ export async function ensureDbInitialized(): Promise<void> {
         );
 
         CREATE TABLE IF NOT EXISTS tv_show_metadata (
-          trakt_id INTEGER PRIMARY KEY,
+          show_id INTEGER PRIMARY KEY,
           favorite INTEGER NOT NULL DEFAULT 0,
           personal_rating REAL,
           review TEXT,
@@ -846,6 +846,69 @@ export async function ensureDbInitialized(): Promise<void> {
         await client.execute(`ALTER TABLE gallery ADD COLUMN trip_id TEXT;`);
       } catch (err) {}
 
+      // Clean migration: Drop legacy Trakt tables & migrate movie/show metadata
+      try {
+        await client.execute(`DROP TABLE IF EXISTS trakt_movies;`);
+        await client.execute(`DROP TABLE IF EXISTS trakt_shows;`);
+        await client.execute(`DROP TABLE IF EXISTS trakt_episodes;`);
+      } catch (err) {}
+
+      try {
+        const metaInfo = await client.execute(`PRAGMA table_info(movie_metadata);`);
+        const hasTraktId = metaInfo.rows.some((r: any) => r.name === "trakt_id");
+        if (hasTraktId) {
+          await client.execute(`DROP TABLE IF EXISTS movie_metadata;`);
+          await client.execute(`
+            CREATE TABLE IF NOT EXISTS movie_metadata (
+              movie_id INTEGER PRIMARY KEY,
+              favorite INTEGER NOT NULL DEFAULT 0,
+              personal_rating REAL,
+              review TEXT,
+              notes TEXT,
+              tags TEXT NOT NULL DEFAULT '[]',
+              visibility TEXT NOT NULL DEFAULT 'public',
+              featured INTEGER NOT NULL DEFAULT 0,
+              watched_with TEXT NOT NULL DEFAULT '[]',
+              watch_location TEXT,
+              location_id TEXT,
+              trip_id TEXT,
+              related_photos TEXT NOT NULL DEFAULT '[]',
+              related_microblogs TEXT NOT NULL DEFAULT '[]',
+              related_blog_posts TEXT NOT NULL DEFAULT '[]',
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
+          `);
+        }
+      } catch (err) {}
+
+      try {
+        const tvMetaInfo = await client.execute(`PRAGMA table_info(tv_show_metadata);`);
+        const hasTraktIdTv = tvMetaInfo.rows.some((r: any) => r.name === "trakt_id");
+        if (hasTraktIdTv) {
+          await client.execute(`DROP TABLE IF EXISTS tv_show_metadata;`);
+          await client.execute(`
+            CREATE TABLE IF NOT EXISTS tv_show_metadata (
+              show_id INTEGER PRIMARY KEY,
+              favorite INTEGER NOT NULL DEFAULT 0,
+              personal_rating REAL,
+              review TEXT,
+              notes TEXT,
+              tags TEXT NOT NULL DEFAULT '[]',
+              visibility TEXT NOT NULL DEFAULT 'public',
+              featured INTEGER NOT NULL DEFAULT 0,
+              location_id TEXT,
+              trip_id TEXT,
+              related_photos TEXT NOT NULL DEFAULT '[]',
+              related_posts TEXT NOT NULL DEFAULT '[]',
+              related_microblogs TEXT NOT NULL DEFAULT '[]',
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
+          `);
+        }
+      } catch (err) {}
+
       try {
         await client.execute(`ALTER TABLE movie_metadata ADD COLUMN location_id TEXT;`);
       } catch (err) {}
@@ -975,9 +1038,9 @@ export async function ensureDbInitialized(): Promise<void> {
         CREATE INDEX IF NOT EXISTS gallery_visibility_idx ON gallery(visibility);
         CREATE INDEX IF NOT EXISTS gallery_location_trip_idx ON gallery(location_id, trip_id);
         CREATE INDEX IF NOT EXISTS todos_completed_due_date_idx ON todos(completed, due_date);
-        CREATE INDEX IF NOT EXISTS trakt_movies_watched_at_idx ON trakt_movies(watched_at DESC);
-        CREATE INDEX IF NOT EXISTS trakt_shows_updated_at_idx ON trakt_shows(updated_at DESC);
-        CREATE INDEX IF NOT EXISTS trakt_episodes_show_id_idx ON trakt_episodes(show_trakt_id);
+        CREATE INDEX IF NOT EXISTS movies_watched_at_idx ON movies(watched_at DESC);
+        CREATE INDEX IF NOT EXISTS shows_updated_at_idx ON shows(updated_at DESC);
+        CREATE INDEX IF NOT EXISTS episodes_show_id_idx ON episodes(show_id);
         CREATE INDEX IF NOT EXISTS lastfm_scrobbles_played_at_idx ON lastfm_scrobbles(played_at DESC);
         CREATE INDEX IF NOT EXISTS persons_slug_idx ON persons(slug);
         CREATE INDEX IF NOT EXISTS persons_created_at_idx ON persons(created_at DESC);

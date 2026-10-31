@@ -1,5 +1,5 @@
 import { ISyncProvider } from "./types";
-import { TraktSyncProvider } from "./providers/trakt";
+import { MovieTrackerSyncProvider } from "./providers/movie-tracker";
 import { LastfmSyncProvider } from "./providers/lastfm";
 import { BlueskySyncProvider } from "./providers/bluesky";
 import { MastodonSyncProvider } from "./providers/mastodon";
@@ -10,7 +10,7 @@ class SyncProviderRegistry {
 
   constructor() {
     // Register initial providers
-    this.registerProvider(new TraktSyncProvider());
+    this.registerProvider(new MovieTrackerSyncProvider());
     this.registerProvider(new LastfmSyncProvider());
     this.registerProvider(new BlueskySyncProvider());
     this.registerProvider(new MastodonSyncProvider());

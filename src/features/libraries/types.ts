@@ -1,4 +1,7 @@
 import {
+  MovieRecord,
+  ShowRecord,
+  EpisodeRecord,
   TraktMovieRecord,
   TraktShowRecord,
   TraktEpisodeRecord,
@@ -16,15 +19,15 @@ import {
 } from "@/db/schema";
 
 export interface CombinedMovie {
-  movie: TraktMovieRecord;
+  movie: MovieRecord;
   metadata: MovieMetadataRecord | null;
   collections: CollectionRecord[];
 }
 
 export interface CombinedShow {
-  show: TraktShowRecord;
+  show: ShowRecord;
   metadata: TvShowMetadataRecord | null;
-  episodes: TraktEpisodeRecord[];
+  episodes: EpisodeRecord[];
   collections: CollectionRecord[];
 }
 

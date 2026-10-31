@@ -300,9 +300,9 @@ export const syncLogs = sqliteTable("sync_logs", {
   metadataJson: text("metadata_json").notNull().default("{}"),
 });
 
-// Trakt Tables
-export const traktMovies = sqliteTable("trakt_movies", {
-  traktId: integer("trakt_id").primaryKey(),
+// Movies & TV Shows Tables (Synced from Movie Tracker / CineTracker)
+export const movies = sqliteTable("movies", {
+  id: integer("id").primaryKey(), // TMDB Movie ID
   tmdbId: integer("tmdb_id"),
   title: text("title").notNull(),
   year: integer("year"),
@@ -323,8 +323,8 @@ export const traktMovies = sqliteTable("trakt_movies", {
   updatedAt: text("updated_at").notNull(),
 });
 
-export const traktShows = sqliteTable("trakt_shows", {
-  traktId: integer("trakt_id").primaryKey(),
+export const shows = sqliteTable("shows", {
+  id: integer("id").primaryKey(), // TMDB TV ID
   tmdbId: integer("tmdb_id"),
   title: text("title").notNull(),
   overview: text("overview"),
@@ -342,9 +342,9 @@ export const traktShows = sqliteTable("trakt_shows", {
   updatedAt: text("updated_at").notNull(),
 });
 
-export const traktEpisodes = sqliteTable("trakt_episodes", {
-  id: text("id").primaryKey(), // ${showTraktId}_s${seasonNumber}_e${episodeNumber}
-  showTraktId: integer("show_trakt_id").notNull(),
+export const episodes = sqliteTable("episodes", {
+  id: text("id").primaryKey(), // ${showId}_s${seasonNumber}_e${episodeNumber}
+  showId: integer("show_id").notNull(),
   episodeNumber: integer("episode_number").notNull(),
   seasonNumber: integer("season_number").notNull(),
   title: text("title"),
@@ -415,7 +415,7 @@ export const lastfmTracks = sqliteTable("lastfm_tracks", {
 
 // CMS Dedicated Personal Metadata Tables
 export const movieMetadata = sqliteTable("movie_metadata", {
-  traktId: integer("trakt_id").primaryKey(),
+  movieId: integer("movie_id").primaryKey(),
   favorite: integer("favorite").notNull().default(0),
   personalRating: real("personal_rating"),
   review: text("review"),
@@ -435,7 +435,7 @@ export const movieMetadata = sqliteTable("movie_metadata", {
 });
 
 export const tvShowMetadata = sqliteTable("tv_show_metadata", {
-  traktId: integer("trakt_id").primaryKey(),
+  showId: integer("show_id").primaryKey(),
   favorite: integer("favorite").notNull().default(0),
   personalRating: real("personal_rating"),
   review: text("review"),
@@ -588,9 +588,12 @@ export type QuoteRecord = typeof quotes.$inferSelect;
 
 export type ProviderRecord = typeof providers.$inferSelect;
 export type SyncLogRecord = typeof syncLogs.$inferSelect;
-export type TraktMovieRecord = typeof traktMovies.$inferSelect;
-export type TraktShowRecord = typeof traktShows.$inferSelect;
-export type TraktEpisodeRecord = typeof traktEpisodes.$inferSelect;
+export type MovieRecord = typeof movies.$inferSelect;
+export type ShowRecord = typeof shows.$inferSelect;
+export type EpisodeRecord = typeof episodes.$inferSelect;
+export type TraktMovieRecord = MovieRecord;
+export type TraktShowRecord = ShowRecord;
+export type TraktEpisodeRecord = EpisodeRecord;
 export type LastfmScrobbleRecord = typeof lastfmScrobbles.$inferSelect;
 export type LastfmArtistRecord = typeof lastfmArtists.$inferSelect;
 export type LastfmAlbumRecord = typeof lastfmAlbums.$inferSelect;

@@ -1,12 +1,13 @@
 "use server";
 
 import { ensureDbInitialized, db } from "@/db";
-import { traktShows, tvShowMetadata, traktEpisodes, TvShowMetadataRecord, TraktShowRecord } from "@/db/schema";
+import { shows, tvShowMetadata, episodes, TvShowMetadataRecord, ShowRecord, EpisodeRecord } from "@/db/schema";
 import { CombinedShow, ShowFilterOptions, PaginatedResult } from "../types";
 import { getItemCollectionsAction } from "./collections";
 import { recordActivityAction } from "./activities";
 import { desc, eq, inArray } from "drizzle-orm";
-import { revalidatePath, unstable_cache, revalidateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
+import { createCachedQuery, purgeTag } from "@/lib/server-cache";
 
 async function fetchShowsFromDb(options?: ShowFilterOptions): Promise<PaginatedResult<CombinedShow>> {
   await ensureDbInitialized();
@@ -15,25 +16,25 @@ async function fetchShowsFromDb(options?: ShowFilterOptions): Promise<PaginatedR
   const limit = Math.max(1, options?.limit || 25);
 
   const showsList = await db.select({
-    traktId: traktShows.traktId,
-    tmdbId: traktShows.tmdbId,
-    title: traktShows.title,
-    overview: traktShows.overview,
-    status: traktShows.status,
-    year: traktShows.year,
-    posterPath: traktShows.posterPath,
-    backdropPath: traktShows.backdropPath,
-    favorite: traktShows.favorite,
-    notes: traktShows.notes,
-    visibility: traktShows.visibility,
-    customTags: traktShows.customTags,
-    review: traktShows.review,
-    createdAt: traktShows.createdAt,
-    updatedAt: traktShows.updatedAt,
-  }).from(traktShows);
+    id: shows.id,
+    tmdbId: shows.tmdbId,
+    title: shows.title,
+    overview: shows.overview,
+    status: shows.status,
+    year: shows.year,
+    posterPath: shows.posterPath,
+    backdropPath: shows.backdropPath,
+    favorite: shows.favorite,
+    notes: shows.notes,
+    visibility: shows.visibility,
+    customTags: shows.customTags,
+    review: shows.review,
+    createdAt: shows.createdAt,
+    updatedAt: shows.updatedAt,
+  }).from(shows);
 
   const metadataList = await db.select({
-    traktId: tvShowMetadata.traktId,
+    showId: tvShowMetadata.showId,
     favorite: tvShowMetadata.favorite,
     personalRating: tvShowMetadata.personalRating,
     review: tvShowMetadata.review,
@@ -49,27 +50,27 @@ async function fetchShowsFromDb(options?: ShowFilterOptions): Promise<PaginatedR
 
   const episodeCounts = await db
     .select({
-      showTraktId: traktEpisodes.showTraktId,
+      showId: episodes.showId,
     })
-    .from(traktEpisodes);
+    .from(episodes);
 
   const metadataMap = new Map<number, any>();
-  metadataList.forEach((m) => metadataMap.set(m.traktId, m));
+  metadataList.forEach((m) => metadataMap.set(m.showId, m));
 
   const episodeCountMap = new Map<number, number>();
   for (const ep of episodeCounts) {
-    episodeCountMap.set(ep.showTraktId, (episodeCountMap.get(ep.showTraktId) || 0) + 1);
+    episodeCountMap.set(ep.showId, (episodeCountMap.get(ep.showId) || 0) + 1);
   }
 
   let combined: CombinedShow[] = [];
 
   for (const s of showsList) {
-    const meta = metadataMap.get(s.traktId) || null;
-    const epCount = episodeCountMap.get(s.traktId) || 0;
+    const meta = metadataMap.get(s.id) || null;
+    const epCount = episodeCountMap.get(s.id) || 0;
     const dummyEpisodes = Array.from({ length: epCount }, () => ({}) as any);
 
     combined.push({
-      show: s as TraktShowRecord,
+      show: s as ShowRecord,
       metadata: meta as TvShowMetadataRecord,
       episodes: dummyEpisodes,
       collections: [],
@@ -159,8 +160,6 @@ async function fetchShowsFromDb(options?: ShowFilterOptions): Promise<PaginatedR
   };
 }
 
-import { createCachedQuery, purgeTag } from "@/lib/server-cache";
-
 const getCachedPaginatedShows = createCachedQuery(
   async (optionsJson: string) => {
     const options = JSON.parse(optionsJson);
@@ -184,34 +183,34 @@ export async function getShowsAction(options?: ShowFilterOptions): Promise<Combi
 
 export async function getRecentShowsAction(limit = 4): Promise<CombinedShow[]> {
   await ensureDbInitialized();
-  const shows = await db.select().from(traktShows).orderBy(desc(traktShows.updatedAt)).limit(limit);
-  if (shows.length === 0) return [];
+  const showsRes = await db.select().from(shows).orderBy(desc(shows.updatedAt)).limit(limit);
+  if (showsRes.length === 0) return [];
 
-  const showIds = shows.map((show) => show.traktId);
-  const [metadata, episodes] = await Promise.all([
-    db.select().from(tvShowMetadata).where(inArray(tvShowMetadata.traktId, showIds)),
-    db.select().from(traktEpisodes).where(inArray(traktEpisodes.showTraktId, showIds)),
+  const showIds = showsRes.map((show) => show.id);
+  const [metadata, episodesRes] = await Promise.all([
+    db.select().from(tvShowMetadata).where(inArray(tvShowMetadata.showId, showIds)),
+    db.select().from(episodes).where(inArray(episodes.showId, showIds)),
   ]);
-  const metadataById = new Map(metadata.map((item) => [item.traktId, item]));
-  const episodesByShow = new Map<number, typeof episodes>();
-  for (const episode of episodes) {
-    const current = episodesByShow.get(episode.showTraktId) ?? [];
+  const metadataById = new Map(metadata.map((item) => [item.showId, item]));
+  const episodesByShow = new Map<number, typeof episodesRes>();
+  for (const episode of episodesRes) {
+    const current = episodesByShow.get(episode.showId) ?? [];
     current.push(episode);
-    episodesByShow.set(episode.showTraktId, current);
+    episodesByShow.set(episode.showId, current);
   }
 
-  return shows.map((show) => ({
+  return showsRes.map((show) => ({
     show,
-    metadata: metadataById.get(show.traktId) ?? null,
-    episodes: episodesByShow.get(show.traktId) ?? [],
+    metadata: metadataById.get(show.id) ?? null,
+    episodes: episodesByShow.get(show.id) ?? [],
     collections: [],
   }));
 }
 
-async function fetchShowDetailRaw(traktId: number): Promise<CombinedShow | null> {
+async function fetchShowDetailRaw(showId: number): Promise<CombinedShow | null> {
   await ensureDbInitialized();
 
-  const showRes = await db.select().from(traktShows).where(eq(traktShows.traktId, traktId)).limit(1);
+  const showRes = await db.select().from(shows).where(eq(shows.id, showId)).limit(1);
   if (!showRes[0]) return null;
 
   // Auto-fetch missing poster artwork from TMDB using tmdbId if available
@@ -224,7 +223,7 @@ async function fetchShowDetailRaw(traktId: number): Promise<CombinedShow | null>
         const backdropPath = data.backdrop_path || null;
         if (posterPath || backdropPath) {
           const now = new Date().toISOString();
-          await db.update(traktShows).set({ posterPath, backdropPath, updatedAt: now }).where(eq(traktShows.traktId, traktId));
+          await db.update(shows).set({ posterPath, backdropPath, updatedAt: now }).where(eq(shows.id, showId));
           showRes[0].posterPath = posterPath;
           showRes[0].backdropPath = backdropPath;
         }
@@ -232,30 +231,30 @@ async function fetchShowDetailRaw(traktId: number): Promise<CombinedShow | null>
     } catch {}
   }
 
-  const metadataRes = await db.select().from(tvShowMetadata).where(eq(tvShowMetadata.traktId, traktId)).limit(1);
-  const episodes = await db.select().from(traktEpisodes).where(eq(traktEpisodes.showTraktId, traktId));
-  const collections = await getItemCollectionsAction("show", traktId);
+  const metadataRes = await db.select().from(tvShowMetadata).where(eq(tvShowMetadata.showId, showId)).limit(1);
+  const episodesRes = await db.select().from(episodes).where(eq(episodes.showId, showId));
+  const collections = await getItemCollectionsAction("show", showId);
 
   return {
     show: showRes[0],
     metadata: metadataRes[0] || null,
-    episodes,
+    episodes: episodesRes,
     collections,
   };
 }
 
-export async function getShowDetailAction(traktId: number): Promise<CombinedShow | null> {
+export async function getShowDetailAction(showId: number): Promise<CombinedShow | null> {
   const cachedFn = createCachedQuery(
-    () => fetchShowDetailRaw(traktId),
-    ["show-detail", String(traktId)],
-    { tags: ["shows-list", `show-${traktId}`], revalidate: 3600 }
+    () => fetchShowDetailRaw(showId),
+    ["show-detail", String(showId)],
+    { tags: ["shows-list", `show-${showId}`], revalidate: 3600 }
   );
 
   return cachedFn();
 }
 
 export async function updateShowMetadataAction(
-  traktId: number,
+  showId: number,
   data: {
     favorite?: boolean;
     personalRating?: number | null;
@@ -273,7 +272,7 @@ export async function updateShowMetadataAction(
 ) {
   await ensureDbInitialized();
   const now = new Date().toISOString();
-  const existing = await db.select().from(tvShowMetadata).where(eq(tvShowMetadata.traktId, traktId)).limit(1);
+  const existing = await db.select().from(tvShowMetadata).where(eq(tvShowMetadata.showId, showId)).limit(1);
 
   const updateValues: any = {
     updatedAt: now,
@@ -293,10 +292,10 @@ export async function updateShowMetadataAction(
   if (data.relatedMicroblogs !== undefined) updateValues.relatedMicroblogs = JSON.stringify(data.relatedMicroblogs);
 
   if (existing[0]) {
-    await db.update(tvShowMetadata).set(updateValues).where(eq(tvShowMetadata.traktId, traktId));
+    await db.update(tvShowMetadata).set(updateValues).where(eq(tvShowMetadata.showId, showId));
   } else {
     await db.insert(tvShowMetadata).values({
-      traktId,
+      showId,
       favorite: data.favorite ? 1 : 0,
       personalRating: data.personalRating || null,
       review: data.review || null,
@@ -314,27 +313,27 @@ export async function updateShowMetadataAction(
     });
   }
 
-  const show = await db.select().from(traktShows).where(eq(traktShows.traktId, traktId)).limit(1);
-  const showTitle = show[0]?.title || `TV Show #${traktId}`;
+  const show = await db.select().from(shows).where(eq(shows.id, showId)).limit(1);
+  const showTitle = show[0]?.title || `TV Show #${showId}`;
 
   if (data.review) {
-    await recordActivityAction("review_written", "show", String(traktId), `Reviewed ${showTitle}`, { reviewSnippet: data.review.slice(0, 100) });
+    await recordActivityAction("review_written", "show", String(showId), `Reviewed ${showTitle}`, { reviewSnippet: data.review.slice(0, 100) });
   } else if (data.favorite) {
-    await recordActivityAction("show_favorited", "show", String(traktId), `Favorited ${showTitle}`);
+    await recordActivityAction("show_favorited", "show", String(showId), `Favorited ${showTitle}`);
   }
 
   try {
     purgeTag("shows-list");
     purgeTag("collections-public");
-    purgeTag(`show-${traktId}`);
+    purgeTag(`show-${showId}`);
     revalidatePath(`/libraries/shows`);
-    revalidatePath(`/libraries/shows/${traktId}`);
+    revalidatePath(`/libraries/shows/${showId}`);
   } catch {}
   return { success: true };
 }
 
 export async function bulkUpdateShowsAction(
-  traktIds: number[],
+  showIds: number[],
   updates: {
     addTags?: string[];
     removeTags?: string[];
@@ -345,13 +344,13 @@ export async function bulkUpdateShowsAction(
 ) {
   await ensureDbInitialized();
 
-  for (const id of traktIds) {
+  for (const id of showIds) {
     if (updates.deleteMetadata) {
-      await db.delete(tvShowMetadata).where(eq(tvShowMetadata.traktId, id));
+      await db.delete(tvShowMetadata).where(eq(tvShowMetadata.showId, id));
       continue;
     }
 
-    const existing = await db.select().from(tvShowMetadata).where(eq(tvShowMetadata.traktId, id)).limit(1);
+    const existing = await db.select().from(tvShowMetadata).where(eq(tvShowMetadata.showId, id)).limit(1);
     let currentTags: string[] = [];
     if (existing[0]?.tags) {
       try {

@@ -9,8 +9,8 @@ import {
   collectionKnockoutRuns,
   type CollectionRecord,
   gallery,
-  traktMovies,
-  traktShows,
+  movies,
+  shows,
   movieMetadata,
   tvShowMetadata,
   lastfmArtists,
@@ -27,8 +27,8 @@ import {
   type ArtistMetadataRecord,
   type AlbumMetadataRecord,
   type TrackMetadataRecord,
-  type TraktMovieRecord,
-  type TraktShowRecord,
+  type MovieRecord,
+  type ShowRecord,
   type LastfmArtistRecord,
   type LastfmAlbumRecord,
   type LastfmTrackRecord,
@@ -151,8 +151,8 @@ async function uniqueCollectionSlug(name: string, excludeId?: string): Promise<s
 
 interface CollectionItemData {
   photos: Map<string, GalleryPhoto>;
-  movies: Map<string, { movie: TraktMovieRecord; metadata: MovieMetadataRecord | null }>;
-  shows: Map<string, { show: TraktShowRecord; metadata: TvShowMetadataRecord | null }>;
+  movies: Map<string, { movie: MovieRecord; metadata: MovieMetadataRecord | null }>;
+  shows: Map<string, { show: ShowRecord; metadata: TvShowMetadataRecord | null }>;
   artists: Map<string, { artist: LastfmArtistRecord; metadata: ArtistMetadataRecord | null }>;
   albums: Map<string, { album: LastfmAlbumRecord; metadata: AlbumMetadataRecord | null }>;
   tracks: Map<string, { track: LastfmTrackRecord; metadata: TrackMetadataRecord | null }>;
@@ -214,18 +214,18 @@ async function loadCollectionItemData(
       : Promise.resolve([] as GalleryPhoto[]),
     movieIds.size
       ? db
-          .select({ movie: traktMovies, metadata: movieMetadata })
-          .from(traktMovies)
-          .leftJoin(movieMetadata, eq(traktMovies.traktId, movieMetadata.traktId))
-          .where(inArray(traktMovies.traktId, Array.from(movieIds)))
-      : Promise.resolve([] as Array<{ movie: TraktMovieRecord; metadata: MovieMetadataRecord | null }>),
+          .select({ movie: movies, metadata: movieMetadata })
+          .from(movies)
+          .leftJoin(movieMetadata, eq(movies.id, movieMetadata.movieId))
+          .where(inArray(movies.id, Array.from(movieIds)))
+      : Promise.resolve([] as Array<{ movie: MovieRecord; metadata: MovieMetadataRecord | null }>),
     showIds.size
       ? db
-          .select({ show: traktShows, metadata: tvShowMetadata })
-          .from(traktShows)
-          .leftJoin(tvShowMetadata, eq(traktShows.traktId, tvShowMetadata.traktId))
-          .where(inArray(traktShows.traktId, Array.from(showIds)))
-      : Promise.resolve([] as Array<{ show: TraktShowRecord; metadata: TvShowMetadataRecord | null }>),
+          .select({ show: shows, metadata: tvShowMetadata })
+          .from(shows)
+          .leftJoin(tvShowMetadata, eq(shows.id, tvShowMetadata.showId))
+          .where(inArray(shows.id, Array.from(showIds)))
+      : Promise.resolve([] as Array<{ show: ShowRecord; metadata: TvShowMetadataRecord | null }>),
     artistIds.size
       ? db
           .select({ artist: lastfmArtists, metadata: artistMetadata })
@@ -254,8 +254,8 @@ async function loadCollectionItemData(
 
   return {
     photos: new Map(photoRows.map((row) => [row.id, row])),
-    movies: new Map(movieRows.map((row) => [String(row.movie.traktId), row])),
-    shows: new Map(showRows.map((row) => [String(row.show.traktId), row])),
+    movies: new Map(movieRows.map((row) => [String(row.movie.id), row])),
+    shows: new Map(showRows.map((row) => [String(row.show.id), row])),
     artists: new Map(artistRows.map((row) => [row.artist.artistName, row])),
     albums: new Map(albumRows.map((row) => [row.album.id, row])),
     tracks: new Map(trackRows.map((row) => [row.track.id, row])),
@@ -263,13 +263,13 @@ async function loadCollectionItemData(
   };
 }
 
-function movieVisibility(row: { movie: TraktMovieRecord; metadata: MovieMetadataRecord | null }): string {
+function movieVisibility(row: { movie: MovieRecord; metadata: MovieMetadataRecord | null }): string {
   if (row.movie.visibility === "private" || row.metadata?.visibility === "private") return "private";
   if (row.movie.visibility === "unlisted" || row.metadata?.visibility === "unlisted") return "unlisted";
   return "public";
 }
 
-function showVisibility(row: { show: TraktShowRecord; metadata: TvShowMetadataRecord | null }): string {
+function showVisibility(row: { show: ShowRecord; metadata: TvShowMetadataRecord | null }): string {
   if (row.show.visibility === "private" || row.metadata?.visibility === "private") return "private";
   if (row.show.visibility === "unlisted" || row.metadata?.visibility === "unlisted") return "unlisted";
   return "public";
@@ -320,12 +320,12 @@ function buildPhotoItem(photo: GalleryPhoto, addedAt: string): CollectionPhotoIt
 }
 
 function buildMovieItem(
-  row: { movie: TraktMovieRecord; metadata: MovieMetadataRecord | null },
+  row: { movie: MovieRecord; metadata: MovieMetadataRecord | null },
   addedAt: string
 ): CollectionMovieItem {
   return {
     itemType: "movie",
-    id: String(row.movie.traktId),
+    id: String(row.movie.id),
     title: row.movie.title,
     year: row.movie.year,
     posterUrl: getTmdbImageUrl(row.movie.posterPath, "poster") || null,
@@ -339,12 +339,12 @@ function buildMovieItem(
 }
 
 function buildShowItem(
-  row: { show: TraktShowRecord; metadata: TvShowMetadataRecord | null },
+  row: { show: ShowRecord; metadata: TvShowMetadataRecord | null },
   addedAt: string
 ): CollectionShowItem {
   return {
     itemType: "show",
-    id: String(row.show.traktId),
+    id: String(row.show.id),
     title: row.show.title,
     year: row.show.year,
     status: row.show.status,

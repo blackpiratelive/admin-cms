@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, ensureDbInitialized } from "@/db";
-import { traktShows, tvShowMetadata, locations, trips } from "@/db/schema";
+import { shows as showsTable, tvShowMetadata, locations, trips } from "@/db/schema";
 import { desc } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -9,20 +9,20 @@ export async function GET() {
   try {
     await ensureDbInitialized();
 
-    const showsList = await db.select().from(traktShows).orderBy(desc(traktShows.updatedAt));
+    const showsList = await db.select().from(showsTable).orderBy(desc(showsTable.updatedAt));
     const metadataList = await db.select().from(tvShowMetadata);
     const [allLocations, allTrips] = await Promise.all([
       db.select().from(locations),
       db.select().from(trips),
     ]);
 
-    const metadataMap = new Map(metadataList.map((m) => [m.traktId, m]));
+    const metadataMap = new Map(metadataList.map((m) => [m.showId, m]));
     const locationMap = new Map(allLocations.map((loc) => [loc.id, loc]));
     const tripMap = new Map(allTrips.map((trip) => [trip.id, trip]));
 
     const shows = showsList
       .map((show) => {
-        const meta = metadataMap.get(show.traktId);
+        const meta = metadataMap.get(show.id);
         const visibility = meta?.visibility || show.visibility || "public";
 
         if (visibility === "private") {
@@ -38,7 +38,8 @@ export async function GET() {
         const tripRecord = meta?.tripId ? tripMap.get(meta.tripId) : null;
 
         return {
-          traktId: show.traktId,
+          id: show.id,
+          traktId: show.id, // Backwards compatibility
           tmdbId: show.tmdbId,
           title: show.title,
           year: show.year,

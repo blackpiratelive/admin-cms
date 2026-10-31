@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, ensureDbInitialized } from "@/db";
-import { traktMovies, movieMetadata, locations, trips } from "@/db/schema";
+import { movies as moviesTable, movieMetadata, locations, trips } from "@/db/schema";
 import { desc } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -9,20 +9,20 @@ export async function GET() {
   try {
     await ensureDbInitialized();
 
-    const moviesList = await db.select().from(traktMovies).orderBy(desc(traktMovies.watchedAt));
+    const moviesList = await db.select().from(moviesTable).orderBy(desc(moviesTable.watchedAt));
     const metadataList = await db.select().from(movieMetadata);
     const [allLocations, allTrips] = await Promise.all([
       db.select().from(locations),
       db.select().from(trips),
     ]);
 
-    const metadataMap = new Map(metadataList.map((m) => [m.traktId, m]));
+    const metadataMap = new Map(metadataList.map((m) => [m.movieId, m]));
     const locationMap = new Map(allLocations.map((loc) => [loc.id, loc]));
     const tripMap = new Map(allTrips.map((trip) => [trip.id, trip]));
 
     const movies = moviesList
       .map((movie) => {
-        const meta = metadataMap.get(movie.traktId);
+        const meta = metadataMap.get(movie.id);
         const visibility = meta?.visibility || movie.visibility || "public";
 
         if (visibility === "private") {
@@ -42,7 +42,8 @@ export async function GET() {
         const tripRecord = meta?.tripId ? tripMap.get(meta.tripId) : null;
 
         return {
-          traktId: movie.traktId,
+          id: movie.id,
+          traktId: movie.id, // Provided for backwards compatibility with Hugo content adapter
           tmdbId: movie.tmdbId,
           title: movie.title,
           year: movie.year,

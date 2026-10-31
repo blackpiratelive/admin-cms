@@ -66,7 +66,7 @@ export function ShowCard({ showData, isSelected, onToggleSelect }: ShowCardProps
         )}
       </div>
 
-      <Link href={`/libraries/shows/${show.traktId}`} style={{ textDecoration: "none", color: "inherit" }}>
+      <Link href={`/libraries/shows/${show.id}`} style={{ textDecoration: "none", color: "inherit" }}>
         <CoverImage src={posterUrl} alt={show.title} />
 
         <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "6px" }}>

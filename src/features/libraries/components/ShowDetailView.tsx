@@ -49,7 +49,7 @@ export function ShowDetailView({ showData, allCollections }: ShowDetailViewProps
       successMessage: `Metadata for '${show.title}' saved successfully!`,
       errorMessage: (err) => `Failed to save metadata: ${err?.message || String(err)}`,
       task: () =>
-        updateShowMetadataAction(show.traktId, {
+        updateShowMetadataAction(show.id, {
           favorite,
           personalRating: personalRating === "" ? null : Number(personalRating),
           review: review.trim() || null,
@@ -71,9 +71,9 @@ export function ShowDetailView({ showData, allCollections }: ShowDetailViewProps
       errorMessage: "Failed to update collection.",
       task: async () => {
         if (isAdded) {
-          return await removeItemFromCollectionAction(collectionId, "show", show.traktId);
+          return await removeItemFromCollectionAction(collectionId, "show", show.id);
         } else {
-          return await addItemToCollectionAction(collectionId, "show", show.traktId);
+          return await addItemToCollectionAction(collectionId, "show", show.id);
         }
       },
     });
@@ -129,11 +129,15 @@ export function ShowDetailView({ showData, allCollections }: ShowDetailViewProps
           </div>
 
           <div className="library-detail-subgrid" style={{ fontSize: "13px" }}>
-            <div><span style={{ color: "var(--text-muted)" }}>TMDB ID:</span> {show.tmdbId || "N/A"}</div>
-            <div><span style={{ color: "var(--text-muted)" }}>Trakt ID:</span> {show.traktId}</div>
+            <div><span style={{ color: "var(--text-muted)" }}>TMDB ID:</span> {show.tmdbId || show.id}</div>
             <div>
-              <a href={`https://trakt.tv/shows/${show.traktId}`} target="_blank" rel="noreferrer" style={{ color: "var(--accent-color)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "3px" }}>
-                Trakt Link <ExternalLink size={12} />
+              <a href={`https://movie-trackerh.vercel.app/tv/${show.id}`} target="_blank" rel="noreferrer" style={{ color: "var(--accent-color)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                CineTracker <ExternalLink size={12} />
+              </a>
+            </div>
+            <div>
+              <a href={`https://www.themoviedb.org/tv/${show.tmdbId || show.id}`} target="_blank" rel="noreferrer" style={{ color: "var(--accent-color)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                TMDB Link <ExternalLink size={12} />
               </a>
             </div>
           </div>

@@ -213,7 +213,7 @@ export function MoviesList({ initialData, initialParams }: MoviesListProps) {
             }}
           >
             {items.map((movieData) => (
-              <MovieCard key={movieData.movie.traktId} movieData={movieData} />
+              <MovieCard key={movieData.movie.id} movieData={movieData} />
             ))}
           </div>
         )}

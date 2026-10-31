@@ -13,7 +13,7 @@ import {
   JournalSettingsRecord,
   JournalKeyRecord,
   gallery,
-  traktMovies,
+  movies,
   lastfmScrobbles,
   microblogs,
   locations,
@@ -448,8 +448,8 @@ export async function getJournalContextualData(dateStr: string) {
       .limit(10),
     db
       .select()
-      .from(traktMovies)
-      .where(and(gte(traktMovies.watchedAt, startOfDay), lte(traktMovies.watchedAt, endOfDay)))
+      .from(movies)
+      .where(and(gte(movies.watchedAt, startOfDay), lte(movies.watchedAt, endOfDay)))
       .limit(10),
     db
       .select()

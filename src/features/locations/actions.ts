@@ -12,7 +12,7 @@ import {
   gallery,
   GalleryPhoto,
   movieMetadata,
-  traktMovies,
+  movies,
   relationships,
   persons,
   PersonRecord,
@@ -301,10 +301,10 @@ async function fetchLocationHubDataRaw(slug: string): Promise<LocationHubData | 
   ]);
 
   // Fetch movies in batch
-  const movieTraktIds = directMovieMeta.map((m) => m.traktId);
-  const moviesList = movieTraktIds.length > 0 ? await db.select().from(traktMovies).where(inArray(traktMovies.traktId, movieTraktIds)) : [];
-  const metaMap = new Map(directMovieMeta.map((mm) => [mm.traktId, mm]));
-  const moviesWithMeta = moviesList.map((m) => ({ ...m, personalMetadata: metaMap.get(m.traktId) }));
+  const movieIds = directMovieMeta.map((m) => m.movieId);
+  const moviesList = movieIds.length > 0 ? await db.select().from(movies).where(inArray(movies.id, movieIds)) : [];
+  const metaMap = new Map(directMovieMeta.map((mm) => [mm.movieId, mm]));
+  const moviesWithMeta = moviesList.map((m) => ({ ...m, personalMetadata: metaMap.get(m.id) }));
 
   // Collect trip, person & gallery IDs from relationships
   const tripRelMap = new Map<string, string>();

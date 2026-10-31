@@ -11,7 +11,7 @@ import {
   Microblog,
   gallery,
   movieMetadata,
-  traktMovies,
+  movies,
   relationships,
   persons,
   PersonRecord,
@@ -285,10 +285,10 @@ async function fetchTripHubDataRaw(slug: string): Promise<TripHubData | null> {
     ),
   ]);
 
-  const movieTraktIds = directMovieMeta.map((m) => m.traktId);
-  const moviesList = movieTraktIds.length > 0 ? await db.select().from(traktMovies).where(inArray(traktMovies.traktId, movieTraktIds)) : [];
-  const metaMap = new Map(directMovieMeta.map((mm) => [mm.traktId, mm]));
-  const moviesWithMeta = moviesList.map((m) => ({ ...m, personalMetadata: metaMap.get(m.traktId) }));
+  const movieIds = directMovieMeta.map((m) => m.movieId);
+  const moviesList = movieIds.length > 0 ? await db.select().from(movies).where(inArray(movies.id, movieIds)) : [];
+  const metaMap = new Map(directMovieMeta.map((mm) => [mm.movieId, mm]));
+  const moviesWithMeta = moviesList.map((m) => ({ ...m, personalMetadata: metaMap.get(m.id) }));
 
   const locRelMap = new Map<string, string>();
   const personRelMap = new Map<string, string>();

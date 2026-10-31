@@ -16,7 +16,7 @@ import {
   gallery,
   projects,
   microblogs,
-  traktMovies,
+  movies,
   lastfmScrobbles,
   activities,
   attachments,

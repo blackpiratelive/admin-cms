@@ -7,8 +7,8 @@ import {
   locations,
   trips,
   persons,
-  traktMovies,
-  traktShows,
+  movies,
+  shows,
   lastfmArtists,
   collections,
 } from "@/db/schema";
@@ -94,8 +94,8 @@ export async function rebuildSearchIndex(): Promise<number> {
     db.select().from(locations),
     db.select().from(trips),
     db.select().from(persons),
-    db.select().from(traktMovies),
-    db.select().from(traktShows),
+    db.select().from(movies),
+    db.select().from(shows),
     db.select().from(lastfmArtists),
     db.select().from(collections),
   ]);
@@ -185,9 +185,9 @@ export async function rebuildSearchIndex(): Promise<number> {
 
   for (const m of movRes) {
     indexRows.push({
-      id: `movie_${m.traktId}`,
+      id: `movie_${m.id}`,
       entityType: "movie",
-      entityId: String(m.traktId),
+      entityId: String(m.id),
       title: m.title,
       subtitle: m.year ? `${m.year}` : "Movie",
       keywords: `${m.title} ${m.genres || ""}`.toLowerCase(),
@@ -198,9 +198,9 @@ export async function rebuildSearchIndex(): Promise<number> {
 
   for (const s of showRes) {
     indexRows.push({
-      id: `show_${s.traktId}`,
+      id: `show_${s.id}`,
       entityType: "show",
-      entityId: String(s.traktId),
+      entityId: String(s.id),
       title: s.title,
       subtitle: s.year ? `${s.year}` : "TV Show",
       keywords: `${s.title}`.toLowerCase(),

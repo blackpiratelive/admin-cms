@@ -702,7 +702,7 @@ export default function LocationDetailPage({ params }: { params: Promise<{ slug:
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "12px" }}>
               {entities?.movies.map((m) => (
-                <div key={m.traktId} style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "6px", padding: "12px", display: "flex", gap: "10px" }}>
+                <div key={m.id || (m as any).traktId} style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "6px", padding: "12px", display: "flex", gap: "10px" }}>
                   {m.posterPath && <img src={`https://image.tmdb.org/t/p/w185${m.posterPath}`} alt={m.title} style={{ width: "48px", borderRadius: "4px", objectFit: "cover" }} />}
                   <div>
                     <div style={{ fontSize: "13px", fontWeight: 700 }}>{m.title}</div>

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { syncRegistry } from "../src/features/sync/registry";
-import { TraktSyncProvider } from "../src/features/sync/providers/trakt";
+import { MovieTrackerSyncProvider } from "../src/features/sync/providers/movie-tracker";
 import { LastfmSyncProvider } from "../src/features/sync/providers/lastfm";
 import { BlueskySyncProvider } from "../src/features/sync/providers/bluesky";
 import { MastodonSyncProvider } from "../src/features/sync/providers/mastodon";
@@ -18,8 +18,9 @@ describe("Sync Center Provider Registry & Architecture", () => {
     const allProviders = syncRegistry.getAllProviders();
     expect(allProviders.length).toBeGreaterThanOrEqual(5);
 
-    const trakt = syncRegistry.getProvider("trakt");
-    expect(trakt).toBeDefined();
+    const movieTracker = syncRegistry.getProvider("movie_tracker");
+    expect(movieTracker).toBeDefined();
+    expect(movieTracker?.name).toBe("Movie Tracker");
 
     const freshrss = syncRegistry.getProvider("freshrss");
     expect(freshrss).toBeDefined();
@@ -27,15 +28,26 @@ describe("Sync Center Provider Registry & Architecture", () => {
   });
 
   it("should validate provider configuration rules", async () => {
-    const trakt = new TraktSyncProvider();
+    const movieTracker = new MovieTrackerSyncProvider();
     const lastfm = new LastfmSyncProvider();
     const bluesky = new BlueskySyncProvider();
     const mastodon = new MastodonSyncProvider();
     const freshrss = new FreshRSSSyncProvider();
 
     // Invalid config
-    const invalidTrakt = await trakt.validateConfiguration({});
-    expect(invalidTrakt.valid).toBe(false);
+    const invalidTracker = await movieTracker.validateConfiguration({});
+    expect(invalidTracker.valid).toBe(false);
+    expect(invalidTracker.error).toContain("Movie Tracker App URL is required");
+
+    const invalidTrackerKey = await movieTracker.validateConfiguration({ apiUrl: "https://movie-trackerh.vercel.app" });
+    expect(invalidTrackerKey.valid).toBe(false);
+    expect(invalidTrackerKey.error).toContain("API Key is required");
+
+    const validTracker = await movieTracker.validateConfiguration({
+      apiUrl: "https://movie-trackerh.vercel.app",
+      apiKey: "cin_live_test_key_123",
+    });
+    expect(validTracker.valid).toBe(true);
 
     const invalidFreshRSS = await freshrss.validateConfiguration({ instanceUrl: "https://rss.example.com" });
     expect(invalidFreshRSS.valid).toBe(false);
@@ -50,9 +62,11 @@ describe("Sync Center Provider Registry & Architecture", () => {
   });
 
   it("should fetch statistics structure for providers", async () => {
-    const trakt = new TraktSyncProvider();
-    const traktStats = await trakt.getStatistics();
-    expect(traktStats).toHaveProperty("Movies");
+    const movieTracker = new MovieTrackerSyncProvider();
+    const trackerStats = await movieTracker.getStatistics();
+    expect(trackerStats).toHaveProperty("Movies Watched");
+    expect(trackerStats).toHaveProperty("TV Shows");
+    expect(trackerStats).toHaveProperty("Episodes");
 
     const freshrss = new FreshRSSSyncProvider();
     const freshrssStats = await freshrss.getStatistics();
@@ -62,25 +76,25 @@ describe("Sync Center Provider Registry & Architecture", () => {
   });
 
   it("should support connecting and status updating", async () => {
-    const trakt = new TraktSyncProvider();
-    await trakt.updateStatus("connected");
+    const movieTracker = new MovieTrackerSyncProvider();
+    await movieTracker.updateStatus("connected");
 
-    const status = await trakt.getStatus();
+    const status = await movieTracker.getStatus();
     expect(status).toBe("connected");
 
-    const record = await db.select().from(providers).where(eq(providers.slug, "trakt")).limit(1);
+    const record = await db.select().from(providers).where(eq(providers.slug, "movie_tracker")).limit(1);
     expect(record[0]).toBeDefined();
     expect(record[0].status).toBe("connected");
   });
 
   it("should support cancelling active sync", async () => {
-    const trakt = new TraktSyncProvider();
-    await trakt.updateStatus("syncing");
+    const movieTracker = new MovieTrackerSyncProvider();
+    await movieTracker.updateStatus("syncing");
 
-    const cancelled = await trakt.cancelSync();
+    const cancelled = await movieTracker.cancelSync();
     expect(cancelled).toBe(true);
 
-    const status = await trakt.getStatus();
+    const status = await movieTracker.getStatus();
     expect(status).toBe("connected");
   });
 });

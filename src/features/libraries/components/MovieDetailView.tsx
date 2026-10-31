@@ -82,7 +82,7 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
       successMessage: `Metadata for '${movie.title}' saved successfully!`,
       errorMessage: (err) => `Failed to save metadata: ${err?.message || String(err)}`,
       task: () =>
-        updateMovieMetadataAction(movie.traktId, {
+        updateMovieMetadataAction(movie.id, {
           favorite,
           personalRating: personalRating === "" ? null : Number(personalRating),
           review: review.trim() || null,
@@ -107,9 +107,9 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
       errorMessage: "Failed to update collection.",
       task: async () => {
         if (isAdded) {
-          return await removeItemFromCollectionAction(collectionId, "movie", movie.traktId);
+          return await removeItemFromCollectionAction(collectionId, "movie", movie.id);
         } else {
-          return await addItemToCollectionAction(collectionId, "movie", movie.traktId);
+          return await addItemToCollectionAction(collectionId, "movie", movie.id);
         }
       },
     });
@@ -199,18 +199,21 @@ export function MovieDetailView({ movieData, allCollections }: MovieDetailViewPr
 
           <div className="library-detail-subgrid" style={{ fontSize: "13px" }}>
             <div>
-              <span style={{ color: "var(--text-muted)" }}>TMDB ID:</span> {movie.tmdbId ? movie.tmdbId : "N/A"}
-            </div>
-            <div>
-              <span style={{ color: "var(--text-muted)" }}>Trakt ID:</span> {movie.traktId}
+              <span style={{ color: "var(--text-muted)" }}>TMDB ID:</span> {movie.tmdbId ? movie.tmdbId : movie.id}
             </div>
             <div>
               <span style={{ color: "var(--text-muted)" }}>Watched At:</span> {movie.watchedAt ? new Date(movie.watchedAt).toLocaleString() : "Unspecified"}
             </div>
             <div>
-              <span style={{ color: "var(--text-muted)" }}>External Link:</span>{" "}
-              <a href={`https://trakt.tv/movies/${movie.traktId}`} target="_blank" rel="noreferrer" style={{ color: "var(--accent-color)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "3px" }}>
-                Trakt <ExternalLink size={12} />
+              <span style={{ color: "var(--text-muted)" }}>Movie Tracker:</span>{" "}
+              <a href={`https://movie-trackerh.vercel.app/movie/${movie.id}`} target="_blank" rel="noreferrer" style={{ color: "var(--accent-color)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                CineTracker <ExternalLink size={12} />
+              </a>
+            </div>
+            <div>
+              <span style={{ color: "var(--text-muted)" }}>TMDB Link:</span>{" "}
+              <a href={`https://www.themoviedb.org/movie/${movie.tmdbId || movie.id}`} target="_blank" rel="noreferrer" style={{ color: "var(--accent-color)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                TMDB <ExternalLink size={12} />
               </a>
             </div>
           </div>

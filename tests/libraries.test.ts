@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { db, ensureDbInitialized } from "../src/db";
-import { traktMovies, traktShows, lastfmArtists, lastfmScrobbles } from "../src/db/schema";
+import { movies, shows, lastfmArtists, lastfmScrobbles } from "../src/db/schema";
 import { getMoviesAction, updateMovieMetadataAction, getMovieDetailAction } from "../src/features/libraries/actions/movies";
 import { getShowsAction, updateShowMetadataAction, getShowDetailAction } from "../src/features/libraries/actions/shows";
 import { getArtistsAction, updateArtistMetadataAction, getListeningHistoryAction } from "../src/features/libraries/actions/music";
@@ -14,9 +14,9 @@ describe("Personal Libraries System", () => {
 
     const now = new Date().toISOString();
 
-    // Insert dummy Trakt Movie
-    await db.insert(traktMovies).values({
-      traktId: 99991,
+    // Insert dummy Movie
+    await db.insert(movies).values({
+      id: 99991,
       tmdbId: 550,
       title: "Interstellar Test",
       year: 2014,
@@ -29,9 +29,9 @@ describe("Personal Libraries System", () => {
       updatedAt: now,
     }).onConflictDoNothing();
 
-    // Insert dummy Trakt TV Show
-    await db.insert(traktShows).values({
-      traktId: 88881,
+    // Insert dummy TV Show
+    await db.insert(shows).values({
+      id: 88881,
       tmdbId: 1399,
       title: "Breaking Bad Test",
       year: 2008,

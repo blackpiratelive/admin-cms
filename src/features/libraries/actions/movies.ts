@@ -1,12 +1,13 @@
 "use server";
 
 import { ensureDbInitialized, db } from "@/db";
-import { traktMovies, movieMetadata, MovieMetadataRecord, TraktMovieRecord } from "@/db/schema";
+import { movies, movieMetadata, MovieMetadataRecord, MovieRecord } from "@/db/schema";
 import { CombinedMovie, MovieFilterOptions, PaginatedResult } from "../types";
 import { getItemCollectionsAction } from "./collections";
 import { recordActivityAction } from "./activities";
 import { eq, inArray, like, desc, asc, sql } from "drizzle-orm";
-import { revalidatePath, unstable_cache, revalidateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
+import { createCachedQuery, purgeTag } from "@/lib/server-cache";
 
 async function fetchMoviesFromDb(options?: MovieFilterOptions): Promise<PaginatedResult<CombinedMovie>> {
   await ensureDbInitialized();
@@ -15,28 +16,28 @@ async function fetchMoviesFromDb(options?: MovieFilterOptions): Promise<Paginate
   const limit = Math.max(1, options?.limit || 25);
 
   const moviesList = await db.select({
-    traktId: traktMovies.traktId,
-    tmdbId: traktMovies.tmdbId,
-    title: traktMovies.title,
-    year: traktMovies.year,
-    overview: traktMovies.overview,
-    runtime: traktMovies.runtime,
-    rating: traktMovies.rating,
-    watchedAt: traktMovies.watchedAt,
-    genres: traktMovies.genres,
-    posterPath: traktMovies.posterPath,
-    backdropPath: traktMovies.backdropPath,
-    favorite: traktMovies.favorite,
-    notes: traktMovies.notes,
-    visibility: traktMovies.visibility,
-    customTags: traktMovies.customTags,
-    review: traktMovies.review,
-    createdAt: traktMovies.createdAt,
-    updatedAt: traktMovies.updatedAt,
-  }).from(traktMovies);
+    id: movies.id,
+    tmdbId: movies.tmdbId,
+    title: movies.title,
+    year: movies.year,
+    overview: movies.overview,
+    runtime: movies.runtime,
+    rating: movies.rating,
+    watchedAt: movies.watchedAt,
+    genres: movies.genres,
+    posterPath: movies.posterPath,
+    backdropPath: movies.backdropPath,
+    favorite: movies.favorite,
+    notes: movies.notes,
+    visibility: movies.visibility,
+    customTags: movies.customTags,
+    review: movies.review,
+    createdAt: movies.createdAt,
+    updatedAt: movies.updatedAt,
+  }).from(movies);
 
   const metadataList = await db.select({
-    traktId: movieMetadata.traktId,
+    movieId: movieMetadata.movieId,
     favorite: movieMetadata.favorite,
     personalRating: movieMetadata.personalRating,
     review: movieMetadata.review,
@@ -50,14 +51,14 @@ async function fetchMoviesFromDb(options?: MovieFilterOptions): Promise<Paginate
   }).from(movieMetadata);
 
   const metadataMap = new Map<number, any>();
-  metadataList.forEach((m) => metadataMap.set(m.traktId, m));
+  metadataList.forEach((m) => metadataMap.set(m.movieId, m));
 
   let combined: CombinedMovie[] = [];
 
   for (const m of moviesList) {
-    const meta = metadataMap.get(m.traktId) || null;
+    const meta = metadataMap.get(m.id) || null;
     combined.push({
-      movie: m as TraktMovieRecord,
+      movie: m as MovieRecord,
       metadata: meta as MovieMetadataRecord,
       collections: [],
     });
@@ -181,8 +182,6 @@ async function fetchMoviesFromDb(options?: MovieFilterOptions): Promise<Paginate
   };
 }
 
-import { createCachedQuery, purgeTag } from "@/lib/server-cache";
-
 const getCachedPaginatedMovies = createCachedQuery(
   async (optionsJson: string) => {
     const options = JSON.parse(optionsJson);
@@ -206,31 +205,31 @@ export async function getMoviesAction(options?: MovieFilterOptions): Promise<Com
 
 export async function getRecentMoviesAction(limit = 4): Promise<CombinedMovie[]> {
   await ensureDbInitialized();
-  const movies = await db
+  const moviesRes = await db
     .select()
-    .from(traktMovies)
-    .where(sql`${traktMovies.watchedAt} is not null`)
-    .orderBy(desc(traktMovies.watchedAt))
+    .from(movies)
+    .where(sql`${movies.watchedAt} is not null`)
+    .orderBy(desc(movies.watchedAt))
     .limit(limit);
 
-  if (movies.length === 0) return [];
+  if (moviesRes.length === 0) return [];
   const metadata = await db
     .select()
     .from(movieMetadata)
-    .where(inArray(movieMetadata.traktId, movies.map((movie) => movie.traktId)));
-  const metadataById = new Map(metadata.map((item) => [item.traktId, item]));
+    .where(inArray(movieMetadata.movieId, moviesRes.map((m) => m.id)));
+  const metadataById = new Map(metadata.map((item) => [item.movieId, item]));
 
-  return movies.map((movie) => ({
-    movie,
-    metadata: metadataById.get(movie.traktId) ?? null,
+  return moviesRes.map((m) => ({
+    movie: m,
+    metadata: metadataById.get(m.id) ?? null,
     collections: [],
   }));
 }
 
-async function fetchMovieDetailRaw(traktId: number): Promise<CombinedMovie | null> {
+async function fetchMovieDetailRaw(movieId: number): Promise<CombinedMovie | null> {
   await ensureDbInitialized();
 
-  const movieRes = await db.select().from(traktMovies).where(eq(traktMovies.traktId, traktId)).limit(1);
+  const movieRes = await db.select().from(movies).where(eq(movies.id, movieId)).limit(1);
   if (!movieRes[0]) return null;
 
   // Auto-fetch missing poster artwork from TMDB using tmdbId if available
@@ -243,7 +242,7 @@ async function fetchMovieDetailRaw(traktId: number): Promise<CombinedMovie | nul
         const backdropPath = data.backdrop_path || null;
         if (posterPath || backdropPath) {
           const now = new Date().toISOString();
-          await db.update(traktMovies).set({ posterPath, backdropPath, updatedAt: now }).where(eq(traktMovies.traktId, traktId));
+          await db.update(movies).set({ posterPath, backdropPath, updatedAt: now }).where(eq(movies.id, movieId));
           movieRes[0].posterPath = posterPath;
           movieRes[0].backdropPath = backdropPath;
         }
@@ -251,8 +250,8 @@ async function fetchMovieDetailRaw(traktId: number): Promise<CombinedMovie | nul
     } catch {}
   }
 
-  const metadataRes = await db.select().from(movieMetadata).where(eq(movieMetadata.traktId, traktId)).limit(1);
-  const collections = await getItemCollectionsAction("movie", traktId);
+  const metadataRes = await db.select().from(movieMetadata).where(eq(movieMetadata.movieId, movieId)).limit(1);
+  const collections = await getItemCollectionsAction("movie", movieId);
 
   return {
     movie: movieRes[0],
@@ -261,18 +260,18 @@ async function fetchMovieDetailRaw(traktId: number): Promise<CombinedMovie | nul
   };
 }
 
-export async function getMovieDetailAction(traktId: number): Promise<CombinedMovie | null> {
+export async function getMovieDetailAction(movieId: number): Promise<CombinedMovie | null> {
   const cachedFn = createCachedQuery(
-    () => fetchMovieDetailRaw(traktId),
-    ["movie-detail", String(traktId)],
-    { tags: ["movies-list", `movie-${traktId}`], revalidate: 3600 }
+    () => fetchMovieDetailRaw(movieId),
+    ["movie-detail", String(movieId)],
+    { tags: ["movies-list", `movie-${movieId}`], revalidate: 3600 }
   );
 
   return cachedFn();
 }
 
 export async function updateMovieMetadataAction(
-  traktId: number,
+  movieId: number,
   data: {
     favorite?: boolean;
     personalRating?: number | null;
@@ -292,7 +291,7 @@ export async function updateMovieMetadataAction(
 ) {
   await ensureDbInitialized();
   const now = new Date().toISOString();
-  const existing = await db.select().from(movieMetadata).where(eq(movieMetadata.traktId, traktId)).limit(1);
+  const existing = await db.select().from(movieMetadata).where(eq(movieMetadata.movieId, movieId)).limit(1);
 
   const updateValues: any = {
     updatedAt: now,
@@ -314,10 +313,10 @@ export async function updateMovieMetadataAction(
   if (data.relatedBlogPosts !== undefined) updateValues.relatedBlogPosts = JSON.stringify(data.relatedBlogPosts);
 
   if (existing[0]) {
-    await db.update(movieMetadata).set(updateValues).where(eq(movieMetadata.traktId, traktId));
+    await db.update(movieMetadata).set(updateValues).where(eq(movieMetadata.movieId, movieId));
   } else {
     await db.insert(movieMetadata).values({
-      traktId,
+      movieId,
       favorite: data.favorite ? 1 : 0,
       personalRating: data.personalRating || null,
       review: data.review || null,
@@ -337,27 +336,27 @@ export async function updateMovieMetadataAction(
     });
   }
 
-  const movie = await db.select().from(traktMovies).where(eq(traktMovies.traktId, traktId)).limit(1);
-  const movieTitle = movie[0]?.title || `Movie #${traktId}`;
+  const movie = await db.select().from(movies).where(eq(movies.id, movieId)).limit(1);
+  const movieTitle = movie[0]?.title || `Movie #${movieId}`;
 
   if (data.review) {
-    await recordActivityAction("review_written", "movie", String(traktId), `Reviewed ${movieTitle}`, { reviewSnippet: data.review.slice(0, 100) });
+    await recordActivityAction("review_written", "movie", String(movieId), `Reviewed ${movieTitle}`, { reviewSnippet: data.review.slice(0, 100) });
   } else if (data.favorite) {
-    await recordActivityAction("movie_favorited", "movie", String(traktId), `Favorited ${movieTitle}`);
+    await recordActivityAction("movie_favorited", "movie", String(movieId), `Favorited ${movieTitle}`);
   }
 
   try {
     purgeTag("movies-list");
     purgeTag("collections-public");
-    purgeTag(`movie-${traktId}`);
+    purgeTag(`movie-${movieId}`);
     revalidatePath(`/libraries/movies`);
-    revalidatePath(`/libraries/movies/${traktId}`);
+    revalidatePath(`/libraries/movies/${movieId}`);
   } catch {}
   return { success: true };
 }
 
 export async function bulkUpdateMoviesAction(
-  traktIds: number[],
+  movieIds: number[],
   updates: {
     addTags?: string[];
     removeTags?: string[];
@@ -368,13 +367,13 @@ export async function bulkUpdateMoviesAction(
 ) {
   await ensureDbInitialized();
 
-  for (const id of traktIds) {
+  for (const id of movieIds) {
     if (updates.deleteMetadata) {
-      await db.delete(movieMetadata).where(eq(movieMetadata.traktId, id));
+      await db.delete(movieMetadata).where(eq(movieMetadata.movieId, id));
       continue;
     }
 
-    const existing = await db.select().from(movieMetadata).where(eq(movieMetadata.traktId, id)).limit(1);
+    const existing = await db.select().from(movieMetadata).where(eq(movieMetadata.movieId, id)).limit(1);
     let currentTags: string[] = [];
     if (existing[0]?.tags) {
       try {

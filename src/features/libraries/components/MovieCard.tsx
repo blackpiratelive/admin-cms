@@ -106,7 +106,7 @@ export function MovieCard({ movieData, isSelected, onToggleSelect }: MovieCardPr
         )}
       </div>
 
-      <Link href={`/libraries/movies/${movie.traktId}`} style={{ textDecoration: "none", color: "inherit" }}>
+      <Link href={`/libraries/movies/${movie.id}`} style={{ textDecoration: "none", color: "inherit" }}>
         <CoverImage src={posterUrl} alt={movie.title} />
 
         <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "6px" }}>

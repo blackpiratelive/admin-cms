@@ -207,8 +207,8 @@ export function JournalConnectionsPanel({
             <Film size={13} />
             <span>Movies Watched ({contextData?.movies.length || 0})</span>
           </div>
-          {contextData?.movies.map((m) => (
-            <div key={m.traktId} style={{ fontSize: "12px", color: "var(--text-muted)", paddingLeft: "18px" }}>
+          {contextData?.movies.map((m: any) => (
+            <div key={m.id || m.traktId} style={{ fontSize: "12px", color: "var(--text-muted)", paddingLeft: "18px" }}>
               🎬 {m.title} ({m.year})
             </div>
           ))}

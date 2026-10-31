@@ -39,7 +39,7 @@ export default async function ShowsLibraryPage({ searchParams }: PageProps) {
             <Tv size={24} style={{ color: "var(--accent-color)" }} /> TV Shows Library
           </h1>
           <p style={{ fontSize: "13px", color: "var(--text-muted)", margin: "4px 0 0 0" }}>
-            Canonical TV Shows synced from Trakt. Track watched seasons, episodes, and personal series ratings.
+            Canonical TV Shows synced from Movie Tracker. Track watched seasons, episodes, and personal series ratings.
           </p>
         </div>
       </div>

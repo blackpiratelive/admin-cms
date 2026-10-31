@@ -198,7 +198,7 @@ export function ShowsList({ initialData, initialParams }: ShowsListProps) {
             }}
           >
             {items.map((showData) => (
-              <ShowCard key={showData.show.traktId} showData={showData} />
+              <ShowCard key={showData.show.id} showData={showData} />
             ))}
           </div>
         )}

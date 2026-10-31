@@ -1,5 +1,5 @@
 import { db, ensureDbInitialized } from "@/db";
-import { traktMovies, movieMetadata } from "@/db/schema";
+import { movies, movieMetadata } from "@/db/schema";
 import { AnalyticsProvider, MovieAnalyticsData, TimeFilterRange, CustomDateRange } from "../types";
 
 import { getTimeFilterStartEnd } from "../config";
@@ -13,11 +13,11 @@ export const movieAnalyticsProvider: AnalyticsProvider = {
     await ensureDbInitialized();
 
     const [allMovies, allMeta] = await Promise.all([
-      db.select().from(traktMovies),
+      db.select().from(movies),
       db.select().from(movieMetadata),
     ]);
 
-    const metaMap = new Map(allMeta.map((m) => [m.traktId, m]));
+    const metaMap = new Map(allMeta.map((m) => [m.movieId, m]));
 
     let filtered = allMovies;
     const { start, end } = getTimeFilterStartEnd(timeFilter, customRange);
@@ -44,7 +44,7 @@ export const movieAnalyticsProvider: AnalyticsProvider = {
     filtered.forEach((m) => {
       totalRuntimeMinutes += m.runtime || 0;
 
-      const meta = metaMap.get(m.traktId);
+      const meta = metaMap.get(m.id);
       const rating = meta?.personalRating ?? m.rating;
       if (rating && rating > 0) {
         totalRating += rating;

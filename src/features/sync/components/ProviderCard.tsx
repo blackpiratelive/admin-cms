@@ -210,8 +210,8 @@ export function ProviderCard({
           )}
         </div>
 
-        {/* FreshRSS & Trakt Options Panel */}
-        {(provider.slug === "freshrss" || provider.slug === "trakt") && provider.connected && (
+        {/* FreshRSS & Movie Tracker Options Panel */}
+        {(provider.slug === "freshrss" || provider.slug === "movie_tracker") && provider.connected && (
           <div
             style={{
               marginTop: "12px",

@@ -15,7 +15,7 @@
 
 This repository is **`admin-cms`**, a private, single-user **Personal Knowledge Platform** built with Next.js 16 App Router, React 19, Drizzle ORM, and Turso (libSQL) for managing, connecting, enriching, and publishing every aspect of digital life to a Hugo website.
 
-- **Strict Separation of Concerns**: Hugo site is read-only static; CMS is the sole writer to Turso. Provider data (Trakt, Last.fm) is owned by external providers, while CMS personal metadata (ratings, notes, tags, reviews, visibility) belongs exclusively to the CMS.
+- **Strict Separation of Concerns**: Hugo site is read-only static; CMS is the sole writer to Turso. Provider data (Movie Tracker / CineTracker, Last.fm) is owned by external providers, while CMS personal metadata (ratings, notes, tags, reviews, visibility) belongs exclusively to the CMS.
 - **Entity-Driven Interconnected Architecture**: Reusable core entities (Locations, Trips, Projects, Persons, Tags, Collections) connected seamlessly via a generic Relationship Engine and Attachment System without redundant join tables.
 - **Publishing Workflow**: Create/Edit Post or Media -> Save to Turso -> Status set to `published` -> Non-blocking background trigger for `VERCEL_DEPLOY_HOOK` (`triggerVercelDeployHookBackground`) and asynchronous Job Queue (`jobs` table) cross-posting to Bluesky & Mastodon -> Hugo site rebuilds automatically.
 - **UI & UX Highlights**: Keyboard-first Command Palette (`Ctrl+K`) for global fuzzy search across all entities and quick actions, central Settings Hub (`/settings`), Locations (`/locations` & `/locations/[slug]`), Trips (`/trips` & `/trips/[slug]`), People Memory Hubs (`/people` & `/people/[slug]`), real-time R2 usage monitors, responsive themes (HN Orange, Dark, Mono, Teal), and non-blocking background toast notifications.
@@ -45,7 +45,7 @@ admin-cms/
 │   │   │   ├── analytics/       # Analytics & Memory Discovery Engine hub (/analytics & /stats)
 │   │   │   ├── settings/        # Centralized Settings Hub (General, Storage, Providers, etc.)
 │   │   │   ├── libraries/       # Personal Media Libraries (Movies, TV, Music, Collections)
-│   │   │   └── sync/            # Sync Center integration hub (Trakt, Last.fm, FreshRSS, Bluesky, Mastodon)
+│   │   │   └── sync/            # Sync Center integration hub (Movie Tracker, Last.fm, FreshRSS, Bluesky, Mastodon)
 │   │   ├── collections/         # Public shareable collection pages (/collections, /collections/[slug], /collections/[slug]/knockout)
 │   │   ├── api/
 │   │   │   ├── auth/login/      # Mobile & API authentication endpoint
@@ -77,7 +77,7 @@ admin-cms/
 │   │   ├── auth/                # Session cookies, password check, login server actions
 │   │   ├── microblog/           # Microblog actions, Zod validation, Editor & List
 │   │   ├── libraries/           # Personal media libraries, collections & Best Pic Knockout engine
-│   │   └── sync/                # Extensible Provider integration registry (Trakt, Last.fm, FreshRSS, Bluesky, Mastodon)
+│   │   └── sync/                # Extensible Provider integration registry (Movie Tracker, Last.fm, FreshRSS, Bluesky, Mastodon)
 │   ├── lib/
 │   │   ├── server-cache.ts      # Vercel Data Cache helper (createCachedQuery, purgeTag)
 │   │   ├── client-cache.ts      # Client-side SWR browser cache helper (getBrowserCache, setBrowserCache)
@@ -86,7 +86,7 @@ admin-cms/
 │   │   ├── event-bus.ts         # Internal event pub-sub bus
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
-├── tests/                       # Vitest unit test suite (181 tests across 27 test files)
+├── tests/                       # Vitest unit test suite (185 tests across 28 test files)
 ├── freshrss.md                  # FreshRSS Sync Provider feature specification
 ├── android-journal.md           # Native Android Journal Application specification
 ├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
@@ -115,15 +115,15 @@ The database consists of **63 SQLite tables** managed via Drizzle ORM:
 ### 3.2 Media Libraries & Content Tables
 - **`microblogs`** & **`related_microblogs`**: Microblog posts (`slug`, `contentMarkdown`, `status`, `tags`, `coverImageUrl`, `images`, `shortUrl`, `locationId`, `tripId`) and related microblog graph.
 - **`gallery`**: Photo gallery (`title`, `slug`, `description`, `originalUrl`, `largeUrl`, `mediumUrl`, `thumbnailUrl`, `width`, `height`, `fileSize`, `mimeType`, EXIF fields `camera`, `lens`, `focalLength`, `aperture`, `shutterSpeed`, `iso`, `takenAt`, `latitude`, `longitude`, `locationName`, `locationId`, `tripId`, `visibility`, `featured`, `tags`, `album`, `shortUrl`).
-- **`trakt_movies`**, **`trakt_shows`**, **`trakt_episodes`**: Provider data synced from Trakt.tv.
+- **`movies`**, **`shows`**, **`episodes`**: Provider data synced from personal Movie Tracker (CineTracker) web app using TMDB IDs.
 - **`lastfm_scrobbles`**, **`lastfm_artists`**, **`lastfm_albums`**, **`lastfm_tracks`**: Provider data synced from Last.fm.
 - **`rss_articles`**, **`rss_feeds`**, **`rss_categories`**, **`rss_read_events`**, **`rss_starred_articles`**, **`rss_sync_state`**: FreshRSS reading history, starred articles, feed metadata, and incremental sync checkpoints.
-- **`movie_metadata`**, **`tv_show_metadata`**, **`artist_metadata`**, **`album_metadata`**, **`track_metadata`**: CMS-owned personal metadata tables (`favorite`, `personalRating`, `review`, `notes`, `tags`, `visibility`, `watchedWith`, `watchLocation`, `locationId`, `tripId`, `relatedPhotos`, `relatedMicroblogs`).
+- **`movie_metadata`**, **`tv_show_metadata`**, **`artist_metadata`**, **`album_metadata`**, **`track_metadata`**: CMS-owned personal metadata tables (`favorite`, `personalRating`, `review`, `notes`, `tags`, `visibility`, `watchedWith`, `watchLocation`, `locationId`, `tripId`, `relatedPhotos`, `relatedMicroblogs`). `movie_metadata` links to `movies.id` via `movieId`; `tv_show_metadata` links to `shows.id` via `showId`.
 - **`collections`** & **`collection_items`**: Generic curated collections grouping any media items (`movie`, `show`, `artist`, `album`, `track`, `book`, `project`, `photo`, `location`, `trip`, `note`, `bookmark`, `quote`). Collections carry a `kind` (`photo` | `media` | `mixed`), a `visibility` (`private` | `unlisted` | `public`, default `private`), an optional `share_token` used for unlisted links, an optional `cover_photo_id` pointing at a member gallery photo, and `knockout_enabled` (default `1`) for the Best Pic Knockout. `collection_analytics` stores the aggregate `view_count` and `last_viewed_at` per collection (no per-day or unique-visitor tracking).
 - **`activities`**: System and user activity stream (`action`, `entityType`, `entityId`, `title`, `metadataJson`).
 
 ### 3.3 Sync & Performance Caching Tables
-- **`providers`** & **`sync_logs`**: Provider integration registry (Trakt, Last.fm, FreshRSS, Bluesky, Mastodon) and execution logs.
+- **`providers`** & **`sync_logs`**: Provider integration registry (Movie Tracker, Last.fm, FreshRSS, Bluesky, Mastodon) and execution logs.
 - **`dashboard_cache`**: Precomputed snapshot key-value store for 0ms dashboard renders.
 - **`search_index`**: Universal multi-table search index (`entityType`, `entityId`, `title`, `subtitle`, `keywords`, `url`).
 - **`system_stats`**: Derived system statistics counters.
@@ -359,6 +359,35 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 ---
 
 ## 8. Standalone Apps & Release Signing Changelog
+
+### October 2026: Replacement of Trakt with Personal Movie Tracker (CineTracker) Provider & Clean Media Schema
+
+- **Overview & Provider Migration**: Completely replaced Trakt.tv with the user's personal Movie Tracker web app ([movie-trackerh.vercel.app](https://movie-trackerh.vercel.app/), repo at `/home/dog/git/movie-trackerh`) as the data source for Movies and TV Shows. The new provider is named `Movie Tracker` (provider slug: `movie_tracker`), registered in `src/features/sync/registry.ts`, and managed via the Sync Center with configurable `apiUrl` and secure `apiKey` (`cin_live_...`).
+- **Clean DDL Migration & Schema Overhaul**:
+  - Replaced legacy `trakt_movies`, `trakt_shows`, and `trakt_episodes` tables with generic, decoupled `movies`, `shows`, and `episodes` in `src/db/schema.ts` and `src/db/index.ts`.
+  - Primary key `id` now directly stores TMDB integer IDs matching CineTracker (`movie_id` and `tv_show_id`).
+  - Added clean DDL auto-migration dropping legacy `trakt_*` tables and recreating `movies`, `shows`, `episodes`.
+  - Renamed foreign keys in personal metadata: `movie_metadata.movie_id` and `tv_show_metadata.show_id` (auto-dropping and recreating metadata tables if legacy `trakt_id` columns are detected).
+- **MovieTrackerSyncProvider (`src/features/sync/providers/movie-tracker/index.ts`)**:
+  - Implements `BaseSyncProvider` adhering strictly to CineTracker's REST API `/api/v1/export?include=movies,tv,episodes` with Bearer token authentication.
+  - Rate limit compliance: upstream limit is 60 req/min; export endpoints fetch all records in single/chunked requests.
+  - Supports incremental sync (`since=<isoTimestamp>`) and full sync clean imports.
+  - Preserves ratings on a 1–10 scale (`rating_10`).
+  - Maps CineTracker `watched_where` strings (e.g. `cinema`, `netflix`, `home`) directly into CMS metadata tags (`tags`).
+  - Imports and prioritizes CineTracker user reviews (`review`) into CMS personal metadata.
+  - Automatically triggers `rebuildAllAnalyticsCache()` on sync completion.
+- **Subsystem & Module Updates**:
+  - **Libraries**: Updated `src/features/libraries/actions/movies.ts`, `shows.ts`, `collections.ts`, types, and components (`MoviesList`, `ShowsList`, `MovieDetailView`, `ShowDetailView`, `MovieCard`, `ShowCard`, `GlobalSearchModal`, `DashboardMediaWidgets`) to query `movies`, `shows`, and `episodes` with `id`. Replaced Trakt links with direct links to personal CineTracker web app and TMDB.
+  - **Analytics & Search**: Updated `src/features/analytics/providers/movies.ts`, `tv.ts`, and `core.ts` to compute metrics, memory scores, and timeline snapshots against `movies` and `shows`. Updated `src/features/search/search-index.ts`.
+  - **Interconnected Modules**: Updated `locations`, `trips`, `journal` context endpoints, and `stats` actions to link to `movies` and `shows`.
+  - **REST API Backwards Compatibility**: `/api/movies` and `/api/shows` export `id` as well as a computed `traktId: movie.id` field to guarantee zero breakage with Hugo content adapters and mobile clients.
+- **Test Coverage & Quality Gates**:
+  - Updated existing suites: `tests/libraries.test.ts`, `tests/collections-sharing.test.ts`, and `tests/sync.test.ts`.
+  - Added dedicated test suite `tests/sync-movie-tracker.test.ts` (4 unit tests covering configuration validation, connection test responses [200, 401, 429], full export processing, rating normalization, tags mapping, and stats reporting).
+  - Full Vitest suite: **185 tests across 28 test files, 100% passing**.
+  - TypeScript type check (`npx tsc --noEmit`): 0 errors.
+  - Next.js production build (`npm run build`): Compiles cleanly with all 29 routes generated.
+  - Legacy app isolation: `android/` and mobile apps remain 100% clean and untouched.
 
 ### October 2026: Best Pic Knockout — Blind Photo Tournament & Anonymous Crowd Elo
 

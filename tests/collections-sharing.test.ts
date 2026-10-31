@@ -7,7 +7,7 @@ import {
   collections,
   gallery,
   movieMetadata,
-  traktMovies,
+  movies,
 } from "../src/db/schema";
 import {
   addItemToCollectionAction,
@@ -156,10 +156,10 @@ describe("Shareable collection links", () => {
       .onConflictDoNothing();
 
     await db
-      .insert(traktMovies)
+      .insert(movies)
       .values([
         {
-          traktId: publicMovieId,
+          id: publicMovieId,
           title: "Public Movie",
           year: 2024,
           overview: "A public film",
@@ -169,7 +169,7 @@ describe("Shareable collection links", () => {
           updatedAt: now,
         },
         {
-          traktId: privateMovieId,
+          id: privateMovieId,
           title: "Private Movie",
           year: 2023,
           overview: "A private film",
@@ -185,7 +185,7 @@ describe("Shareable collection links", () => {
       .insert(movieMetadata)
       .values([
         {
-          traktId: publicMovieId,
+          movieId: publicMovieId,
           favorite: 1,
           personalRating: 9,
           review: "A public review",
@@ -195,7 +195,7 @@ describe("Shareable collection links", () => {
           updatedAt: now,
         },
         {
-          traktId: privateMovieId,
+          movieId: privateMovieId,
           favorite: 1,
           personalRating: 10,
           review: "Private review",
@@ -232,10 +232,10 @@ describe("Shareable collection links", () => {
       .where(inArray(gallery.id, [photoPublicId, photoUnlistedId, photoPrivateId, photoDisposableId]));
     await db
       .delete(movieMetadata)
-      .where(inArray(movieMetadata.traktId, [publicMovieId, privateMovieId]));
+      .where(inArray(movieMetadata.movieId, [publicMovieId, privateMovieId]));
     await db
-      .delete(traktMovies)
-      .where(inArray(traktMovies.traktId, [publicMovieId, privateMovieId]));
+      .delete(movies)
+      .where(inArray(movies.id, [publicMovieId, privateMovieId]));
   });
 
   it("defaults new collections to private and enforces kind compatibility", async () => {

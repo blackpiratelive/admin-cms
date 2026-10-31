@@ -10,8 +10,8 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps) {
   const p = await params;
-  const traktId = parseInt(p.id, 10);
-  const data = await getShowDetailAction(traktId);
+  const showId = parseInt(p.id, 10);
+  const data = await getShowDetailAction(showId);
   return {
     title: data ? `${data.show.title} - TV Shows Library` : "TV Show Detail",
   };
@@ -19,10 +19,10 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function ShowDetailPage({ params }: PageProps) {
   const p = await params;
-  const traktId = parseInt(p.id, 10);
-  if (isNaN(traktId)) notFound();
+  const showId = parseInt(p.id, 10);
+  if (isNaN(showId)) notFound();
 
-  const data = await getShowDetailAction(traktId);
+  const data = await getShowDetailAction(showId);
   if (!data) notFound();
 
   const collections = (await getCollectionsAction()).filter((collection) => collection.kind !== "photo");
