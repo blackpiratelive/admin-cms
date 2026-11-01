@@ -167,7 +167,7 @@ const getCachedPaginatedShows = createCachedQuery(
   },
   ["shows-list-query"],
   {
-    revalidate: 3600,
+    revalidate: 60,
     tags: ["shows-list"],
   }
 );

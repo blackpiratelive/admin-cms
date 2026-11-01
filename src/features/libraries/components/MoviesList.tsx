@@ -72,10 +72,21 @@ export function MoviesList({ initialData, initialParams }: MoviesListProps) {
   );
 
   useEffect(() => {
+    if (initialData) {
+      setItems(initialData.items);
+      setTotalItems(initialData.total);
+      setTotalPages(initialData.totalPages);
+    }
+  }, [initialData]);
+
+  useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
-      if (initialData) {
+      if (initialData && initialData.total > 0) {
         setBrowserCache(getCacheKey("", "all", "all", "watched_at", false, 1, 25), initialData);
+      } else {
+        // If initial payload was empty (e.g. cold start cache), fetch fresh from server
+        fetchServerData(query, timeframe, reviewed, sort, favorite, currentPage, pageSize);
       }
       return;
     }
@@ -201,7 +212,7 @@ export function MoviesList({ initialData, initialParams }: MoviesListProps) {
         {items.length === 0 ? (
           <div className="card" style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-muted)" }}>
             <h3>No movies matching current filters.</h3>
-            <p style={{ fontSize: "13px" }}>Try adjusting your search filters or sync your Trakt account in Sync Center.</p>
+            <p style={{ fontSize: "13px" }}>Try adjusting your search filters or sync your Movie Tracker account in Sync Center.</p>
           </div>
         ) : (
           <div

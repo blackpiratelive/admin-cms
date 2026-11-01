@@ -189,7 +189,7 @@ const getCachedPaginatedMovies = createCachedQuery(
   },
   ["movies-list-query"],
   {
-    revalidate: 3600,
+    revalidate: 60,
     tags: ["movies-list"],
   }
 );

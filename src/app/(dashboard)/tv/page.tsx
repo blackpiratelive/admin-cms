@@ -1,11 +1,5 @@
-import { PlaceholderModule } from "@/components/PlaceholderModule";
+import { redirect } from "next/navigation";
 
-export default function TvPlaceholderPage() {
-  return (
-    <PlaceholderModule
-      title="TV Series Log"
-      description="Track TV show seasons, episodes watched, and upcoming releases."
-      category="Tracking"
-    />
-  );
+export default function TvPage() {
+  redirect("/libraries/shows");
 }

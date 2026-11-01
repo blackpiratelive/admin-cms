@@ -1,11 +1,5 @@
-import { PlaceholderModule } from "@/components/PlaceholderModule";
+import { redirect } from "next/navigation";
 
-export default function MoviesPlaceholderPage() {
-  return (
-    <PlaceholderModule
-      title="Movie Logging"
-      description="Track films watched, star ratings, and watch history."
-      category="Tracking"
-    />
-  );
+export default function MoviesPage() {
+  redirect("/libraries/movies");
 }

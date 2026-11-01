@@ -18,14 +18,34 @@ export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
+      let isStreamClosed = false;
+
       const sendEvent = (eventData: Record<string, any>) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(eventData)}\n\n`));
+        if (isStreamClosed) return;
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(eventData)}\n\n`));
+        } catch {
+          isStreamClosed = true;
+        }
       };
 
       const log = (message: string) => {
         const time = new Date().toLocaleTimeString();
         sendEvent({ type: "log", time, message });
       };
+
+      // Periodic keepalive comment to prevent proxy idle timeouts
+      const keepaliveTimer = setInterval(() => {
+        if (isStreamClosed) return;
+        try {
+          controller.enqueue(encoder.encode(`: keepalive\n\n`));
+        } catch {
+          isStreamClosed = true;
+        }
+      }, 10_000);
+
+      // Watchdog timer (270s) to safely catch tasks approaching Vercel's 300s limit
+      let watchdogTimer: NodeJS.Timeout | null = null;
 
       try {
         const provider = syncRegistry.getProvider(slug);
@@ -34,6 +54,23 @@ export async function POST(req: NextRequest) {
           sendEvent({ type: "done", success: false, error: `Provider '${slug}' not found` });
           return;
         }
+
+        watchdogTimer = setTimeout(async () => {
+          if (isStreamClosed) return;
+          log("⚠️ Task approaching Vercel 300-second runtime limit (270s elapsed). Pausing gracefully.");
+          sendEvent({
+            type: "done",
+            success: false,
+            error: "Vercel Runtime Timeout Warning: Execution approached 300s limit. Partial progress was committed. Please run sync again to continue incrementally.",
+          });
+          try {
+            await provider.cancelSync();
+          } catch {}
+          isStreamClosed = true;
+          try {
+            controller.close();
+          } catch {}
+        }, 270_000);
 
         log(`Initializing ${provider.name} sync (Mode: ${mode || "incremental"})...`);
 
@@ -57,7 +94,14 @@ export async function POST(req: NextRequest) {
         log(`Fatal error during execution: ${err.message || String(err)}`);
         sendEvent({ type: "done", success: false, error: err.message || String(err) });
       } finally {
-        controller.close();
+        clearInterval(keepaliveTimer);
+        if (watchdogTimer) clearTimeout(watchdogTimer);
+        if (!isStreamClosed) {
+          isStreamClosed = true;
+          try {
+            controller.close();
+          } catch {}
+        }
       }
     },
   });

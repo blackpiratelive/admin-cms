@@ -70,10 +70,21 @@ export function ShowsList({ initialData, initialParams }: ShowsListProps) {
   );
 
   useEffect(() => {
+    if (initialData) {
+      setItems(initialData.items);
+      setTotalItems(initialData.total);
+      setTotalPages(initialData.totalPages);
+    }
+  }, [initialData]);
+
+  useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
-      if (initialData) {
+      if (initialData && initialData.total > 0) {
         setBrowserCache(getCacheKey("", "", "title", false, 1, 25), initialData);
+      } else {
+        // If initial payload was empty (e.g. cold start cache), fetch fresh from server
+        fetchServerData(query, status, sort, favorite, currentPage, pageSize);
       }
       return;
     }
@@ -186,7 +197,7 @@ export function ShowsList({ initialData, initialParams }: ShowsListProps) {
         {items.length === 0 ? (
           <div className="card" style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-muted)" }}>
             <h3>No TV shows matching current filters.</h3>
-            <p style={{ fontSize: "13px" }}>Sync your Trakt account to import TV show watch history.</p>
+            <p style={{ fontSize: "13px" }}>Sync your Movie Tracker account to import TV show watch history.</p>
           </div>
         ) : (
           <div

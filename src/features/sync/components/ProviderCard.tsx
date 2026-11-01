@@ -5,6 +5,7 @@ import { ProviderOverviewDTO, syncProviderAction, cancelProviderSyncAction, getS
 import { ConfigureModal } from "./ConfigureModal";
 import Link from "next/link";
 import { RefreshCw, Settings, ListFilter, Square, Calculator, Terminal } from "lucide-react";
+import { clearBrowserCachePrefix } from "@/lib/client-cache";
 
 interface LogEntry {
   time: string;
@@ -98,6 +99,7 @@ export function ProviderCard({
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let receivedDone = false;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -115,7 +117,10 @@ export function ProviderCard({
               if (data.type === "log") {
                 setLogs((prev) => [...prev, { time: data.time, message: data.message }]);
               } else if (data.type === "done") {
+                receivedDone = true;
                 if (data.success) {
+                  clearBrowserCachePrefix("movies_list_");
+                  clearBrowserCachePrefix("shows_list_");
                   const created = data.result?.itemsCreated ?? 0;
                   const updated = data.result?.itemsUpdated ?? 0;
                   const createdStr = created > 0 ? `${created} added` : "";
@@ -129,6 +134,15 @@ export function ProviderCard({
             } catch {}
           }
         }
+      }
+
+      if (!receivedDone) {
+        const timeoutMsg = "Sync stream disconnected unexpectedly before completion (Serverless timeout or connection aborted).";
+        setSyncNotice({ type: "error", message: timeoutMsg });
+        setLogs((prev) => [
+          ...prev,
+          { time: new Date().toLocaleTimeString(), message: `[ERROR] ${timeoutMsg}` },
+        ]);
       }
     } catch (err: any) {
       setSyncNotice({ type: "error", message: err.message || "Streaming failed." });

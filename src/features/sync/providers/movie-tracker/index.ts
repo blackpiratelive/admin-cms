@@ -3,7 +3,17 @@ import { ConfigField, ConfigValidationResult, SyncOptions, SyncResult } from "..
 import { db, ensureDbInitialized } from "@/db";
 import { movies, shows, episodes, providers } from "@/db/schema";
 import { eq, count } from "drizzle-orm";
-import { rebuildAllAnalyticsCache } from "@/features/analytics/core";
+import { scheduleBackgroundAnalyticsRebuild } from "@/features/analytics/core";
+import { purgeTag } from "@/lib/server-cache";
+import { revalidatePath } from "next/cache";
+
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
 
 export class MovieTrackerSyncProvider extends BaseSyncProvider {
   id = "movie_tracker";
@@ -132,9 +142,44 @@ export class MovieTrackerSyncProvider extends BaseSyncProvider {
     let itemsUpdated = 0;
     const now = new Date().toISOString();
 
+    // 0. Pre-fetch existing media IDs and metadata in single batch queries to eliminate serial roundtrips
+    options?.onProgress?.("Loading existing media library records from database...");
+    this.checkCancelled();
+
+    const existingMovies = await db
+      .select({
+        id: movies.id,
+        favorite: movies.favorite,
+        notes: movies.notes,
+        visibility: movies.visibility,
+        customTags: movies.customTags,
+        review: movies.review,
+      })
+      .from(movies);
+    const existingMovieMap = new Map(existingMovies.map((m) => [m.id, m]));
+
+    const existingShows = await db
+      .select({
+        id: shows.id,
+        favorite: shows.favorite,
+        notes: shows.notes,
+        visibility: shows.visibility,
+        customTags: shows.customTags,
+        review: shows.review,
+      })
+      .from(shows);
+    const existingShowMap = new Map(existingShows.map((s) => [s.id, s]));
+
+    const existingEpisodes = await db
+      .select({ id: episodes.id })
+      .from(episodes);
+    const existingEpisodeSet = new Set(existingEpisodes.map((e) => e.id));
+
     // 1. Process Movies
+    const moviesToInsert: any[] = [];
+    const moviesToUpdate: { id: number; data: any }[] = [];
+
     for (const m of rawMovies) {
-      this.checkCancelled();
       const movieId = Number(m.movie_id);
       if (!movieId) continue;
 
@@ -144,14 +189,12 @@ export class MovieTrackerSyncProvider extends BaseSyncProvider {
         if (!isNaN(parsedYear)) year = parsedYear;
       }
 
-      const existing = await db.select().from(movies).where(eq(movies.id, movieId)).limit(1);
+      const existing = existingMovieMap.get(movieId);
 
-      // Watched date
       const watchedAt = m.watched_date
         ? (m.watched_date.includes("T") ? m.watched_date : `${m.watched_date}T00:00:00Z`)
         : m.created_at || now;
 
-      // Rating: CineTracker 1-10 user rating takes precedence, fallback to tmdb_vote_average
       const rating =
         m.user_rating != null
           ? Number(m.user_rating)
@@ -159,7 +202,6 @@ export class MovieTrackerSyncProvider extends BaseSyncProvider {
           ? Number(m.tmdb_vote_average)
           : null;
 
-      // Review: CineTracker user_review takes precedence
       const review = m.user_review != null ? String(m.user_review).trim() : null;
 
       const movieData = {
@@ -173,41 +215,58 @@ export class MovieTrackerSyncProvider extends BaseSyncProvider {
         watchedAt,
         posterPath: m.poster_path || null,
         backdropPath: m.backdrop_path || null,
-        review: review || (existing[0]?.review ?? null),
+        review: review || (existing?.review ?? null),
         updatedAt: now,
       };
 
-      if (existing[0]) {
-        await db
-          .update(movies)
-          .set({
+      if (existing) {
+        moviesToUpdate.push({
+          id: movieId,
+          data: {
             ...movieData,
-            favorite: existing[0].favorite,
-            notes: existing[0].notes,
-            visibility: existing[0].visibility,
-            customTags: existing[0].customTags,
-          })
-          .where(eq(movies.id, movieId));
-        itemsUpdated++;
+            favorite: existing.favorite,
+            notes: existing.notes,
+            visibility: existing.visibility,
+            customTags: existing.customTags,
+          },
+        });
       } else {
-        await db
-          .insert(movies)
-          .values({
-            ...movieData,
-            favorite: 0,
-            notes: null,
-            visibility: "public",
-            customTags: "[]",
-            createdAt: now,
-          })
-          .onConflictDoNothing();
-        itemsCreated++;
+        moviesToInsert.push({
+          ...movieData,
+          favorite: 0,
+          notes: null,
+          visibility: "public",
+          customTags: "[]",
+          createdAt: now,
+        });
+      }
+    }
+
+    if (moviesToInsert.length > 0) {
+      options?.onProgress?.(`Inserting ${moviesToInsert.length} new movies...`);
+      for (const chunk of chunkArray(moviesToInsert, 100)) {
+        this.checkCancelled();
+        await db.insert(movies).values(chunk).onConflictDoNothing();
+        itemsCreated += chunk.length;
+      }
+    }
+
+    if (moviesToUpdate.length > 0) {
+      options?.onProgress?.(`Updating ${moviesToUpdate.length} existing movies in parallel...`);
+      for (const chunk of chunkArray(moviesToUpdate, 25)) {
+        this.checkCancelled();
+        await Promise.all(
+          chunk.map((item) => db.update(movies).set(item.data).where(eq(movies.id, item.id)))
+        );
+        itemsUpdated += chunk.length;
       }
     }
 
     // 2. Process TV Shows
+    const showsToInsert: any[] = [];
+    const showsToUpdate: { id: number; data: any }[] = [];
+
     for (const s of rawShows) {
-      this.checkCancelled();
       const showId = Number(s.tv_show_id);
       if (!showId) continue;
 
@@ -217,17 +276,15 @@ export class MovieTrackerSyncProvider extends BaseSyncProvider {
         if (!isNaN(parsedYear)) year = parsedYear;
       }
 
-      const existingShow = await db.select().from(shows).where(eq(shows.id, showId)).limit(1);
+      const existingShow = existingShowMap.get(showId);
 
-      // Tags: watched_where array from CineTracker as JSON string
       let customTags = "[]";
       if (Array.isArray(s.watched_where) && s.watched_where.length > 0) {
         customTags = JSON.stringify(s.watched_where);
-      } else if (existingShow[0]?.customTags) {
-        customTags = existingShow[0].customTags;
+      } else if (existingShow?.customTags) {
+        customTags = existingShow.customTags;
       }
 
-      // Review: CineTracker user_review takes precedence
       const review = s.user_review != null ? String(s.user_review).trim() : null;
 
       const showData = {
@@ -239,39 +296,56 @@ export class MovieTrackerSyncProvider extends BaseSyncProvider {
         year,
         posterPath: s.poster_path || null,
         backdropPath: s.backdrop_path || null,
-        favorite: s.is_favorite ? 1 : (existingShow[0]?.favorite ?? 0),
+        favorite: s.is_favorite ? 1 : (existingShow?.favorite ?? 0),
         customTags,
-        review: review || (existingShow[0]?.review ?? null),
+        review: review || (existingShow?.review ?? null),
         updatedAt: now,
       };
 
-      if (existingShow[0]) {
-        await db
-          .update(shows)
-          .set({
+      if (existingShow) {
+        showsToUpdate.push({
+          id: showId,
+          data: {
             ...showData,
-            notes: existingShow[0].notes,
-            visibility: existingShow[0].visibility,
-          })
-          .where(eq(shows.id, showId));
-        itemsUpdated++;
+            notes: existingShow.notes,
+            visibility: existingShow.visibility,
+          },
+        });
       } else {
-        await db
-          .insert(shows)
-          .values({
-            ...showData,
-            notes: null,
-            visibility: "public",
-            createdAt: now,
-          })
-          .onConflictDoNothing();
-        itemsCreated++;
+        showsToInsert.push({
+          ...showData,
+          notes: null,
+          visibility: "public",
+          createdAt: now,
+        });
+      }
+    }
+
+    if (showsToInsert.length > 0) {
+      options?.onProgress?.(`Inserting ${showsToInsert.length} new TV shows...`);
+      for (const chunk of chunkArray(showsToInsert, 100)) {
+        this.checkCancelled();
+        await db.insert(shows).values(chunk).onConflictDoNothing();
+        itemsCreated += chunk.length;
+      }
+    }
+
+    if (showsToUpdate.length > 0) {
+      options?.onProgress?.(`Updating ${showsToUpdate.length} existing TV shows in parallel...`);
+      for (const chunk of chunkArray(showsToUpdate, 25)) {
+        this.checkCancelled();
+        await Promise.all(
+          chunk.map((item) => db.update(shows).set(item.data).where(eq(shows.id, item.id)))
+        );
+        itemsUpdated += chunk.length;
       }
     }
 
     // 3. Process Episodes
+    const episodesToInsert: any[] = [];
+    const episodesToUpdate: { id: string; data: any }[] = [];
+
     for (const ep of rawEpisodes) {
-      this.checkCancelled();
       const showId = Number(ep.tv_show_id);
       const seasonNumber = Number(ep.season_number);
       const episodeNumber = Number(ep.episode_number);
@@ -284,8 +358,6 @@ export class MovieTrackerSyncProvider extends BaseSyncProvider {
 
       const rating = ep.user_rating != null ? Number(ep.user_rating) : null;
 
-      const existingEp = await db.select().from(episodes).where(eq(episodes.id, epId)).limit(1);
-
       const epData = {
         id: epId,
         showId,
@@ -297,20 +369,54 @@ export class MovieTrackerSyncProvider extends BaseSyncProvider {
         updatedAt: now,
       };
 
-      if (existingEp[0]) {
-        await db.update(episodes).set(epData).where(eq(episodes.id, epId));
-        itemsUpdated++;
+      if (existingEpisodeSet.has(epId)) {
+        episodesToUpdate.push({ id: epId, data: epData });
       } else {
-        await db
-          .insert(episodes)
-          .values({
-            ...epData,
-            createdAt: now,
-          })
-          .onConflictDoNothing();
-        itemsCreated++;
+        episodesToInsert.push({ ...epData, createdAt: now });
       }
     }
+
+    if (episodesToInsert.length > 0) {
+      options?.onProgress?.(`Inserting ${episodesToInsert.length} episodes in bulk batches...`);
+      let insertedCount = 0;
+      for (const chunk of chunkArray(episodesToInsert, 100)) {
+        this.checkCancelled();
+        await db.insert(episodes).values(chunk).onConflictDoNothing();
+        insertedCount += chunk.length;
+        itemsCreated += chunk.length;
+        if (insertedCount % 300 === 0 || insertedCount === episodesToInsert.length) {
+          options?.onProgress?.(`Inserted ${insertedCount}/${episodesToInsert.length} episodes...`);
+        }
+      }
+    }
+
+    if (episodesToUpdate.length > 0) {
+      options?.onProgress?.(`Updating ${episodesToUpdate.length} episodes in parallel batches...`);
+      let updatedCount = 0;
+      for (const chunk of chunkArray(episodesToUpdate, 25)) {
+        this.checkCancelled();
+        await Promise.all(
+          chunk.map((item) => db.update(episodes).set(item.data).where(eq(episodes.id, item.id)))
+        );
+        updatedCount += chunk.length;
+        itemsUpdated += chunk.length;
+        if (updatedCount % 300 === 0 || updatedCount === episodesToUpdate.length) {
+          options?.onProgress?.(`Updated ${updatedCount}/${episodesToUpdate.length} episodes...`);
+        }
+      }
+    }
+
+    // Purge server-side query caches so /libraries/movies and /libraries/shows update immediately
+    try {
+      purgeTag("movies-list");
+      purgeTag("shows-list");
+    } catch {}
+
+    try {
+      revalidatePath("/libraries/movies");
+      revalidatePath("/libraries/shows");
+      revalidatePath("/libraries");
+    } catch {}
 
     // Update config with lastSyncDate
     const todayStr = now.split("T")[0];
@@ -325,9 +431,9 @@ export class MovieTrackerSyncProvider extends BaseSyncProvider {
       })
       .where(eq(providers.slug, this.slug));
 
-    // Rebuild analytics in background
+    // Schedule background analytics rebuild (non-blocking microtask)
     try {
-      await rebuildAllAnalyticsCache();
+      scheduleBackgroundAnalyticsRebuild(1000);
     } catch {}
 
     options?.onProgress?.(`Sync completed: ${itemsCreated} created, ${itemsUpdated} updated.`);

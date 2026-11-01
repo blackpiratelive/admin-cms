@@ -214,5 +214,44 @@ describe("MovieTrackerSyncProvider (CineTracker Integration)", () => {
     expect(Number(stats["Movies Watched"])).toBeGreaterThanOrEqual(1);
     expect(Number(stats["TV Shows"])).toBeGreaterThanOrEqual(1);
     expect(Number(stats["Episodes"])).toBeGreaterThanOrEqual(1);
+
+    // Second sync run (updating existing records in batch)
+    const updatePayload = {
+      status: "success",
+      movies: [
+        {
+          ...mockExportPayload.movies[0],
+          user_review: "Updated Masterpiece Review!",
+          user_rating: 9,
+        },
+      ],
+      tv_shows: [
+        {
+          ...mockExportPayload.tv_shows[0],
+          user_review: "Updated Severance Season 2 Review!",
+        },
+      ],
+      episodes: [
+        {
+          ...mockExportPayload.episodes[0],
+          user_rating: 10,
+        },
+      ],
+    };
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => updatePayload,
+    });
+
+    const secondResult = await provider.sync({ mode: "incremental" });
+    expect(secondResult.success).toBe(true);
+    expect(secondResult.itemsUpdated).toBeGreaterThanOrEqual(3);
+
+    // Verify updated values in DB
+    const updatedMovie = await db.select().from(movies).where(eq(movies.id, testMovieId)).limit(1);
+    expect(updatedMovie[0].review).toBe("Updated Masterpiece Review!");
+    expect(updatedMovie[0].rating).toBe(9);
   });
 });
