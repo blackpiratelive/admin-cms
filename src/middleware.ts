@@ -35,10 +35,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Non-superadmin accounts have zero module access by default
+  // Non-superadmin accounts have access to Health module and root dashboard
   if (sessionUser.role !== "superadmin") {
-    // Only permit root dashboard ("/") and auth endpoints
-    if (pathname !== "/" && !pathname.startsWith("/api/auth")) {
+    // Permit root dashboard ("/"), health module ("/health"), and auth endpoints
+    if (
+      pathname !== "/" &&
+      !pathname.startsWith("/health") &&
+      !pathname.startsWith("/api/health") &&
+      !pathname.startsWith("/api/auth")
+    ) {
       if (pathname.startsWith("/api/")) {
         return NextResponse.json(
           { error: "Forbidden: No module access assigned." },

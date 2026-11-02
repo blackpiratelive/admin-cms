@@ -964,6 +964,77 @@ export const users = sqliteTable("users", {
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 
+// --- HEALTH & HAIR REGROWTH SUBSYSTEM ---
+
+export const healthProfiles = sqliteTable("health_profiles", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  visibility: text("visibility", { enum: ["private", "public"] }).notNull().default("private"),
+  baselineDate: text("baseline_date").notNull(),
+  notes: text("notes"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const healthTreatments = sqliteTable("health_treatments", {
+  id: text("id").primaryKey(),
+  profileId: text("profile_id").notNull(),
+  name: text("name").notNull(),
+  timesPerDay: integer("times_per_day").notNull().default(1),
+  startDate: text("start_date").notNull(),
+  isActive: integer("is_active").notNull().default(1),
+  notes: text("notes"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const healthTreatmentLogs = sqliteTable("health_treatment_logs", {
+  id: text("id").primaryKey(),
+  profileId: text("profile_id").notNull(),
+  treatmentId: text("treatment_id").notNull(),
+  logDate: text("log_date").notNull(), // ISO YYYY-MM-DD
+  completedDoses: integer("completed_doses").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const healthPhotoSessions = sqliteTable("health_photo_sessions", {
+  id: text("id").primaryKey(),
+  profileId: text("profile_id").notNull(),
+  sessionDate: text("session_date").notNull(), // ISO YYYY-MM-DD
+  weekNumber: integer("week_number").notNull().default(1),
+  notes: text("notes"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const healthScalpPhotos = sqliteTable("health_scalp_photos", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  profileId: text("profile_id").notNull(),
+  angle: text("angle").notNull().default("crown"), // 'crown' | 'hairline' | 'left_temple' | 'right_temple' | 'vertex' | 'top' | 'overall'
+  cloudinaryUrl: text("cloudinary_url").notNull(),
+  cloudinaryPublicId: text("cloudinary_public_id").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export type HealthProfileRecord = typeof healthProfiles.$inferSelect;
+export type NewHealthProfile = typeof healthProfiles.$inferInsert;
+
+export type HealthTreatmentRecord = typeof healthTreatments.$inferSelect;
+export type NewHealthTreatment = typeof healthTreatments.$inferInsert;
+
+export type HealthTreatmentLogRecord = typeof healthTreatmentLogs.$inferSelect;
+export type NewHealthTreatmentLog = typeof healthTreatmentLogs.$inferInsert;
+
+export type HealthPhotoSessionRecord = typeof healthPhotoSessions.$inferSelect;
+export type NewHealthPhotoSession = typeof healthPhotoSessions.$inferInsert;
+
+export type HealthScalpPhotoRecord = typeof healthScalpPhotos.$inferSelect;
+export type NewHealthScalpPhoto = typeof healthScalpPhotos.$inferInsert;
+
+
 
 
 

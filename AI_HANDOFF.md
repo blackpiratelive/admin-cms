@@ -35,6 +35,7 @@ admin-cms/
 │   │   ├── (auth)/login/        # Password login page
 │   │   ├── (dashboard)/         # Protected dashboard layout & routes
 │   │   │   ├── page.tsx         # Control center overview with modular widgets
+│   │   │   ├── health/          # Multi-User Health & Hair Regrowth Hub (/health)
 │   │   │   ├── journal/         # End-to-End Encrypted Personal Journal (/journal and /journal/editor)
 │   │   │   ├── microblog/       # Microblog list & CRUD editor routes
 │   │   │   ├── reading/         # Reading history, sessions & FreshRSS activity hub (/reading)
@@ -59,9 +60,10 @@ admin-cms/
 │   │   └── layout.tsx           # Root layout & ThemeProvider
 │   ├── components/              # Shared UI (Header, Sidebar, CommandPalette, DeployWidget, ToastNotification, EntityCombobox, PhotoPickerModal)
 │   ├── db/
-│   │   ├── schema.ts            # Drizzle table schemas for all 53 database entities (including users)
+│   │   ├── schema.ts            # Drizzle table schemas for all 58 database entities (including users & health)
 │   │   └── index.ts             # Turso / libSQL client & auto-initializer DDL
 │   ├── features/
+│   │   ├── health/              # Health profile management, generic treatment regimens, minimal dose check-ins, streak/adherence engine & Cloudinary scalp photos
 │   │   ├── analytics/           # Modular Analytics Engine (11 providers including Reading), Memory Index scoring, timeline cache & snapshots
 │   │   ├── reading/             # Reading activity server actions, Reading Influence Engine & Reading Dashboard
 │   │   ├── journal/             # DEK/KEK E2EE Web Crypto API, Lexical Editor, Lexical AST Sanitizer, Zip Import & Undo
@@ -86,7 +88,7 @@ admin-cms/
 │   │   ├── event-bus.ts         # Internal event pub-sub bus
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
-├── tests/                       # Vitest unit test suite (189 tests across 28 test files)
+├── tests/                       # Vitest unit test suite (205 tests across 29 test files)
 ├── freshrss.md                  # FreshRSS Sync Provider feature specification
 ├── android-journal.md           # Native Android Journal Application specification
 ├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
@@ -149,6 +151,13 @@ The database consists of **63 SQLite tables** managed via Drizzle ORM:
 - **`collection_analytics`**: Aggregate page-view totals for shareable collections (`collection_id` primary key, `view_count`, `last_viewed_at`, `updated_at`). Views are recorded client-side after a public/unlisted page mounts; `?preview=1` and admin previews are excluded, and deleting a collection removes its analytics row.
 - **`collection_knockout_votes`**: Anonymous blind-match vote records (`collection_id`, `session_id`, `seed`, `round`, `match_index`, `winner_photo_id`, `loser_photo_id`, `created_at`). A unique index on (`collection_id`, `session_id`, `seed`, `round`, `match_index`) makes retries idempotent. Votes are replayed chronologically to compute Elo and are never exposed as session-level data.
 - **`collection_knockout_runs`**: Anonymous bracket-run records (`collection_id`, `session_id`, `seed`, `pool_hash`, `bracket_size`, `status` `started`/`completed`, `champion_photo_id`, `matches_played`, `started_at`, `completed_at`). A unique index on (`collection_id`, `session_id`, `seed`) prevents duplicate runs. Rows track completion totals without storing names, IPs, or user agents.
+
+### 3.6 Health & Hair Regrowth Subsystem Tables
+- **`health_profiles`**: Multi-user health profiles (`id`, `user_id`, `name`, `visibility` `private` | `public`, `baseline_date`, `notes`, `created_at`, `updated_at`). Private profiles are strictly scoped to the owner and Super Admin; public profiles are readable across all authenticated users.
+- **`health_treatments`**: Generic hair/health treatments (`id`, `profile_id`, `name`, `times_per_day` default `1`, `start_date`, `is_active`, `notes`, `created_at`, `updated_at`). Supports Minoxidil (1x, 2x daily), Finasteride, Derma-rolling, vitamins, etc.
+- **`health_treatment_logs`**: Minimal daily dose completion records (`id`, `profile_id`, `treatment_id`, `log_date`, `completed_doses`, `created_at`, `updated_at`). Checkboxes record dose increments with optimistic client toggling.
+- **`health_photo_sessions`**: Weekly scalp photo collection sessions (`id`, `profile_id`, `session_date`, `week_number`, `notes`, `created_at`, `updated_at`). Week numbers are derived automatically relative to profile `baseline_date`.
+- **`health_scalp_photos`**: Scalp photo assets stored on Cloudinary (`id`, `session_id`, `profile_id`, `angle` `crown` | `hairline` | `left_temple` | `right_temple` | `vertex` | `top` | `overall`, `cloudinary_url`, `cloudinary_public_id`, `created_at`). Enables side-by-side split comparison across dates and weeks.
 
 ---
 
@@ -359,6 +368,28 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 ---
 
 ## 8. Standalone Apps & Release Signing Changelog
+
+### November 2026: Multi-User Health Module — Hairfall & Regrowth Tracker (Cloudinary Scalp Photos & Streak Engine)
+
+- **Overview & Architecture**: Introduced the Health Module (`/health` & `src/features/health/`) focused on hairfall and hair regrowth tracking with first-class multi-user support (Profile-based model `health_profiles`).
+- **Access Control & Privacy Scoping**:
+  - Profiles feature granular privacy (`visibility`: `private` vs `public`). Private profiles are strictly isolated to their creator and Super Admin, while public profiles allow family or collaborators to view progress.
+  - Updated Next.js `middleware.ts` to permit non-superadmin accounts access to `/health` and `/api/health`.
+  - Updated `Sidebar.tsx` and `DashboardClientShell.tsx` to surface the Health & Regrowth link for all authenticated accounts.
+- **Minimalist Generic Treatment & Dose Logging**:
+  - `health_treatments` allows users to define generic treatments (e.g. Minoxidil 5% Topical, Finasteride 1mg) with configurable daily frequencies (`timesPerDay`: 1x, 2x AM/PM, 3x).
+  - Minimalist dose checkboxes record daily applications in `health_treatment_logs` with optimistic UI updates and background server sync.
+  - Analytics engine (`analytics.ts`) computes active consecutive daily streaks, historical longest streaks, and rolling 30-day adherence percentages.
+- **Weekly Scalp Photo Sessions & Cloudinary Integration**:
+  - Photos grouped into weekly collection sessions (`health_photo_sessions`) with auto-calculated `weekNumber` relative to baseline date.
+  - Supports mobile browser direct camera capture (`accept="image/*" capture="environment"`) and desktop file selection.
+  - Photos uploaded directly to Cloudinary (`health_scalp_photos`) categorized by standardized scalp angles (`crown`, `hairline`, `left_temple`, `right_temple`, `vertex`, `top`, `overall`).
+  - Interactive Photo Inspector (`PhotoComparisonModal`) supporting side-by-side split screen comparison across different weeks.
+- **Database Schema**: 5 new tables (`health_profiles`, `health_treatments`, `health_treatment_logs`, `health_photo_sessions`, `health_scalp_photos`) with automated cold-start DDL batch execution in `ensureDbInitialized()`. Total database entities: 58.
+- **Quality Gates & Test Coverage**:
+  - Vitest suite: **205 tests across 29 test files, 100% passing** (added 16 tests in `tests/health.test.ts` covering week calculation, streak math, multi-dose adherence, and profile privacy isolation).
+  - TypeScript type check (`npx tsc --noEmit`): 0 errors.
+  - Subsystem isolation: `android/`, `mobile-microblog/`, and `mobile-people/` remain 100% clean and untouched.
 
 ### November 2026: Multi-User RBAC Foundation, User Accounts Management & Default Zero-Access Guard
 

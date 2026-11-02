@@ -30,6 +30,7 @@ import {
   Compass,
   Users,
   Rss,
+  HeartPulse,
 } from "lucide-react";
 
 export function Sidebar({
@@ -69,27 +70,15 @@ export function Sidebar({
               <LayoutDashboard size={16} />
               <span>Dashboard</span>
             </Link>
+            <Link
+              href="/health"
+              className={`nav-link ${isActive("/health") ? "active" : ""}`}
+              onClick={handleLinkClick}
+            >
+              <HeartPulse size={16} />
+              <span>Health & Regrowth</span>
+            </Link>
           </nav>
-
-          <div
-            style={{
-              padding: "16px 14px",
-              margin: "12px 8px",
-              borderRadius: "4px",
-              background: "var(--bg-card)",
-              border: "1px solid var(--border-color)",
-              color: "var(--text-muted)",
-              fontSize: "12px",
-              lineHeight: 1.5,
-            }}
-          >
-            <p style={{ margin: 0, fontWeight: 600, color: "var(--text-primary)" }}>
-              No Modules Assigned
-            </p>
-            <p style={{ margin: "6px 0 0 0" }}>
-              Your account currently does not have access to any modules.
-            </p>
-          </div>
         </div>
       </aside>
     );
@@ -324,6 +313,14 @@ export function Sidebar({
           >
             <Compass size={16} />
             <span>Trips</span>
+          </Link>
+          <Link
+            href="/health"
+            className={`nav-link ${isActive("/health") ? "active" : ""}`}
+            onClick={handleLinkClick}
+          >
+            <HeartPulse size={16} />
+            <span>Health & Regrowth</span>
           </Link>
         </div>
 

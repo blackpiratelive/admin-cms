@@ -839,6 +839,59 @@ export async function ensureDbInitialized(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS health_profiles (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          visibility TEXT NOT NULL DEFAULT 'private',
+          baseline_date TEXT NOT NULL,
+          notes TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS health_treatments (
+          id TEXT PRIMARY KEY,
+          profile_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          times_per_day INTEGER NOT NULL DEFAULT 1,
+          start_date TEXT NOT NULL,
+          is_active INTEGER NOT NULL DEFAULT 1,
+          notes TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS health_treatment_logs (
+          id TEXT PRIMARY KEY,
+          profile_id TEXT NOT NULL,
+          treatment_id TEXT NOT NULL,
+          log_date TEXT NOT NULL,
+          completed_doses INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS health_photo_sessions (
+          id TEXT PRIMARY KEY,
+          profile_id TEXT NOT NULL,
+          session_date TEXT NOT NULL,
+          week_number INTEGER NOT NULL DEFAULT 1,
+          notes TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS health_scalp_photos (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          profile_id TEXT NOT NULL,
+          angle TEXT NOT NULL DEFAULT 'crown',
+          cloudinary_url TEXT NOT NULL,
+          cloudinary_public_id TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
       `);
 
       // Add columns to existing installations dynamically
