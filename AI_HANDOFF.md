@@ -394,6 +394,7 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
   - **Non-Blocking Background Writes (`notify.bg`)**: Daily dose checkboxes, treatment additions, deletions, profile updates, and Cloudinary photo session uploads run asynchronously via `notify.bg(...)` with immediate optimistic UI updates (**0ms perceived input latency**), debouncing rapid clicks and eliminating synchronous `revalidatePath` blocking.
   - **Client-Side SWR Browser Caching (`getBrowserCache` & `setBrowserCache`)**: Cached in `localStorage` under `health_cache_{profileId}` for **0ms instant initial paints** on navigation and profile switching.
 - **Quality Gates & Test Coverage**:
+  - Turbopack Build: Verified `npm run build` succeeds cleanly with Turbopack across 29 routes (`refreshHealth` cache invalidation helper unexported to conform to Next.js Server Action async constraints).
   - Vitest suite: **208 tests across 29 test files, 100% passing** (added 19 tests in `tests/health.test.ts` covering week calculation, streak math, multi-dose adherence, creator attribution, and cross-profile comparison).
   - TypeScript type check (`npx tsc --noEmit`): 0 errors.
   - Subsystem isolation: `android/`, `mobile-microblog/`, and `mobile-people/` remain 100% clean and untouched.
