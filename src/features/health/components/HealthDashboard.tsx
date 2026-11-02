@@ -15,6 +15,9 @@ import {
   Edit2,
   CheckCircle2,
   Sparkles,
+  Users,
+  Eye,
+  Check,
 } from "lucide-react";
 import {
   setDoseCompletionAction,
@@ -77,12 +80,16 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
 
   const {
     profiles,
+    companionProfiles,
     activeProfile,
     canEdit,
     treatments,
     recentLogs,
     photoSessions,
+    allPhotoSessions,
     weeksElapsed,
+    currentUsername,
+    isSuperAdmin,
   } = data;
 
   // Background refresh data without full-page reloads
@@ -90,7 +97,10 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
     try {
       const fresh = await getHealthHubDataAction(activeProfile?.id);
       setData(fresh);
-      setBrowserCache(`health_cache_${fresh.activeProfile?.id || "default"}`, fresh);
+      setBrowserCache(
+        `health_cache_${fresh.activeProfile?.id || "default"}`,
+        fresh
+      );
     } catch {}
   };
 
@@ -105,11 +115,13 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
 
   // Instant 0ms dose toggle with background write
   const handleToggleDose = (
+    profileId: string,
     treatmentId: string,
     doseIndex: number,
-    timesPerDay: number
+    timesPerDay: number,
+    canLog: boolean
   ) => {
-    if (!activeProfile || !canEdit) return;
+    if (!canLog) return;
 
     const currentLog = recentLogs.find(
       (l) => l.treatmentId === treatmentId && l.logDate === selectedDate
@@ -135,7 +147,7 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
       } else {
         updatedLogs.unshift({
           id: `temp_${Date.now()}`,
-          profileId: activeProfile.id,
+          profileId,
           treatmentId,
           logDate: selectedDate,
           completedDoses: newCompletedDoses,
@@ -171,13 +183,38 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
         };
       });
 
+      // Update companion profiles list as well
+      const updatedCompanion = prev.companionProfiles.map((comp) => {
+        if (comp.profile.id !== profileId) return comp;
+        const compTreatments = comp.treatments.map((t) => {
+          if (t.id !== treatmentId) return t;
+          const isToday = selectedDate === formatDateIso();
+          return {
+            ...t,
+            stats: {
+              ...t.stats,
+              todayCompletedDoses: isToday
+                ? newCompletedDoses
+                : t.stats.todayCompletedDoses,
+              isTodayCompliant: isToday
+                ? newCompletedDoses >= t.timesPerDay
+                : t.stats.isTodayCompliant,
+            },
+          };
+        });
+        return {
+          ...comp,
+          treatments: compTreatments,
+        };
+      });
+
       const nextData: HealthHubData = {
         ...prev,
         recentLogs: updatedLogs,
         treatments: updatedTreatments,
+        companionProfiles: updatedCompanion,
       };
 
-      // Update browser cache immediately
       setBrowserCache(cacheKey, nextData);
       return nextData;
     });
@@ -195,14 +232,13 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
       notify.bg({
         task: () =>
           setDoseCompletionAction({
-            profileId: activeProfile.id,
+            profileId,
             treatmentId,
             logDate: selectedDate,
             completedDoses: newCompletedDoses,
           }),
         errorMessage: "Failed to sync dose update to server.",
         onError: () => {
-          // Revert optimistic state on network failure
           refreshDataInBackground();
         },
       });
@@ -228,10 +264,12 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
     const deletedId = activeProfile.id;
     const remainingProfiles = profiles.filter((p) => p.id !== deletedId);
 
-    // Optimistically update
     setData((prev) => ({
       ...prev,
       profiles: remainingProfiles,
+      companionProfiles: prev.companionProfiles.filter(
+        (c) => c.profile.id !== deletedId
+      ),
       activeProfile: remainingProfiles[0] ? prev.activeProfile : null,
     }));
 
@@ -252,16 +290,21 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
   // Instant delete treatment in background
   const handleDeleteTreatment = (treatmentId: string, name: string) => {
     if (!activeProfile) return;
-    if (!confirm(`Delete treatment "${name}"? Historical logs will also be removed.`)) {
+    if (
+      !confirm(
+        `Delete treatment "${name}"? Historical logs will also be removed.`
+      )
+    ) {
       return;
     }
 
-    // Optimistically remove from state in 0ms
     setData((prev) => {
       const nextData: HealthHubData = {
         ...prev,
         treatments: prev.treatments.filter((t) => t.id !== treatmentId),
-        recentLogs: prev.recentLogs.filter((l) => l.treatmentId !== treatmentId),
+        recentLogs: prev.recentLogs.filter(
+          (l) => l.treatmentId !== treatmentId
+        ),
       };
       setBrowserCache(cacheKey, nextData);
       return nextData;
@@ -280,11 +323,13 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
     if (!activeProfile) return;
     if (!confirm(`Delete Week ${week} photo session?`)) return;
 
-    // Optimistically remove from state in 0ms
     setData((prev) => {
       const nextData: HealthHubData = {
         ...prev,
         photoSessions: prev.photoSessions.filter((s) => s.id !== sessionId),
+        allPhotoSessions: prev.allPhotoSessions.filter(
+          (s) => s.id !== sessionId
+        ),
       };
       setBrowserCache(cacheKey, nextData);
       return nextData;
@@ -300,25 +345,13 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
 
   // 7-day strip dates
   const todayIso = formatDateIso();
-  const past7Days = Array.from({ length: 7 }, (_, i) => shiftDateIso(todayIso, -i));
-
-  // Highest streak
-  const bestStreak = treatments.reduce(
-    (max, t) => Math.max(max, t.stats.currentStreak),
-    0
+  const past7Days = Array.from({ length: 7 }, (_, i) =>
+    shiftDateIso(todayIso, -i)
   );
-  // Average 30d adherence
-  const avgAdherence =
-    treatments.length > 0
-      ? Math.round(
-          treatments.reduce((acc, t) => acc + t.stats.adherenceRate30d, 0) /
-            treatments.length
-        )
-      : 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      {/* Top Header & Profile Switcher */}
+      {/* Top Header */}
       <div
         className="page-header"
         style={{
@@ -347,7 +380,7 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <h1 className="page-title" style={{ margin: 0, fontSize: "22px" }}>
-                Health & Hair Regrowth
+                Health & Regrowth Companion
               </h1>
             </div>
             <p
@@ -357,33 +390,30 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                 color: "var(--text-muted)",
               }}
             >
-              Weekly scalp photo logs, treatment regimens & streak tracking
+              Logged in as <strong>@{currentUsername}</strong> {isSuperAdmin ? "(Super Admin)" : ""} • Shared peer tracker & progress logs
             </p>
           </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          {/* Profile Selector */}
-          {profiles.length > 0 && (
-            <select
-              className="form-input"
+          {allPhotoSessions.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-secondary"
               style={{
-                width: "auto",
-                minWidth: "180px",
-                padding: "7px 12px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
                 fontSize: "13px",
-                fontWeight: 600,
               }}
-              value={activeProfile?.id || ""}
-              onChange={(e) => handleProfileChange(e.target.value)}
+              onClick={() => {
+                setComparisonPhoto(null);
+                setIsComparisonOpen(true);
+              }}
             >
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} {p.isOwner ? "(You)" : "(Public)"}{" "}
-                  {p.visibility === "private" ? "🔒" : "🌐"}
-                </option>
-              ))}
-            </select>
+              <Sparkles size={15} />
+              <span>Compare Journeys</span>
+            </button>
           )}
 
           <button
@@ -403,59 +433,428 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
         </div>
       </div>
 
-      {/* Empty State if No Profile */}
-      {!activeProfile ? (
-        <div
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border-color)",
-            borderRadius: "8px",
-            padding: "48px 24px",
-            textAlign: "center",
-            maxWidth: "600px",
-            margin: "40px auto",
-          }}
-        >
+      {/* SECTION 1: SHARED DUAL DASHBOARD (COMPANION CARDS) */}
+      {companionProfiles.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           <div
             style={{
-              width: "56px",
-              height: "56px",
-              borderRadius: "50%",
-              background: "rgba(249, 115, 22, 0.12)",
-              color: "var(--accent-primary, #f97316)",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              margin: "0 auto 16px auto",
+              justifyContent: "space-between",
             }}
           >
-            <HeartPulse size={28} />
+            <div
+              style={{
+                fontSize: "14px",
+                fontWeight: 700,
+                color: "var(--text-primary)",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
+            >
+              <Users size={16} />
+              <span>Peer Regrowth Dashboard</span>
+            </div>
+            <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+              {companionProfiles.length} active {companionProfiles.length === 1 ? "journey" : "journeys"}
+            </span>
           </div>
-          <h2 style={{ fontSize: "18px", margin: "0 0 8px 0" }}>
-            Welcome to the Health Tracker
-          </h2>
-          <p
+
+          <div
             style={{
-              fontSize: "14px",
-              color: "var(--text-muted)",
-              lineHeight: 1.6,
-              margin: "0 0 20px 0",
+              display: "grid",
+              gridTemplateColumns:
+                companionProfiles.length === 1
+                  ? "1fr"
+                  : "repeat(auto-fit, minmax(320px, 1fr))",
+              gap: "16px",
             }}
           >
-            Create your first health profile to track daily Minoxidil doses,
-            monitor adherence streaks, and log weekly scalp progress photos.
-          </p>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => setIsProfileModalOpen(true)}
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
-          >
-            <Plus size={16} />
-            <span>Create Profile</span>
-          </button>
+            {companionProfiles.map((comp) => {
+              const isSelected = comp.profile.id === activeProfile?.id;
+              const bestStreak = comp.treatments.reduce(
+                (max, t) => Math.max(max, t.stats.currentStreak),
+                0
+              );
+              const avgAdherence =
+                comp.treatments.length > 0
+                  ? Math.round(
+                      comp.treatments.reduce(
+                        (acc, t) => acc + t.stats.adherenceRate30d,
+                        0
+                      ) / comp.treatments.length
+                    )
+                  : 0;
+
+              return (
+                <div
+                  key={comp.profile.id}
+                  style={{
+                    background: "var(--bg-card)",
+                    border: `2px solid ${
+                      isSelected
+                        ? "var(--accent-primary, #f97316)"
+                        : "var(--border-color)"
+                    }`,
+                    borderRadius: "10px",
+                    padding: "18px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "14px",
+                    boxShadow: isSelected
+                      ? "0 4px 16px rgba(249, 115, 22, 0.12)"
+                      : "none",
+                  }}
+                >
+                  {/* Companion Header */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: "10px",
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <h3
+                          style={{
+                            margin: 0,
+                            fontSize: "16px",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {comp.profile.name}
+                        </h3>
+                        <span
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            padding: "2px 7px",
+                            borderRadius: "10px",
+                            background:
+                              comp.profile.creatorUsername === "admin"
+                                ? "rgba(249, 115, 22, 0.15)"
+                                : "rgba(59, 130, 246, 0.15)",
+                            color:
+                              comp.profile.creatorUsername === "admin"
+                                ? "var(--accent-primary, #f97316)"
+                                : "var(--accent-blue, #3b82f6)",
+                          }}
+                        >
+                          @{comp.profile.creatorUsername}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "var(--text-muted)",
+                          marginTop: "3px",
+                        }}
+                      >
+                        Started: {comp.profile.baselineDate}
+                        {comp.profile.visibility === "private"
+                          ? " • 🔒 Private"
+                          : " • 🌐 Public"}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      {!comp.canLogDoses && (
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: 600,
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            background: "rgba(100, 116, 139, 0.15)",
+                            color: "var(--text-muted)",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "3px",
+                          }}
+                        >
+                          <Eye size={11} /> View Only
+                        </span>
+                      )}
+
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{
+                          padding: "4px 8px",
+                          fontSize: "11px",
+                          fontWeight: 600,
+                        }}
+                        onClick={() => handleProfileChange(comp.profile.id)}
+                      >
+                        {isSelected ? "Active Focus" : "Focus"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Companion Metrics Strip */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr 1fr",
+                      gap: "8px",
+                      background: "var(--bg-main)",
+                      padding: "10px",
+                      borderRadius: "6px",
+                      textAlign: "center",
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "10px",
+                          color: "var(--text-muted)",
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Streak
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "16px",
+                          fontWeight: 800,
+                          color: "var(--accent-primary, #f97316)",
+                        }}
+                      >
+                        🔥 {bestStreak}d
+                      </div>
+                    </div>
+
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "10px",
+                          color: "var(--text-muted)",
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        30d Adherence
+                      </div>
+                      <div style={{ fontSize: "16px", fontWeight: 800 }}>
+                        {avgAdherence}%
+                      </div>
+                    </div>
+
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "10px",
+                          color: "var(--text-muted)",
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Timeline
+                      </div>
+                      <div style={{ fontSize: "16px", fontWeight: 800 }}>
+                        Wk {weeksElapsed}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Today's Treatments Quick Doses */}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        color: "var(--text-muted)",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Today&apos;s Regimen Check-in:
+                    </span>
+
+                    {comp.treatments.length === 0 ? (
+                      <span
+                        style={{
+                          fontSize: "12px",
+                          color: "var(--text-muted)",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        No active treatments configured yet.
+                      </span>
+                    ) : (
+                      comp.treatments.map((treatment) => {
+                        const log = recentLogs.find(
+                          (l) =>
+                            l.treatmentId === treatment.id &&
+                            l.logDate === todayIso
+                        );
+                        const completedDoses = log?.completedDoses || 0;
+
+                        return (
+                          <div
+                            key={treatment.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              fontSize: "12px",
+                              padding: "6px 10px",
+                              background: "var(--bg-main)",
+                              borderRadius: "6px",
+                              border: "1px solid var(--border-color)",
+                            }}
+                          >
+                            <span style={{ fontWeight: 600 }}>
+                              {treatment.name}
+                            </span>
+
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                              }}
+                            >
+                              {Array.from({ length: treatment.timesPerDay }).map(
+                                (_, idx) => {
+                                  const isDone = completedDoses > idx;
+                                  return (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      disabled={!comp.canLogDoses}
+                                      onClick={() =>
+                                        handleToggleDose(
+                                          comp.profile.id,
+                                          treatment.id,
+                                          idx,
+                                          treatment.timesPerDay,
+                                          comp.canLogDoses
+                                        )
+                                      }
+                                      style={{
+                                        padding: "3px 8px",
+                                        borderRadius: "4px",
+                                        border: `1px solid ${
+                                          isDone
+                                            ? "var(--success-color, #22c55e)"
+                                            : "var(--border-color)"
+                                        }`,
+                                        background: isDone
+                                          ? "rgba(34, 197, 94, 0.15)"
+                                          : "transparent",
+                                        color: isDone
+                                          ? "var(--success-color, #22c55e)"
+                                          : "var(--text-muted)",
+                                        cursor: comp.canLogDoses
+                                          ? "pointer"
+                                          : "not-allowed",
+                                        fontSize: "11px",
+                                        fontWeight: 600,
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "4px",
+                                      }}
+                                    >
+                                      {isDone && <Check size={11} />}
+                                      <span>
+                                        {treatment.timesPerDay === 1
+                                          ? "Applied"
+                                          : idx === 0
+                                          ? "AM"
+                                          : "PM"}
+                                      </span>
+                                    </button>
+                                  );
+                                }
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Latest Scalp Photo Preview */}
+                  {comp.latestPhoto && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        paddingTop: "6px",
+                        borderTop: "1px solid var(--border-color)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "48px",
+                          height: "48px",
+                          borderRadius: "6px",
+                          overflow: "hidden",
+                          background: "#000",
+                          flexShrink: 0,
+                          cursor: "pointer",
+                        }}
+                        onClick={() => {
+                          setComparisonPhoto(comp.latestPhoto || null);
+                          setIsComparisonOpen(true);
+                        }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={comp.latestPhoto.cloudinaryUrl}
+                          alt="Latest scalp photo"
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                          }}
+                        />
+                      </div>
+                      <div style={{ fontSize: "12px" }}>
+                        <div style={{ fontWeight: 600 }}>
+                          Week {comp.latestPhotoWeek} Scalp Update
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            color: "var(--text-muted)",
+                            textTransform: "capitalize",
+                          }}
+                        >
+                          {comp.latestPhoto.angle.replace("_", " ")} • Click to inspect
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
-      ) : (
+      )}
+
+      {/* SECTION 2: ACTIVE PROFILE DETAIL VIEW */}
+      {activeProfile && (
         <>
           {/* Active Profile Header Banner */}
           <div
@@ -472,17 +871,42 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
             }}
           >
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  flexWrap: "wrap",
+                }}
+              >
                 <span style={{ fontSize: "18px", fontWeight: 700 }}>
                   {activeProfile.name}
+                </span>
+                <span
+                  style={{
+                    padding: "2px 7px",
+                    borderRadius: "10px",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    background:
+                      activeProfile.creatorUsername === "admin"
+                        ? "rgba(249, 115, 22, 0.15)"
+                        : "rgba(59, 130, 246, 0.15)",
+                    color:
+                      activeProfile.creatorUsername === "admin"
+                        ? "var(--accent-primary, #f97316)"
+                        : "var(--accent-blue, #3b82f6)",
+                  }}
+                >
+                  Created by @{activeProfile.creatorUsername}
                 </span>
                 <span
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "4px",
-                    padding: "3px 8px",
-                    borderRadius: "12px",
+                    padding: "2px 7px",
+                    borderRadius: "10px",
                     fontSize: "11px",
                     fontWeight: 600,
                     background:
@@ -497,26 +921,31 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                 >
                   {activeProfile.visibility === "private" ? (
                     <>
-                      <Lock size={12} /> Private
+                      <Lock size={11} /> Private
                     </>
                   ) : (
                     <>
-                      <Globe size={12} /> Public
+                      <Globe size={11} /> Public
                     </>
                   )}
                 </span>
-                <span
-                  style={{
-                    padding: "3px 8px",
-                    borderRadius: "12px",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    background: "rgba(249, 115, 22, 0.15)",
-                    color: "var(--accent-primary, #f97316)",
-                  }}
-                >
-                  Week {weeksElapsed}
-                </span>
+                {!canEdit && (
+                  <span
+                    style={{
+                      padding: "2px 7px",
+                      borderRadius: "10px",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      background: "rgba(100, 116, 139, 0.15)",
+                      color: "var(--text-muted)",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "3px",
+                    }}
+                  >
+                    <Eye size={12} /> View Only
+                  </span>
+                )}
               </div>
               <div
                 style={{
@@ -527,7 +956,7 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                   gap: "14px",
                 }}
               >
-                <span>Started: {activeProfile.baselineDate}</span>
+                <span>Baseline Start: {activeProfile.baselineDate}</span>
                 {activeProfile.notes && <span>• {activeProfile.notes}</span>}
               </div>
             </div>
@@ -547,7 +976,7 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                   onClick={() => setIsEditProfileModalOpen(true)}
                 >
                   <Edit2 size={13} />
-                  <span>Edit</span>
+                  <span>Edit Profile</span>
                 </button>
                 <button
                   type="button"
@@ -567,160 +996,6 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                 </button>
               </div>
             )}
-          </div>
-
-          {/* Quick Stats Grid */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: "14px",
-            }}
-          >
-            <div
-              style={{
-                background: "var(--bg-card)",
-                border: "1px solid var(--border-color)",
-                borderRadius: "8px",
-                padding: "16px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  color: "var(--accent-primary, #f97316)",
-                  marginBottom: "6px",
-                }}
-              >
-                <Flame size={18} />
-                <span
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: "var(--text-muted)",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Active Streak
-                </span>
-              </div>
-              <div style={{ fontSize: "24px", fontWeight: 800 }}>
-                {bestStreak}{" "}
-                <span
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: 500,
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  days
-                </span>
-              </div>
-            </div>
-
-            <div
-              style={{
-                background: "var(--bg-card)",
-                border: "1px solid var(--border-color)",
-                borderRadius: "8px",
-                padding: "16px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  color: "var(--accent-primary, #f97316)",
-                  marginBottom: "6px",
-                }}
-              >
-                <Award size={18} />
-                <span
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: "var(--text-muted)",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  30-Day Adherence
-                </span>
-              </div>
-              <div style={{ fontSize: "24px", fontWeight: 800 }}>
-                {avgAdherence}%
-              </div>
-            </div>
-
-            <div
-              style={{
-                background: "var(--bg-card)",
-                border: "1px solid var(--border-color)",
-                borderRadius: "8px",
-                padding: "16px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  color: "var(--accent-primary, #f97316)",
-                  marginBottom: "6px",
-                }}
-              >
-                <Calendar size={18} />
-                <span
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: "var(--text-muted)",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Timeline
-                </span>
-              </div>
-              <div style={{ fontSize: "24px", fontWeight: 800 }}>
-                Week {weeksElapsed}
-              </div>
-            </div>
-
-            <div
-              style={{
-                background: "var(--bg-card)",
-                border: "1px solid var(--border-color)",
-                borderRadius: "8px",
-                padding: "16px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  color: "var(--accent-primary, #f97316)",
-                  marginBottom: "6px",
-                }}
-              >
-                <Camera size={18} />
-                <span
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: "var(--text-muted)",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Photo Sessions
-                </span>
-              </div>
-              <div style={{ fontSize: "24px", fontWeight: 800 }}>
-                {photoSessions.length}
-              </div>
-            </div>
           </div>
 
           {/* Navigation Tabs */}
@@ -894,8 +1169,8 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                       color: "var(--text-muted)",
                     }}
                   >
-                    No treatments added yet. Add Minoxidil or any hair treatment
-                    to begin tracking your doses.
+                    No treatments added yet. Add Minoxidil, Derma Roller or any
+                    treatment to begin tracking.
                   </p>
                   {canEdit && (
                     <button
@@ -1082,9 +1357,11 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                                   disabled={!canEdit}
                                   onClick={() =>
                                     handleToggleDose(
+                                      activeProfile.id,
                                       treatment.id,
                                       idx,
-                                      treatment.timesPerDay
+                                      treatment.timesPerDay,
+                                      canEdit
                                     )
                                   }
                                   style={{
@@ -1235,7 +1512,7 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                 <div
                   style={{ display: "flex", alignItems: "center", gap: "10px" }}
                 >
-                  {photoSessions.length > 0 && (
+                  {allPhotoSessions.length > 0 && (
                     <button
                       type="button"
                       className="btn btn-secondary"
@@ -1251,7 +1528,7 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                       }}
                     >
                       <Sparkles size={15} />
-                      <span>Compare Weeks</span>
+                      <span>Compare Journeys</span>
                     </button>
                   )}
 
@@ -1291,8 +1568,7 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                       color: "var(--text-muted)",
                     }}
                   >
-                    No scalp photos uploaded yet. Take Week 1 photos to
-                    establish your baseline!
+                    No scalp photos uploaded for this profile yet.
                   </p>
                   {canEdit && (
                     <button
@@ -1494,9 +1770,9 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
         />
       )}
 
-      {isComparisonOpen && photoSessions.length > 0 && (
+      {isComparisonOpen && allPhotoSessions.length > 0 && (
         <PhotoComparisonModal
-          sessions={photoSessions}
+          sessions={allPhotoSessions}
           initialPhoto={comparisonPhoto}
           isOpen={isComparisonOpen}
           onClose={() => setIsComparisonOpen(false)}

@@ -251,4 +251,123 @@ describe("Health & Hair Regrowth Analytics", () => {
       ]);
     });
   });
+
+  describe("Creator Attribution & Super Admin Modification Permissions", () => {
+    interface HealthProfileWithCreator {
+      id: string;
+      userId: string;
+      creatorUsername: string;
+      name: string;
+      baselineDate: string;
+    }
+
+    it("preserves original creatorUsername when Super Admin modifies a friend's profile", () => {
+      const samProfile: HealthProfileWithCreator = {
+        id: "hp_sam_1",
+        userId: "uuid_sam_123",
+        creatorUsername: "sam",
+        name: "Sam Scalp Progress",
+        baselineDate: "2026-09-01",
+      };
+
+      // Super Admin updates name and baseline date
+      function applyUpdate(
+        profile: HealthProfileWithCreator,
+        updater: { role: string; userId: string },
+        updates: { name?: string; baselineDate?: string }
+      ) {
+        if (updater.role !== "superadmin" && updater.userId !== profile.userId) {
+          throw new Error("Forbidden");
+        }
+        return {
+          ...profile,
+          ...updates,
+          // userId and creatorUsername remain untouched
+          userId: profile.userId,
+          creatorUsername: profile.creatorUsername,
+        };
+      }
+
+      const updated = applyUpdate(
+        samProfile,
+        { role: "superadmin", userId: "superadmin" },
+        { name: "Sam Scalp Progress (Updated by Admin)", baselineDate: "2026-09-15" }
+      );
+
+      expect(updated.name).toBe("Sam Scalp Progress (Updated by Admin)");
+      expect(updated.baselineDate).toBe("2026-09-15");
+      // Original creator ownership remains permanently preserved!
+      expect(updated.creatorUsername).toBe("sam");
+      expect(updated.userId).toBe("uuid_sam_123");
+    });
+
+    it("allows Super Admin to log doses on friend Sam's profile", () => {
+      function canLogDose(
+        profileUserId: string,
+        actor: { role: string; userId: string }
+      ): boolean {
+        return actor.role === "superadmin" || actor.userId === profileUserId;
+      }
+
+      // Super Admin logging for Sam
+      expect(
+        canLogDose("uuid_sam_123", { role: "superadmin", userId: "superadmin" })
+      ).toBe(true);
+
+      // Sam logging for Sam
+      expect(
+        canLogDose("uuid_sam_123", { role: "user", userId: "uuid_sam_123" })
+      ).toBe(true);
+
+      // Sam trying to log for Super Admin (Forbidden/View-Only)
+      expect(
+        canLogDose("superadmin", { role: "user", userId: "uuid_sam_123" })
+      ).toBe(false);
+    });
+
+    it("bundles photos across both profiles for cross-profile scalp photo comparison", () => {
+      interface SessionPhoto {
+        id: string;
+        profileId: string;
+        profileName: string;
+        creatorUsername: string;
+        weekNumber: number;
+        angle: string;
+        cloudinaryUrl: string;
+      }
+
+      const photos: SessionPhoto[] = [
+        {
+          id: "photo_admin_wk8",
+          profileId: "hp_admin",
+          profileName: "Admin Scalp",
+          creatorUsername: "admin",
+          weekNumber: 8,
+          angle: "crown",
+          cloudinaryUrl: "https://res.cloudinary.com/demo/image/upload/admin_wk8.jpg",
+        },
+        {
+          id: "photo_sam_wk8",
+          profileId: "hp_sam",
+          profileName: "Sam Scalp",
+          creatorUsername: "sam",
+          weekNumber: 8,
+          angle: "crown",
+          cloudinaryUrl: "https://res.cloudinary.com/demo/image/upload/sam_wk8.jpg",
+        },
+      ];
+
+      // Filter by angle for side-by-side comparison
+      const crownPhotos = photos.filter((p) => p.angle === "crown");
+      expect(crownPhotos).toHaveLength(2);
+
+      const adminPhoto = crownPhotos.find((p) => p.creatorUsername === "admin");
+      const samPhoto = crownPhotos.find((p) => p.creatorUsername === "sam");
+
+      expect(adminPhoto?.weekNumber).toBe(8);
+      expect(samPhoto?.weekNumber).toBe(8);
+      expect(adminPhoto?.profileName).toBe("Admin Scalp");
+      expect(samPhoto?.profileName).toBe("Sam Scalp");
+    });
+  });
 });

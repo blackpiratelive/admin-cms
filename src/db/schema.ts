@@ -969,6 +969,7 @@ export type NewUser = typeof users.$inferInsert;
 export const healthProfiles = sqliteTable("health_profiles", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
+  creatorUsername: text("creator_username").notNull().default("admin"),
   name: text("name").notNull(),
   visibility: text("visibility", { enum: ["private", "public"] }).notNull().default("private"),
   baselineDate: text("baseline_date").notNull(),

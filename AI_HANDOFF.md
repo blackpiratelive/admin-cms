@@ -88,7 +88,7 @@ admin-cms/
 │   │   ├── event-bus.ts         # Internal event pub-sub bus
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
-├── tests/                       # Vitest unit test suite (205 tests across 29 test files)
+├── tests/                       # Vitest unit test suite (208 tests across 29 test files)
 ├── freshrss.md                  # FreshRSS Sync Provider feature specification
 ├── android-journal.md           # Native Android Journal Application specification
 ├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
@@ -372,27 +372,29 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 ### November 2026: Multi-User Health Module — Hairfall & Regrowth Tracker (Cloudinary Scalp Photos & Streak Engine)
 
 - **Overview & Architecture**: Introduced the Health Module (`/health` & `src/features/health/`) focused on hairfall and hair regrowth tracking with first-class multi-user support (Profile-based model `health_profiles`).
-- **Access Control & Privacy Scoping**:
-  - Profiles feature granular privacy (`visibility`: `private` vs `public`). Private profiles are strictly isolated to their creator and Super Admin, while public profiles allow family or collaborators to view progress.
+- **Access Control, Creator Attribution & Shared Dual Dashboard**:
+  - **Shared Dual Dashboard**: Top of `/health` surfaces companion journey cards for both Super Admin (`@admin`) and friends (e.g. `@sam`) side-by-side on one screen, showing streaks, today's Minoxidil/Derma-roller check-ins, and latest scalp photos.
+  - **Creator Attribution**: Profiles feature immutable `creator_username` (`@admin`, `@sam`). When Super Admin modifies a friend's profile, original creator attribution is strictly preserved.
+  - **Asymmetric Role Permissions**: Super Admin can manage, edit, and log doses on any profile. Friend users (`role: "user"`) have full edit and dose check-in rights on their own profile, and can view Super Admin's progress as read-only.
   - Updated Next.js `middleware.ts` to permit non-superadmin accounts access to `/health` and `/api/health`.
   - Updated `Sidebar.tsx` and `DashboardClientShell.tsx` to surface the Health & Regrowth link for all authenticated accounts.
 - **Minimalist Generic Treatment & Dose Logging**:
-  - `health_treatments` allows users to define generic treatments (e.g. Minoxidil 5% Topical, Finasteride 1mg) with configurable daily frequencies (`timesPerDay`: 1x, 2x AM/PM, 3x).
+  - `health_treatments` allows users to define generic treatments (e.g. Minoxidil 5% Topical, Finasteride 1mg, Derma Roller 1.0mm) with configurable daily frequencies (`timesPerDay`: 1x, 2x AM/PM, 3x).
   - Minimalist dose checkboxes record daily applications in `health_treatment_logs` with optimistic UI updates and background server sync.
   - Analytics engine (`analytics.ts`) computes active consecutive daily streaks, historical longest streaks, and rolling 30-day adherence percentages.
-- **Weekly Scalp Photo Sessions & Cloudinary Integration**:
+- **Cross-Profile Scalp Photo Sessions & Cloudinary Integration**:
   - Photos grouped into weekly collection sessions (`health_photo_sessions`) with auto-calculated `weekNumber` relative to baseline date.
   - Supports mobile browser direct camera capture (`accept="image/*" capture="environment"`) and desktop file selection.
   - Photos uploaded directly to Cloudinary (`health_scalp_photos`) categorized by standardized scalp angles (`crown`, `hairline`, `left_temple`, `right_temple`, `vertex`, `top`, `overall`).
-  - Interactive Photo Inspector (`PhotoComparisonModal`) supporting side-by-side split screen comparison across different weeks.
-- **Database Schema**: 5 new tables (`health_profiles`, `health_treatments`, `health_treatment_logs`, `health_photo_sessions`, `health_scalp_photos`) with automated cold-start DDL batch execution in `ensureDbInitialized()`. Total database entities: 58.
+  - Interactive Photo Inspector (`PhotoComparisonModal`) supporting side-by-side cross-profile comparison (e.g. Left: Admin Week 8 Crown vs Right: Sam Week 8 Crown).
+- **Database Schema**: 5 new tables (`health_profiles` with `creator_username`, `health_treatments`, `health_treatment_logs`, `health_photo_sessions`, `health_scalp_photos`) with automated cold-start DDL batch execution in `ensureDbInitialized()`. Total database entities: 58.
 - **Performance Caching & Non-Blocking Background Write Pipeline**:
   - **Server-Side Read Cache (`createCachedQuery`)**: `getHealthHubDataAction` is wrapped in `createCachedQuery` with tags `["health-hub", "health-user-{userId}", "health-profile-{profileId}"]` delivering **0ms instant DB cache reads**.
   - **Parallel Batch Execution**: Replaced 5 sequential database queries with 2 parallel roundtrips using `Promise.all` (`[healthTreatments, healthPhotoSessions]` in Stage 1, followed by `[healthTreatmentLogs, healthScalpPhotos]` in Stage 2).
   - **Non-Blocking Background Writes (`notify.bg`)**: Daily dose checkboxes, treatment additions, deletions, profile updates, and Cloudinary photo session uploads run asynchronously via `notify.bg(...)` with immediate optimistic UI updates (**0ms perceived input latency**), debouncing rapid clicks and eliminating synchronous `revalidatePath` blocking.
   - **Client-Side SWR Browser Caching (`getBrowserCache` & `setBrowserCache`)**: Cached in `localStorage` under `health_cache_{profileId}` for **0ms instant initial paints** on navigation and profile switching.
 - **Quality Gates & Test Coverage**:
-  - Vitest suite: **205 tests across 29 test files, 100% passing** (added 16 tests in `tests/health.test.ts` covering week calculation, streak math, multi-dose adherence, and profile privacy isolation).
+  - Vitest suite: **208 tests across 29 test files, 100% passing** (added 19 tests in `tests/health.test.ts` covering week calculation, streak math, multi-dose adherence, creator attribution, and cross-profile comparison).
   - TypeScript type check (`npx tsc --noEmit`): 0 errors.
   - Subsystem isolation: `android/`, `mobile-microblog/`, and `mobile-people/` remain 100% clean and untouched.
 

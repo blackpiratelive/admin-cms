@@ -8,6 +8,7 @@ import {
   healthTreatmentLogs,
   healthPhotoSessions,
   healthScalpPhotos,
+  users,
   type HealthProfileRecord,
   type HealthTreatmentRecord,
   type HealthTreatmentLogRecord,
@@ -24,6 +25,7 @@ import {
 import type {
   HealthHubData,
   HealthProfileSummary,
+  DualCompanionProfile,
   PhotoSessionWithPhotos,
   ScalpPhotoAngle,
 } from "./types";
@@ -51,16 +53,19 @@ export function refreshHealth(profileId?: string) {
 }
 
 /**
- * Raw data query engine: executes queries with parallel batching.
+ * Raw data query engine: executes queries with parallel batching and multi-user companion cards.
  */
 async function fetchHealthHubDataRaw(
   userId: string,
   role: string,
+  currentUsername: string,
   requestedProfileId?: string
 ): Promise<HealthHubData> {
+  const isSuperAdmin = role === "superadmin";
+
   // 1. Fetch accessible profiles
   let rawProfiles: HealthProfileRecord[] = [];
-  if (role === "superadmin") {
+  if (isSuperAdmin) {
     rawProfiles = await db
       .select()
       .from(healthProfiles)
@@ -78,18 +83,23 @@ async function fetchHealthHubDataRaw(
       .orderBy(desc(healthProfiles.createdAt));
   }
 
-  const profileSummaries: HealthProfileSummary[] = rawProfiles.map((p) => ({
-    id: p.id,
-    userId: p.userId,
-    name: p.name,
-    visibility: p.visibility as "private" | "public",
-    baselineDate: p.baselineDate,
-    notes: p.notes,
-    createdAt: p.createdAt,
-    isOwner: p.userId === userId || role === "superadmin",
-  }));
+  const profileSummaries: HealthProfileSummary[] = rawProfiles.map((p) => {
+    const isOwner = p.userId === userId;
+    return {
+      id: p.id,
+      userId: p.userId,
+      creatorUsername: p.creatorUsername || (p.userId === "superadmin" ? "admin" : "user"),
+      name: p.name,
+      visibility: p.visibility as "private" | "public",
+      baselineDate: p.baselineDate,
+      notes: p.notes,
+      createdAt: p.createdAt,
+      isOwner,
+      canEdit: isOwner || isSuperAdmin,
+    };
+  });
 
-  // Determine active profile
+  // Determine active profile (default to current user's profile if available)
   let activeProfile: HealthProfileRecord | null = null;
   if (requestedProfileId) {
     activeProfile = rawProfiles.find((p) => p.id === requestedProfileId) || null;
@@ -102,65 +112,101 @@ async function fetchHealthHubDataRaw(
   if (!activeProfile) {
     return {
       profiles: profileSummaries,
+      companionProfiles: [],
       activeProfile: null,
       isOwner: false,
       canEdit: false,
       treatments: [],
       recentLogs: [],
       photoSessions: [],
+      allPhotoSessions: [],
       weeksElapsed: 0,
+      currentUsername,
+      isSuperAdmin,
     };
   }
 
-  const isOwner = activeProfile.userId === userId || role === "superadmin";
-  const canEdit = isOwner;
+  const isOwner = activeProfile.userId === userId;
+  const canEdit = isOwner || isSuperAdmin;
+  const allProfileIds = rawProfiles.map((p) => p.id);
 
-  // 2. Fetch treatments & photo sessions in parallel (Stage 1)
-  const [treatments, sessions] = await Promise.all([
-    db
-      .select()
-      .from(healthTreatments)
-      .where(eq(healthTreatments.profileId, activeProfile.id))
-      .orderBy(desc(healthTreatments.isActive), healthTreatments.name),
-    db
-      .select()
-      .from(healthPhotoSessions)
-      .where(eq(healthPhotoSessions.profileId, activeProfile.id))
-      .orderBy(desc(healthPhotoSessions.sessionDate)),
+  // 2. Fetch treatments & photo sessions across all accessible profiles in parallel (Stage 1)
+  const [allTreatments, allSessions] = await Promise.all([
+    allProfileIds.length > 0
+      ? db
+          .select()
+          .from(healthTreatments)
+          .where(inArray(healthTreatments.profileId, allProfileIds))
+          .orderBy(desc(healthTreatments.isActive), healthTreatments.name)
+      : Promise.resolve([] as HealthTreatmentRecord[]),
+    allProfileIds.length > 0
+      ? db
+          .select()
+          .from(healthPhotoSessions)
+          .where(inArray(healthPhotoSessions.profileId, allProfileIds))
+          .orderBy(desc(healthPhotoSessions.sessionDate))
+      : Promise.resolve([] as HealthPhotoSessionRecord[]),
   ]);
 
-  const treatmentIds = treatments.map((t) => t.id);
-  const sessionIds = sessions.map((s) => s.id);
+  const allTreatmentIds = allTreatments.map((t) => t.id);
+  const allSessionIds = allSessions.map((s) => s.id);
 
   // 3. Fetch logs & photos in parallel (Stage 2)
-  const [recentLogs, photos] = await Promise.all([
-    treatmentIds.length > 0
+  const [allLogs, allPhotos] = await Promise.all([
+    allTreatmentIds.length > 0
       ? db
           .select()
           .from(healthTreatmentLogs)
-          .where(
-            and(
-              eq(healthTreatmentLogs.profileId, activeProfile.id),
-              inArray(healthTreatmentLogs.treatmentId, treatmentIds)
-            )
-          )
+          .where(inArray(healthTreatmentLogs.treatmentId, allTreatmentIds))
           .orderBy(desc(healthTreatmentLogs.logDate))
       : Promise.resolve([] as HealthTreatmentLogRecord[]),
-    sessionIds.length > 0
+    allSessionIds.length > 0
       ? db
           .select()
           .from(healthScalpPhotos)
-          .where(inArray(healthScalpPhotos.sessionId, sessionIds))
+          .where(inArray(healthScalpPhotos.sessionId, allSessionIds))
       : Promise.resolve([] as HealthScalpPhotoRecord[]),
   ]);
 
-  // 4. Calculate stats for each treatment
-  const treatmentsWithStats = treatments.map((treatment) => {
+  // Group photos by session
+  const photosBySession = new Map<string, HealthScalpPhotoRecord[]>();
+  for (const photo of allPhotos) {
+    const list = photosBySession.get(photo.sessionId) || [];
+    list.push(photo);
+    photosBySession.set(photo.sessionId, list);
+  }
+
+  // Profile lookup map
+  const profileMap = new Map(profileSummaries.map((p) => [p.id, p]));
+
+  // All photo sessions tagged with profile metadata for cross-comparison
+  const allPhotoSessionsWithPhotos: PhotoSessionWithPhotos[] = allSessions.map(
+    (session) => {
+      const prof = profileMap.get(session.profileId);
+      return {
+        ...session,
+        profileName: prof?.name || "Profile",
+        creatorUsername: prof?.creatorUsername || "user",
+        photos: photosBySession.get(session.id) || [],
+      };
+    }
+  );
+
+  // Active profile specific data
+  const activeTreatments = allTreatments.filter(
+    (t) => t.profileId === activeProfile.id
+  );
+  const activeLogs = allLogs.filter((l) => l.profileId === activeProfile.id);
+  const activePhotoSessions = allPhotoSessionsWithPhotos.filter(
+    (s) => s.profileId === activeProfile.id
+  );
+
+  const activeTreatmentsWithStats = activeTreatments.map((treatment) => {
     const stats = calculateStreakAndAdherence({
       treatmentId: treatment.id,
       timesPerDay: treatment.timesPerDay,
       startDate: treatment.startDate,
-      logs: recentLogs,
+      logs: activeLogs,
     });
     return {
       ...treatment,
@@ -168,37 +214,60 @@ async function fetchHealthHubDataRaw(
     };
   });
 
-  // 5. Group photos by session
-  const photosBySession = new Map<string, HealthScalpPhotoRecord[]>();
-  for (const photo of photos) {
-    const list = photosBySession.get(photo.sessionId) || [];
-    list.push(photo);
-    photosBySession.set(photo.sessionId, list);
-  }
+  // Construct Companion Profiles for the Shared Dual Dashboard
+  const companionProfiles: DualCompanionProfile[] = profileSummaries.map(
+    (prof) => {
+      const profTreatments = allTreatments.filter(
+        (t) => t.profileId === prof.id
+      );
+      const profLogs = allLogs.filter((l) => l.profileId === prof.id);
+      const profSessions = allPhotoSessionsWithPhotos.filter(
+        (s) => s.profileId === prof.id
+      );
 
-  const photoSessionsWithPhotos: PhotoSessionWithPhotos[] = sessions.map(
-    (session) => ({
-      ...session,
-      photos: photosBySession.get(session.id) || [],
-    })
+      const treatmentsWithStats = profTreatments.map((treatment) => ({
+        ...treatment,
+        stats: calculateStreakAndAdherence({
+          treatmentId: treatment.id,
+          timesPerDay: treatment.timesPerDay,
+          startDate: treatment.startDate,
+          logs: profLogs,
+        }),
+      }));
+
+      const latestSession = profSessions[0];
+      const latestPhoto = latestSession?.photos[0] || null;
+
+      return {
+        profile: prof,
+        treatments: treatmentsWithStats,
+        latestPhoto,
+        latestPhotoWeek: latestSession?.weekNumber,
+        canLogDoses: isSuperAdmin || prof.userId === userId,
+      };
+    }
   );
 
   const weeksElapsed = calculateWeekNumber(activeProfile.baselineDate);
 
   return {
     profiles: profileSummaries,
+    companionProfiles,
     activeProfile,
     isOwner,
     canEdit,
-    treatments: treatmentsWithStats,
-    recentLogs,
-    photoSessions: photoSessionsWithPhotos,
+    treatments: activeTreatmentsWithStats,
+    recentLogs: activeLogs,
+    photoSessions: activePhotoSessions,
+    allPhotoSessions: allPhotoSessionsWithPhotos,
     weeksElapsed,
+    currentUsername,
+    isSuperAdmin,
   };
 }
 
 /**
- * Loads all accessible health profiles and active profile details with server caching.
+ * Loads all accessible health profiles and dual companion data with server caching.
  */
 export async function getHealthHubDataAction(
   requestedProfileId?: string
@@ -207,13 +276,27 @@ export async function getHealthHubDataAction(
   const user = await requireUser();
 
   const cachedFn = createCachedQuery(
-    () => fetchHealthHubDataRaw(user.userId, user.role, requestedProfileId),
-    ["health-hub-data", user.userId, user.role, requestedProfileId || "default"],
+    () =>
+      fetchHealthHubDataRaw(
+        user.userId,
+        user.role,
+        user.username || "admin",
+        requestedProfileId
+      ),
+    [
+      "health-hub-data",
+      user.userId,
+      user.role,
+      user.username || "admin",
+      requestedProfileId || "default",
+    ],
     {
       tags: [
         "health-hub",
         `health-user-${user.userId}`,
-        requestedProfileId ? `health-profile-${requestedProfileId}` : "health-profile-default",
+        requestedProfileId
+          ? `health-profile-${requestedProfileId}`
+          : "health-profile-default",
       ],
       revalidate: 3600,
     }
@@ -223,7 +306,7 @@ export async function getHealthHubDataAction(
 }
 
 /**
- * Creates a new health profile.
+ * Creates a new health profile with immutable creator attribution.
  */
 export async function createHealthProfileAction(input: {
   name: string;
@@ -242,10 +325,13 @@ export async function createHealthProfileAction(input: {
 
   const now = new Date().toISOString();
   const id = generateId("hp");
+  const creatorUsername =
+    user.username || (user.role === "superadmin" ? "admin" : "user");
 
   await db.insert(healthProfiles).values({
     id,
     userId: user.userId,
+    creatorUsername,
     name,
     visibility: input.visibility || "private",
     baselineDate: input.baselineDate,
@@ -259,7 +345,7 @@ export async function createHealthProfileAction(input: {
 }
 
 /**
- * Updates a health profile.
+ * Updates a health profile while preserving original creator attribution.
  */
 export async function updateHealthProfileAction(
   id: string,
@@ -275,7 +361,11 @@ export async function updateHealthProfileAction(
 
   const profile = (
     await db
-      .select({ id: healthProfiles.id, userId: healthProfiles.userId })
+      .select({
+        id: healthProfiles.id,
+        userId: healthProfiles.userId,
+        creatorUsername: healthProfiles.creatorUsername,
+      })
       .from(healthProfiles)
       .where(eq(healthProfiles.id, id))
       .limit(1)
@@ -295,6 +385,7 @@ export async function updateHealthProfileAction(
   if (input.baselineDate !== undefined) values.baselineDate = input.baselineDate;
   if (input.notes !== undefined) values.notes = input.notes?.trim() || null;
 
+  // Notice: userId and creatorUsername are strictly preserved and never overwritten!
   await db.update(healthProfiles).set(values).where(eq(healthProfiles.id, id));
   refreshHealth(id);
   return { success: true };
@@ -333,7 +424,7 @@ export async function deleteHealthProfileAction(id: string) {
 }
 
 /**
- * Creates or updates a treatment (e.g. Minoxidil 5%).
+ * Creates or updates a treatment.
  */
 export async function saveTreatmentAction(input: {
   id?: string;
@@ -425,7 +516,7 @@ export async function deleteTreatmentAction(profileId: string, treatmentId: stri
 }
 
 /**
- * Toggles or sets dose completion for a given treatment and date.
+ * Sets dose completion. Superadmin can log for any profile; regular users only for their own.
  */
 export async function setDoseCompletionAction(input: {
   profileId: string;
@@ -443,8 +534,15 @@ export async function setDoseCompletionAction(input: {
       .where(eq(healthProfiles.id, input.profileId))
       .limit(1)
   )[0];
-  if (!profile || (profile.userId !== user.userId && user.role !== "superadmin")) {
-    return { success: false, error: "Forbidden: You cannot edit this profile." };
+  if (!profile) {
+    return { success: false, error: "Profile not found." };
+  }
+
+  if (profile.userId !== user.userId && user.role !== "superadmin") {
+    return {
+      success: false,
+      error: "Forbidden: You can only log doses for your own profile.",
+    };
   }
 
   const now = new Date().toISOString();
@@ -488,7 +586,7 @@ export async function setDoseCompletionAction(input: {
 }
 
 /**
- * Saves a weekly photo session and its uploaded photos.
+ * Saves a weekly photo session.
  */
 export async function savePhotoSessionAction(input: {
   profileId: string;
@@ -506,7 +604,11 @@ export async function savePhotoSessionAction(input: {
 
   const profile = (
     await db
-      .select({ id: healthProfiles.id, baselineDate: healthProfiles.baselineDate, userId: healthProfiles.userId })
+      .select({
+        id: healthProfiles.id,
+        baselineDate: healthProfiles.baselineDate,
+        userId: healthProfiles.userId,
+      })
       .from(healthProfiles)
       .where(eq(healthProfiles.id, input.profileId))
       .limit(1)

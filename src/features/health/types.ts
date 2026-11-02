@@ -38,27 +38,43 @@ export interface TreatmentStreakAndAdherence {
 }
 
 export interface PhotoSessionWithPhotos extends HealthPhotoSessionRecord {
+  profileName?: string;
+  creatorUsername?: string;
   photos: HealthScalpPhotoRecord[];
 }
 
 export interface HealthProfileSummary {
   id: string;
   userId: string;
+  creatorUsername: string;
   name: string;
   visibility: "private" | "public";
   baselineDate: string;
   notes?: string | null;
   createdAt: string;
   isOwner: boolean;
+  canEdit: boolean;
+}
+
+export interface DualCompanionProfile {
+  profile: HealthProfileSummary;
+  treatments: (HealthTreatmentRecord & { stats: TreatmentStreakAndAdherence })[];
+  latestPhoto?: HealthScalpPhotoRecord | null;
+  latestPhotoWeek?: number;
+  canLogDoses: boolean;
 }
 
 export interface HealthHubData {
   profiles: HealthProfileSummary[];
+  companionProfiles: DualCompanionProfile[];
   activeProfile: HealthProfileRecord | null;
   isOwner: boolean;
   canEdit: boolean;
   treatments: (HealthTreatmentRecord & { stats: TreatmentStreakAndAdherence })[];
   recentLogs: HealthTreatmentLogRecord[];
   photoSessions: PhotoSessionWithPhotos[];
+  allPhotoSessions: PhotoSessionWithPhotos[];
   weeksElapsed: number;
+  currentUsername: string;
+  isSuperAdmin: boolean;
 }

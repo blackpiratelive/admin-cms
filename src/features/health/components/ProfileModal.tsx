@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Lock, Globe } from "lucide-react";
+import { X, Lock, Globe, Info } from "lucide-react";
 import {
   createHealthProfileAction,
   updateHealthProfileAction,
@@ -95,6 +95,27 @@ export function ProfileModal({
         </div>
 
         <form onSubmit={handleSubmit} className="modal-form">
+          {isEditing && profile?.creatorUsername && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "8px 12px",
+                borderRadius: "6px",
+                background: "rgba(59, 130, 246, 0.1)",
+                border: "1px solid rgba(59, 130, 246, 0.25)",
+                color: "var(--accent-blue, #3b82f6)",
+                fontSize: "12px",
+              }}
+            >
+              <Info size={15} />
+              <span>
+                Original Creator: <strong>@{profile.creatorUsername}</strong>. Modifying this profile preserves creator ownership.
+              </span>
+            </div>
+          )}
+
           <div className="form-group">
             <label className="form-label" htmlFor="profile-name">
               Profile Name *
@@ -129,7 +150,7 @@ export function ProfileModal({
                 marginTop: "4px",
               }}
             >
-              The date you began treatments or started taking progress photos.
+              The date treatments began or progress photos started.
             </span>
           </div>
 
@@ -175,11 +196,10 @@ export function ProfileModal({
                       fontSize: "13px",
                     }}
                   >
-                    <Lock size={14} /> Private (Recommended)
+                    <Lock size={14} /> Private
                   </div>
                   <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                    Only you and the Super Admin can see this profile and its
-                    logs.
+                    Only you and the Super Admin can see this profile.
                   </div>
                 </div>
               </label>
@@ -221,11 +241,10 @@ export function ProfileModal({
                       fontSize: "13px",
                     }}
                   >
-                    <Globe size={14} /> Public
+                    <Globe size={14} /> Public / Shared with Friends
                   </div>
                   <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                    All logged-in CMS users can view this profile, logs, and
-                    photos.
+                    All logged-in accounts (like your friend Sam) can see your progress and compare.
                   </div>
                 </div>
               </label>

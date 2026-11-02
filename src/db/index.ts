@@ -843,6 +843,7 @@ export async function ensureDbInitialized(): Promise<void> {
         CREATE TABLE IF NOT EXISTS health_profiles (
           id TEXT PRIMARY KEY,
           user_id TEXT NOT NULL,
+          creator_username TEXT NOT NULL DEFAULT 'admin',
           name TEXT NOT NULL,
           visibility TEXT NOT NULL DEFAULT 'private',
           baseline_date TEXT NOT NULL,
@@ -907,6 +908,10 @@ export async function ensureDbInitialized(): Promise<void> {
       } catch (err) {}
       try {
         await client.execute(`ALTER TABLE gallery ADD COLUMN trip_id TEXT;`);
+      } catch (err) {}
+
+      try {
+        await client.execute(`ALTER TABLE health_profiles ADD COLUMN creator_username TEXT NOT NULL DEFAULT 'admin';`);
       } catch (err) {}
 
       // Clean migration: Drop legacy Trakt tables & migrate movie/show metadata
