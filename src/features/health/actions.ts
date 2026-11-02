@@ -44,12 +44,17 @@ async function requireUser(): Promise<SessionUser> {
   return user;
 }
 
-export function refreshHealth(profileId?: string) {
+function refreshHealth(profileId?: string) {
   purgeTag("health-hub");
   purgeTag("health-profiles");
   if (profileId) {
     purgeTag(`health-profile-${profileId}`);
   }
+}
+
+export async function refreshHealthAction(profileId?: string) {
+  refreshHealth(profileId);
+  return { success: true };
 }
 
 /**
