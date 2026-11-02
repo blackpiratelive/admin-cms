@@ -18,13 +18,13 @@ export function PhotoComparisonModal({
   isOpen,
   onClose,
 }: PhotoComparisonModalProps) {
-  // Flatten all photos with their profile & session metadata
+  // Flatten all photos with their profile, session, and participant metadata
   const allPhotos = sessions.flatMap((s) =>
     s.photos.map((p) => ({
       ...p,
       profileId: s.profileId,
       profileName: s.profileName || "Profile",
-      creatorUsername: s.creatorUsername || "user",
+      creatorUsername: s.username || s.creatorUsername || "user",
       sessionDate: s.sessionDate,
       weekNumber: s.weekNumber,
     }))

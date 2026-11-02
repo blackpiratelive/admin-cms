@@ -6,11 +6,14 @@ import { uploadDirectToCloudinary } from "@/lib/cloudinary";
 import { savePhotoSessionAction } from "../actions";
 import { calculateWeekNumber, formatDateIso } from "../analytics";
 import { notify } from "@/lib/notifications";
-import { SCALP_ANGLES, type ScalpPhotoAngle } from "../types";
+import { SCALP_ANGLES, type ScalpPhotoAngle, type ParticipantSummary } from "../types";
 
 interface PhotoSessionModalProps {
   profileId: string;
   baselineDate: string;
+  participants: ParticipantSummary[];
+  currentUserId: string;
+  isSuperAdmin: boolean;
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
@@ -26,6 +29,9 @@ interface PendingPhoto {
 export function PhotoSessionModal({
   profileId,
   baselineDate,
+  participants,
+  currentUserId,
+  isSuperAdmin,
   isOpen,
   onClose,
   onSaved,
@@ -35,9 +41,17 @@ export function PhotoSessionModal({
   const [photos, setPhotos] = useState<PendingPhoto[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // Default target participant to current user if available, else first participant
+  const [selectedTargetUserId, setSelectedTargetUserId] = useState<string>(() => {
+    const self = participants.find((p) => p.userId === currentUserId);
+    return self?.userId || participants[0]?.userId || currentUserId;
+  });
+
   if (!isOpen) return null;
 
   const weekNumber = calculateWeekNumber(baselineDate, sessionDate);
+  const targetParticipant =
+    participants.find((p) => p.userId === selectedTargetUserId) || participants[0];
 
   const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -91,6 +105,8 @@ export function PhotoSessionModal({
     const sDate = sessionDate;
     const sNotes = notes;
     const sWeek = weekNumber;
+    const tUserId = selectedTargetUserId;
+    const tUsername = targetParticipant?.username || "participant";
 
     // Close modal immediately for 0ms perceived latency
     onClose();
@@ -98,8 +114,8 @@ export function PhotoSessionModal({
     // Run upload and DB write in background
     notify.bg({
       title: "Scalp Photo Session",
-      loadingMessage: `Uploading ${photosToUpload.length} scalp photos to Cloudinary in background...`,
-      successMessage: `Week ${sWeek} photo session uploaded and saved!`,
+      loadingMessage: `Uploading ${photosToUpload.length} scalp photos for @${tUsername} in background...`,
+      successMessage: `Week ${sWeek} photo session for @${tUsername} saved!`,
       errorMessage: (err) =>
         `Failed to upload photo session: ${err?.message || String(err)}`,
       task: async () => {
@@ -120,6 +136,8 @@ export function PhotoSessionModal({
 
         const res = await savePhotoSessionAction({
           profileId,
+          targetUserId: tUserId,
+          targetUsername: tUsername,
           sessionDate: sDate,
           weekNumber: sWeek,
           notes: sNotes,
@@ -190,6 +208,28 @@ export function PhotoSessionModal({
             </div>
           )}
 
+          {/* Participant Selector (if multiple participants or superadmin) */}
+          {participants.length > 1 && (
+            <div className="form-group">
+              <label className="form-label" htmlFor="participant-select">
+                Scalp Photos For Participant
+              </label>
+              <select
+                id="participant-select"
+                className="form-input"
+                value={selectedTargetUserId}
+                onChange={(e) => setSelectedTargetUserId(e.target.value)}
+                disabled={!isSuperAdmin && participants.some((p) => p.userId === currentUserId)}
+              >
+                {participants.map((p) => (
+                  <option key={p.userId} value={p.userId}>
+                    @{p.username} {p.isOwner ? "(Owner)" : "(Collaborator)"}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="form-group">
             <label className="form-label" htmlFor="session-date">
               Session Date *
@@ -251,7 +291,7 @@ export function PhotoSessionModal({
                 }}
               >
                 <Upload size={16} />
-                <span>Choose Photos</span>
+                <span>Choose Files</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -263,45 +303,41 @@ export function PhotoSessionModal({
             </div>
           </div>
 
-          {/* Photos Preview List */}
+          {/* Photos Preview Grid */}
           {photos.length > 0 && (
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "10px" }}
-            >
-              <span
-                style={{
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  color: "var(--text-secondary)",
-                }}
-              >
-                Selected Photos ({photos.length}):
-              </span>
+            <div className="form-group">
+              <label className="form-label">
+                Selected Photos ({photos.length}) — Label Angles
+              </label>
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns:
-                    "repeat(auto-fill, minmax(130px, 1fr))",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))",
                   gap: "12px",
+                  marginTop: "8px",
                 }}
               >
                 {photos.map((item) => (
                   <div
                     key={item.id}
                     style={{
+                      background: "var(--bg-main)",
                       border: "1px solid var(--border-color)",
                       borderRadius: "6px",
-                      overflow: "hidden",
-                      background: "var(--bg-card)",
+                      padding: "8px",
                       display: "flex",
                       flexDirection: "column",
+                      gap: "6px",
+                      position: "relative",
                     }}
                   >
                     <div
                       style={{
                         position: "relative",
                         width: "100%",
-                        height: "110px",
+                        paddingTop: "100%",
+                        borderRadius: "4px",
+                        overflow: "hidden",
                         background: "#000",
                       }}
                     >
@@ -310,6 +346,9 @@ export function PhotoSessionModal({
                         src={item.previewUrl}
                         alt="Scalp Preview"
                         style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
                           width: "100%",
                           height: "100%",
                           objectFit: "cover",
@@ -322,11 +361,11 @@ export function PhotoSessionModal({
                           position: "absolute",
                           top: "4px",
                           right: "4px",
-                          background: "rgba(0, 0, 0, 0.6)",
-                          color: "#fff",
+                          background: "rgba(0,0,0,0.65)",
                           border: "none",
+                          color: "#fff",
                           borderRadius: "4px",
-                          padding: "4px",
+                          padding: "3px",
                           cursor: "pointer",
                         }}
                         aria-label="Remove photo"
@@ -335,29 +374,23 @@ export function PhotoSessionModal({
                       </button>
                     </div>
 
-                    <div style={{ padding: "6px" }}>
-                      <select
-                        className="form-input"
-                        style={{
-                          fontSize: "11px",
-                          padding: "4px 6px",
-                          height: "auto",
-                        }}
-                        value={item.angle}
-                        onChange={(e) =>
-                          handleAngleChange(
-                            item.id,
-                            e.target.value as ScalpPhotoAngle
-                          )
-                        }
-                      >
-                        {SCALP_ANGLES.map((angle) => (
-                          <option key={angle.value} value={angle.value}>
-                            {angle.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <select
+                      className="form-input"
+                      value={item.angle}
+                      onChange={(e) =>
+                        handleAngleChange(
+                          item.id,
+                          e.target.value as ScalpPhotoAngle
+                        )
+                      }
+                      style={{ fontSize: "11px", padding: "4px 6px" }}
+                    >
+                      {SCALP_ANGLES.map((ang) => (
+                        <option key={ang.value} value={ang.value}>
+                          {ang.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 ))}
               </div>
@@ -370,15 +403,15 @@ export function PhotoSessionModal({
             </label>
             <textarea
               id="session-notes"
-              className="form-input"
+              className="form-textarea"
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. Scalp looking calmer, noticeable baby hairs along temple..."
+              placeholder="e.g. Shedding reduced, vellus hairs noticed on hairline..."
             />
           </div>
 
-          <div className="modal-footer" style={{ marginTop: "16px" }}>
+          <div className="modal-actions">
             <button
               type="button"
               className="btn btn-secondary"
@@ -391,7 +424,7 @@ export function PhotoSessionModal({
               className="btn btn-primary"
               disabled={photos.length === 0}
             >
-              Upload & Save ({photos.length})
+              Save & Upload ({photos.length})
             </button>
           </div>
         </form>

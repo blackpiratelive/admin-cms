@@ -18,12 +18,16 @@ import {
   Users,
   Eye,
   Check,
+  UserPlus,
+  Shield,
+  X,
 } from "lucide-react";
 import {
   setDoseCompletionAction,
   deleteHealthProfileAction,
   deleteTreatmentAction,
   deletePhotoSessionAction,
+  removeCollaboratorAction,
   getHealthHubDataAction,
 } from "../actions";
 import { formatDateIso, shiftDateIso } from "../analytics";
@@ -33,6 +37,7 @@ import { ProfileModal } from "./ProfileModal";
 import { TreatmentModal } from "./TreatmentModal";
 import { PhotoSessionModal } from "./PhotoSessionModal";
 import { PhotoComparisonModal } from "./PhotoComparisonModal";
+import { AddCollaboratorModal } from "./AddCollaboratorModal";
 import type { HealthHubData } from "../types";
 import type { HealthTreatmentRecord, HealthScalpPhotoRecord } from "@/db/schema";
 
@@ -55,6 +60,8 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
 
   const [selectedDate, setSelectedDate] = useState<string>(formatDateIso());
   const [activeTab, setActiveTab] = useState<"regimen" | "photos">("regimen");
+  const [selectedPhotoParticipant, setSelectedPhotoParticipant] =
+    useState<string>("all");
 
   // Keep client cache in sync whenever data changes
   useEffect(() => {
@@ -72,6 +79,7 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
   const [comparisonPhoto, setComparisonPhoto] =
     useState<HealthScalpPhotoRecord | null>(null);
   const [isComparisonOpen, setIsComparisonOpen] = useState(false);
+  const [isAddCollaboratorOpen, setIsAddCollaboratorOpen] = useState(false);
 
   // Debounce ref for dose updates
   const pendingDoseUpdates = useRef<
@@ -82,14 +90,19 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
     profiles,
     companionProfiles,
     activeProfile,
+    isOwner,
+    isCollaborator,
     canEdit,
-    treatments,
-    recentLogs,
-    photoSessions,
-    allPhotoSessions,
-    weeksElapsed,
-    currentUsername,
-    isSuperAdmin,
+    collaborators = [],
+    participants = [],
+    treatments = [],
+    recentLogs = [],
+    photoSessions = [],
+    allPhotoSessions = [],
+    weeksElapsed = 1,
+    currentUsername = "user",
+    currentUserId = "",
+    isSuperAdmin = false,
   } = data;
 
   // Background refresh data without full-page reloads
@@ -113,18 +126,26 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
     router.push(`/health?profile=${profileId}`);
   };
 
-  // Instant 0ms dose toggle with background write
+  // Instant 0ms dose toggle with background write for specific participant
   const handleToggleDose = (
     profileId: string,
     treatmentId: string,
     doseIndex: number,
     timesPerDay: number,
-    canLog: boolean
+    canLog: boolean,
+    targetUserId?: string,
+    targetUsername?: string
   ) => {
     if (!canLog) return;
 
+    const tUserId = targetUserId || currentUserId;
+    const tUsername = targetUsername || currentUsername;
+
     const currentLog = recentLogs.find(
-      (l) => l.treatmentId === treatmentId && l.logDate === selectedDate
+      (l) =>
+        l.treatmentId === treatmentId &&
+        l.logDate === selectedDate &&
+        l.userId === tUserId
     );
     const currentCompleted = currentLog?.completedDoses || 0;
 
@@ -136,19 +157,25 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
     setData((prev) => {
       const updatedLogs = [...prev.recentLogs];
       const existingIdx = updatedLogs.findIndex(
-        (l) => l.treatmentId === treatmentId && l.logDate === selectedDate
+        (l) =>
+          l.treatmentId === treatmentId &&
+          l.logDate === selectedDate &&
+          l.userId === tUserId
       );
 
       if (existingIdx >= 0) {
         updatedLogs[existingIdx] = {
           ...updatedLogs[existingIdx],
           completedDoses: newCompletedDoses,
+          username: tUsername,
         };
       } else {
         updatedLogs.unshift({
           id: `temp_${Date.now()}`,
           profileId,
           treatmentId,
+          userId: tUserId,
+          username: tUsername,
           logDate: selectedDate,
           completedDoses: newCompletedDoses,
           createdAt: new Date().toISOString(),
@@ -156,8 +183,44 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
         });
       }
 
+      // Update participant stats optimistically
+      const updatedParticipants = (prev.participants || []).map((part) => {
+        if (part.userId !== tUserId) return part;
+        const pTreatments = part.treatments.map((t) => {
+          if (t.id !== treatmentId) return t;
+          const isToday = selectedDate === formatDateIso();
+          const willBeCompliant = newCompletedDoses >= t.timesPerDay;
+          const wasCompliant = t.stats.isTodayCompliant;
+
+          let streakDelta = 0;
+          if (isToday) {
+            if (willBeCompliant && !wasCompliant) streakDelta = 1;
+            if (!willBeCompliant && wasCompliant) streakDelta = -1;
+          }
+
+          return {
+            ...t,
+            stats: {
+              ...t.stats,
+              todayCompletedDoses: isToday
+                ? newCompletedDoses
+                : t.stats.todayCompletedDoses,
+              isTodayCompliant: isToday
+                ? willBeCompliant
+                : t.stats.isTodayCompliant,
+              currentStreak: Math.max(0, t.stats.currentStreak + streakDelta),
+            },
+          };
+        });
+        return {
+          ...part,
+          treatments: pTreatments,
+        };
+      });
+
+      // Update main treatment list if active user is target
       const updatedTreatments = prev.treatments.map((t) => {
-        if (t.id !== treatmentId) return t;
+        if (t.id !== treatmentId || tUserId !== currentUserId) return t;
         const isToday = selectedDate === formatDateIso();
         const willBeCompliant = newCompletedDoses >= t.timesPerDay;
         const wasCompliant = t.stats.isTodayCompliant;
@@ -211,6 +274,7 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
       const nextData: HealthHubData = {
         ...prev,
         recentLogs: updatedLogs,
+        participants: updatedParticipants,
         treatments: updatedTreatments,
         companionProfiles: updatedCompanion,
       };
@@ -220,7 +284,7 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
     });
 
     // 2. Debounce and execute DB write in background
-    const updateKey = `${treatmentId}_${selectedDate}`;
+    const updateKey = `${treatmentId}_${tUserId}_${selectedDate}`;
     const existingTimer = pendingDoseUpdates.current.get(updateKey);
     if (existingTimer) {
       clearTimeout(existingTimer.timeoutId);
@@ -234,10 +298,12 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
           setDoseCompletionAction({
             profileId,
             treatmentId,
+            targetUserId: tUserId,
+            targetUsername: tUsername,
             logDate: selectedDate,
             completedDoses: newCompletedDoses,
           }),
-        errorMessage: "Failed to sync dose update to server.",
+        errorMessage: `Failed to sync dose update for @${tUsername}.`,
         onError: () => {
           refreshDataInBackground();
         },
@@ -247,6 +313,41 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
     pendingDoseUpdates.current.set(updateKey, {
       timeoutId,
       completedDoses: newCompletedDoses,
+    });
+  };
+
+  // Instant remove collaborator in background
+  const handleRemoveCollaborator = (
+    collaboratorId: string,
+    collaboratorUsername: string
+  ) => {
+    if (!activeProfile) return;
+    if (
+      !confirm(
+        `Remove @${collaboratorUsername} from profile "${activeProfile.name}"? They will lose access to log against this profile.`
+      )
+    ) {
+      return;
+    }
+
+    setData((prev) => ({
+      ...prev,
+      collaborators: prev.collaborators.filter((c) => c.id !== collaboratorId),
+      participants: prev.participants.filter(
+        (p) => p.username !== collaboratorUsername
+      ),
+    }));
+
+    notify.bg({
+      title: "Remove Collaborator",
+      loadingMessage: `Removing @${collaboratorUsername} in background...`,
+      successMessage: `@${collaboratorUsername} removed from collaborators.`,
+      errorMessage: (err) =>
+        `Failed to remove collaborator: ${err?.message || String(err)}`,
+      task: () => removeCollaboratorAction(activeProfile.id, collaboratorId),
+      onSuccess: () => {
+        refreshDataInBackground();
+      },
     });
   };
 
@@ -349,6 +450,12 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
     shiftDateIso(todayIso, -i)
   );
 
+  // Filter photo sessions by selected participant
+  const displayedPhotoSessions = photoSessions.filter((s) => {
+    if (selectedPhotoParticipant === "all") return true;
+    return s.userId === selectedPhotoParticipant;
+  });
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {/* Top Header */}
@@ -390,7 +497,7 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                 color: "var(--text-muted)",
               }}
             >
-              Logged in as <strong>@{currentUsername}</strong> {isSuperAdmin ? "(Super Admin)" : ""} • Shared peer tracker & progress logs
+              Logged in as <strong>@{currentUsername}</strong> {isSuperAdmin ? "(Super Admin)" : ""} • Shared peer tracker & collaborator journeys
             </p>
           </div>
         </div>
@@ -554,6 +661,20 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                         >
                           @{comp.profile.creatorUsername}
                         </span>
+                        {comp.profile.collaboratorsCount > 0 && (
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              padding: "2px 6px",
+                              borderRadius: "4px",
+                              background: "rgba(168, 85, 247, 0.12)",
+                              color: "var(--accent-purple, #a855f7)",
+                              fontWeight: 600,
+                            }}
+                          >
+                            +{comp.profile.collaboratorsCount} collaborator{comp.profile.collaboratorsCount > 1 ? "s" : ""}
+                          </span>
+                        )}
                       </div>
                       <div
                         style={{
@@ -704,7 +825,8 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                         const log = recentLogs.find(
                           (l) =>
                             l.treatmentId === treatment.id &&
-                            l.logDate === todayIso
+                            l.logDate === todayIso &&
+                            l.userId === (comp.profile.userId || currentUserId)
                         );
                         const completedDoses = log?.completedDoses || 0;
 
@@ -747,7 +869,9 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                                           treatment.id,
                                           idx,
                                           treatment.timesPerDay,
-                                          comp.canLogDoses
+                                          comp.canLogDoses,
+                                          comp.profile.userId,
+                                          comp.profile.creatorUsername
                                         )
                                       }
                                       style={{
@@ -882,6 +1006,8 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                 <span style={{ fontSize: "18px", fontWeight: 700 }}>
                   {activeProfile.name}
                 </span>
+
+                {/* Owner Badge */}
                 <span
                   style={{
                     padding: "2px 7px",
@@ -898,8 +1024,71 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                         : "var(--accent-blue, #3b82f6)",
                   }}
                 >
-                  Created by @{activeProfile.creatorUsername}
+                  👑 Owner: @{activeProfile.creatorUsername}
                 </span>
+
+                {/* Collaborator Pills */}
+                {collaborators.map((c) => (
+                  <span
+                    key={c.id}
+                    style={{
+                      padding: "2px 8px",
+                      borderRadius: "10px",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      background: "rgba(168, 85, 247, 0.15)",
+                      color: "var(--accent-purple, #a855f7)",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    <span>👤 @{c.username}</span>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCollaborator(c.id, c.username)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          padding: 0,
+                          cursor: "pointer",
+                          color: "inherit",
+                          opacity: 0.7,
+                          display: "inline-flex",
+                          alignItems: "center",
+                        }}
+                        title={`Remove @${c.username}`}
+                        aria-label={`Remove @${c.username}`}
+                      >
+                        <X size={11} />
+                      </button>
+                    )}
+                  </span>
+                ))}
+
+                {/* Add Collaborator Button (Owner or Super Admin only) */}
+                {canEdit && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{
+                      padding: "2px 8px",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      borderRadius: "10px",
+                    }}
+                    onClick={() => setIsAddCollaboratorOpen(true)}
+                  >
+                    <UserPlus size={11} />
+                    <span>+ Add Collaborator</span>
+                  </button>
+                )}
+
+                {/* Privacy Badge */}
                 <span
                   style={{
                     display: "inline-flex",
@@ -929,7 +1118,35 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                     </>
                   )}
                 </span>
-                {!canEdit && (
+
+                {/* Role indicator badge */}
+                {isOwner ? (
+                  <span
+                    style={{
+                      padding: "2px 7px",
+                      borderRadius: "10px",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      background: "rgba(249, 115, 22, 0.12)",
+                      color: "var(--accent-primary, #f97316)",
+                    }}
+                  >
+                    Profile Owner
+                  </span>
+                ) : isCollaborator ? (
+                  <span
+                    style={{
+                      padding: "2px 7px",
+                      borderRadius: "10px",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      background: "rgba(59, 130, 246, 0.12)",
+                      color: "var(--accent-blue, #3b82f6)",
+                    }}
+                  >
+                    Collaborator
+                  </span>
+                ) : !canEdit ? (
                   <span
                     style={{
                       padding: "2px 7px",
@@ -945,8 +1162,9 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                   >
                     <Eye size={12} /> View Only
                   </span>
-                )}
+                ) : null}
               </div>
+
               <div
                 style={{
                   fontSize: "12px",
@@ -954,13 +1172,20 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                   marginTop: "4px",
                   display: "flex",
                   gap: "14px",
+                  flexWrap: "wrap",
                 }}
               >
                 <span>Baseline Start: {activeProfile.baselineDate}</span>
                 {activeProfile.notes && <span>• {activeProfile.notes}</span>}
+                {collaborators.length > 0 && (
+                  <span>
+                    • {collaborators.length} collaborator{collaborators.length > 1 ? "s" : ""} on shared regimen
+                  </span>
+                )}
               </div>
             </div>
 
+            {/* Profile Action Buttons: Strictly restricted to Owner or Super Admin */}
             {canEdit && (
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <button
@@ -1130,6 +1355,7 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                   })}
                 </div>
 
+                {/* Only owner or superadmin can add treatments */}
                 {canEdit && (
                   <button
                     type="button"
@@ -1199,281 +1425,353 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                     gap: "14px",
                   }}
                 >
-                  {treatments.map((treatment) => {
-                    const log = recentLogs.find(
-                      (l) =>
-                        l.treatmentId === treatment.id &&
-                        l.logDate === selectedDate
-                    );
-                    const completedDoses = log?.completedDoses || 0;
-                    const isGoalReached =
-                      completedDoses >= treatment.timesPerDay;
-
-                    return (
+                  {treatments.map((treatment) => (
+                    <div
+                      key={treatment.id}
+                      style={{
+                        background: "var(--bg-card)",
+                        border: "1px solid var(--border-color)",
+                        borderRadius: "8px",
+                        padding: "16px 20px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "14px",
+                      }}
+                    >
+                      {/* Treatment Header */}
                       <div
-                        key={treatment.id}
                         style={{
-                          background: "var(--bg-card)",
-                          border: `1px solid ${
-                            isGoalReached
-                              ? "rgba(34, 197, 94, 0.4)"
-                              : "var(--border-color)"
-                          }`,
-                          borderRadius: "8px",
-                          padding: "16px 20px",
                           display: "flex",
-                          flexDirection: "column",
-                          gap: "14px",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          flexWrap: "wrap",
+                          gap: "8px",
                         }}
                       >
-                        {/* Treatment Header */}
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            flexWrap: "wrap",
-                            gap: "8px",
-                          }}
-                        >
-                          <div>
-                            <div
+                        <div>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                            }}
+                          >
+                            <h3
                               style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
+                                margin: 0,
+                                fontSize: "16px",
+                                fontWeight: 600,
                               }}
                             >
-                              <h3
-                                style={{
-                                  margin: 0,
-                                  fontSize: "16px",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {treatment.name}
-                              </h3>
-                              <span
-                                style={{
-                                  fontSize: "11px",
-                                  padding: "2px 6px",
-                                  borderRadius: "4px",
-                                  background: "var(--bg-main)",
-                                  color: "var(--text-muted)",
-                                  border: "1px solid var(--border-color)",
-                                }}
-                              >
-                                {treatment.timesPerDay}x / day
-                              </span>
-                              {isGoalReached && (
-                                <span
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: "4px",
-                                    fontSize: "11px",
-                                    fontWeight: 600,
-                                    color: "var(--success-color, #22c55e)",
-                                  }}
-                                >
-                                  <CheckCircle2 size={13} /> Complete
-                                </span>
-                              )}
-                            </div>
-                            {treatment.notes && (
-                              <p
-                                style={{
-                                  margin: "4px 0 0 0",
-                                  fontSize: "12px",
-                                  color: "var(--text-muted)",
-                                }}
-                              >
-                                {treatment.notes}
-                              </p>
-                            )}
+                              {treatment.name}
+                            </h3>
+                            <span
+                              style={{
+                                fontSize: "11px",
+                                padding: "2px 6px",
+                                borderRadius: "4px",
+                                background: "var(--bg-main)",
+                                color: "var(--text-muted)",
+                                border: "1px solid var(--border-color)",
+                              }}
+                            >
+                              {treatment.timesPerDay}x / day
+                            </span>
                           </div>
-
-                          {canEdit && (
-                            <div
+                          {treatment.notes && (
+                            <p
                               style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "6px",
+                                margin: "4px 0 0 0",
+                                fontSize: "12px",
+                                color: "var(--text-muted)",
                               }}
                             >
-                              <button
-                                type="button"
-                                className="icon-button"
-                                onClick={() => {
-                                  setEditingTreatment(treatment);
-                                  setIsTreatmentModalOpen(true);
-                                }}
-                                aria-label="Edit treatment"
-                              >
-                                <Edit2 size={13} />
-                              </button>
-                              <button
-                                type="button"
-                                className="icon-button"
-                                style={{ color: "var(--danger-color, #ef4444)" }}
-                                onClick={() =>
-                                  handleDeleteTreatment(
-                                    treatment.id,
-                                    treatment.name
-                                  )
-                                }
-                                aria-label="Delete treatment"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
+                              {treatment.notes}
+                            </p>
                           )}
                         </div>
 
-                        {/* Minimal Dose Checkbox Buttons (0ms Instant Input) */}
+                        {/* Edit/Delete Treatment: Only owner or superadmin */}
+                        {canEdit && (
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "6px",
+                            }}
+                          >
+                            <button
+                              type="button"
+                              className="icon-button"
+                              onClick={() => {
+                                setEditingTreatment(treatment);
+                                setIsTreatmentModalOpen(true);
+                              }}
+                              aria-label="Edit treatment"
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              className="icon-button"
+                              style={{ color: "var(--danger-color, #ef4444)" }}
+                              onClick={() =>
+                                handleDeleteTreatment(
+                                  treatment.id,
+                                  treatment.name
+                                )
+                              }
+                              aria-label="Delete treatment"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Participant Check-ins (Distinct Multi-User Streaks & Doses) */}
+                      {participants.length > 0 ? (
                         <div
                           style={{
                             display: "flex",
-                            flexWrap: "wrap",
+                            flexDirection: "column",
                             gap: "10px",
                           }}
                         >
-                          {Array.from({ length: treatment.timesPerDay }).map(
-                            (_, idx) => {
-                              const isDoseDone = completedDoses > idx;
-                              const label =
-                                treatment.timesPerDay === 1
-                                  ? "Applied Today"
-                                  : treatment.timesPerDay === 2
-                                  ? idx === 0
-                                    ? "Dose 1 (AM)"
-                                    : "Dose 2 (PM)"
-                                  : `Dose ${idx + 1}`;
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: 600,
+                              color: "var(--text-muted)",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.5px",
+                            }}
+                          >
+                            Participant Doses & Streaks:
+                          </span>
+
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns:
+                                participants.length === 1
+                                  ? "1fr"
+                                  : "repeat(auto-fit, minmax(280px, 1fr))",
+                              gap: "10px",
+                            }}
+                          >
+                            {participants.map((part) => {
+                              const partLog = recentLogs.find(
+                                (l) =>
+                                  l.treatmentId === treatment.id &&
+                                  l.logDate === selectedDate &&
+                                  l.userId === part.userId
+                              );
+                              const completedDoses =
+                                partLog?.completedDoses || 0;
+                              const partStats =
+                                part.treatments.find((t) => t.id === treatment.id)
+                                  ?.stats || treatment.stats;
+                              const isGoalReached =
+                                completedDoses >= treatment.timesPerDay;
 
                               return (
-                                <button
-                                  key={idx}
-                                  type="button"
-                                  disabled={!canEdit}
-                                  onClick={() =>
-                                    handleToggleDose(
-                                      activeProfile.id,
-                                      treatment.id,
-                                      idx,
-                                      treatment.timesPerDay,
-                                      canEdit
-                                    )
-                                  }
+                                <div
+                                  key={part.userId}
                                   style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: "8px",
-                                    padding: "8px 14px",
-                                    borderRadius: "6px",
+                                    background: "var(--bg-main)",
                                     border: `1px solid ${
-                                      isDoseDone
-                                        ? "var(--success-color, #22c55e)"
+                                      isGoalReached
+                                        ? "rgba(34, 197, 94, 0.3)"
                                         : "var(--border-color)"
                                     }`,
-                                    background: isDoseDone
-                                      ? "rgba(34, 197, 94, 0.12)"
-                                      : "var(--bg-main)",
-                                    color: isDoseDone
-                                      ? "var(--success-color, #22c55e)"
-                                      : "var(--text-primary)",
-                                    cursor: canEdit ? "pointer" : "default",
-                                    fontWeight: 600,
-                                    fontSize: "13px",
-                                    transition: "all 0.1s ease",
+                                    borderRadius: "6px",
+                                    padding: "10px 14px",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: "8px",
                                   }}
                                 >
                                   <div
                                     style={{
-                                      width: "16px",
-                                      height: "16px",
-                                      borderRadius: "4px",
-                                      border: `2px solid ${
-                                        isDoseDone
-                                          ? "var(--success-color, #22c55e)"
-                                          : "var(--text-muted)"
-                                      }`,
                                       display: "flex",
                                       alignItems: "center",
-                                      justifyContent: "center",
-                                      background: isDoseDone
-                                        ? "var(--success-color, #22c55e)"
-                                        : "transparent",
-                                      color: "#fff",
+                                      justifyContent: "space-between",
+                                      flexWrap: "wrap",
+                                      gap: "6px",
                                     }}
                                   >
-                                    {isDoseDone && (
-                                      <CheckCircle2 size={12} color="#fff" />
-                                    )}
-                                  </div>
-                                  <span>{label}</span>
-                                </button>
-                              );
-                            }
-                          )}
-                        </div>
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "6px",
+                                      }}
+                                    >
+                                      <span
+                                        style={{
+                                          fontWeight: 700,
+                                          fontSize: "13px",
+                                        }}
+                                      >
+                                        @{part.username}
+                                      </span>
+                                      <span
+                                        style={{
+                                          fontSize: "10px",
+                                          padding: "1px 6px",
+                                          borderRadius: "4px",
+                                          fontWeight: 600,
+                                          background: part.isOwner
+                                            ? "rgba(249, 115, 22, 0.15)"
+                                            : "rgba(59, 130, 246, 0.15)",
+                                          color: part.isOwner
+                                            ? "var(--accent-primary, #f97316)"
+                                            : "var(--accent-blue, #3b82f6)",
+                                        }}
+                                      >
+                                        {part.isOwner ? "👑 Owner" : "👤 Collaborator"}
+                                      </span>
+                                      {!part.canLog && (
+                                        <span
+                                          style={{
+                                            fontSize: "10px",
+                                            color: "var(--text-muted)",
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: "2px",
+                                          }}
+                                        >
+                                          <Eye size={10} /> View Only
+                                        </span>
+                                      )}
+                                    </div>
 
-                        {/* Minimal Streak & Adherence Metrics Strip */}
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "16px",
-                            paddingTop: "10px",
-                            borderTop: "1px solid var(--border-color)",
-                            fontSize: "12px",
-                            color: "var(--text-muted)",
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "4px",
-                            }}
-                          >
-                            <Flame
-                              size={14}
-                              color="var(--accent-primary, #f97316)"
-                            />
-                            <strong style={{ color: "var(--text-primary)" }}>
-                              {treatment.stats.currentStreak}
-                            </strong>{" "}
-                            day streak
-                          </span>
-                          <span>•</span>
-                          <span
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "4px",
-                            }}
-                          >
-                            <Award
-                              size={14}
-                              color="var(--accent-primary, #f97316)"
-                            />
-                            Best:{" "}
-                            <strong style={{ color: "var(--text-primary)" }}>
-                              {treatment.stats.longestStreak}
-                            </strong>{" "}
-                            days
-                          </span>
-                          <span>•</span>
-                          <span>
-                            30-day adherence:{" "}
-                            <strong style={{ color: "var(--text-primary)" }}>
-                              {treatment.stats.adherenceRate30d}%
-                            </strong>
-                          </span>
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "10px",
+                                        fontSize: "11px",
+                                        color: "var(--text-muted)",
+                                      }}
+                                    >
+                                      <span>
+                                        🔥{" "}
+                                        <strong
+                                          style={{ color: "var(--text-primary)" }}
+                                        >
+                                          {partStats.currentStreak}d
+                                        </strong>
+                                      </span>
+                                      <span>
+                                        30d:{" "}
+                                        <strong
+                                          style={{ color: "var(--text-primary)" }}
+                                        >
+                                          {partStats.adherenceRate30d}%
+                                        </strong>
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Doses Check-in Buttons */}
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      flexWrap: "wrap",
+                                      gap: "6px",
+                                    }}
+                                  >
+                                    {Array.from({
+                                      length: treatment.timesPerDay,
+                                    }).map((_, idx) => {
+                                      const isDoseDone = completedDoses > idx;
+                                      const label =
+                                        treatment.timesPerDay === 1
+                                          ? "Applied"
+                                          : treatment.timesPerDay === 2
+                                          ? idx === 0
+                                            ? "AM"
+                                            : "PM"
+                                          : `Dose ${idx + 1}`;
+
+                                      return (
+                                        <button
+                                          key={idx}
+                                          type="button"
+                                          disabled={!part.canLog}
+                                          onClick={() =>
+                                            handleToggleDose(
+                                              activeProfile.id,
+                                              treatment.id,
+                                              idx,
+                                              treatment.timesPerDay,
+                                              part.canLog,
+                                              part.userId,
+                                              part.username
+                                            )
+                                          }
+                                          style={{
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: "6px",
+                                            padding: "5px 10px",
+                                            borderRadius: "5px",
+                                            border: `1px solid ${
+                                              isDoseDone
+                                                ? "var(--success-color, #22c55e)"
+                                                : "var(--border-color)"
+                                            }`,
+                                            background: isDoseDone
+                                              ? "rgba(34, 197, 94, 0.12)"
+                                              : "var(--bg-card)",
+                                            color: isDoseDone
+                                              ? "var(--success-color, #22c55e)"
+                                              : "var(--text-primary)",
+                                            cursor: part.canLog
+                                              ? "pointer"
+                                              : "not-allowed",
+                                            fontWeight: 600,
+                                            fontSize: "12px",
+                                            transition: "all 0.1s ease",
+                                          }}
+                                        >
+                                          <div
+                                            style={{
+                                              width: "13px",
+                                              height: "13px",
+                                              borderRadius: "3px",
+                                              border: `1.5px solid ${
+                                                isDoseDone
+                                                  ? "var(--success-color, #22c55e)"
+                                                  : "var(--text-muted)"
+                                              }`,
+                                              display: "flex",
+                                              alignItems: "center",
+                                              justifyContent: "center",
+                                              background: isDoseDone
+                                                ? "var(--success-color, #22c55e)"
+                                                : "transparent",
+                                            }}
+                                          >
+                                            {isDoseDone && (
+                                              <Check size={10} color="#fff" />
+                                            )}
+                                          </div>
+                                          <span>{label}</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      ) : null}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -1532,7 +1830,8 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                     </button>
                   )}
 
-                  {canEdit && (
+                  {/* Any participant (or superadmin) can upload photo session */}
+                  {(isOwner || isCollaborator || isSuperAdmin) && (
                     <button
                       type="button"
                       className="btn btn-primary"
@@ -1551,7 +1850,92 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                 </div>
               </div>
 
-              {photoSessions.length === 0 ? (
+              {/* Participant Filter Chips */}
+              {participants.length > 1 && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    flexWrap: "wrap",
+                    padding: "8px 12px",
+                    background: "var(--bg-card)",
+                    borderRadius: "6px",
+                    border: "1px solid var(--border-color)",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--text-muted)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Filter Participant:
+                  </span>
+                  <button
+                    type="button"
+                    style={{
+                      padding: "4px 10px",
+                      fontSize: "11px",
+                      borderRadius: "14px",
+                      fontWeight: 600,
+                      background:
+                        selectedPhotoParticipant === "all"
+                          ? "rgba(249, 115, 22, 0.15)"
+                          : "var(--bg-main)",
+                      color:
+                        selectedPhotoParticipant === "all"
+                          ? "var(--accent-primary, #f97316)"
+                          : "var(--text-secondary)",
+                      border: `1px solid ${
+                        selectedPhotoParticipant === "all"
+                          ? "var(--accent-primary, #f97316)"
+                          : "var(--border-color)"
+                      }`,
+                      cursor: "pointer",
+                    }}
+                    onClick={() => setSelectedPhotoParticipant("all")}
+                  >
+                    All Photos ({photoSessions.length})
+                  </button>
+                  {participants.map((p) => {
+                    const count = photoSessions.filter(
+                      (s) => s.userId === p.userId
+                    ).length;
+                    const isSelected = selectedPhotoParticipant === p.userId;
+                    return (
+                      <button
+                        key={p.userId}
+                        type="button"
+                        style={{
+                          padding: "4px 10px",
+                          fontSize: "11px",
+                          borderRadius: "14px",
+                          fontWeight: 600,
+                          background: isSelected
+                            ? "rgba(249, 115, 22, 0.15)"
+                            : "var(--bg-main)",
+                          color: isSelected
+                            ? "var(--accent-primary, #f97316)"
+                            : "var(--text-secondary)",
+                          border: `1px solid ${
+                            isSelected
+                              ? "var(--accent-primary, #f97316)"
+                              : "var(--border-color)"
+                          }`,
+                          cursor: "pointer",
+                        }}
+                        onClick={() => setSelectedPhotoParticipant(p.userId)}
+                      >
+                        @{p.username} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {displayedPhotoSessions.length === 0 ? (
                 <div
                   style={{
                     background: "var(--bg-card)",
@@ -1568,9 +1952,9 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                       color: "var(--text-muted)",
                     }}
                   >
-                    No scalp photos uploaded for this profile yet.
+                    No scalp photos found for this selection.
                   </p>
-                  {canEdit && (
+                  {(isOwner || isCollaborator || isSuperAdmin) && (
                     <button
                       type="button"
                       className="btn btn-primary"
@@ -1594,139 +1978,158 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
                     gap: "20px",
                   }}
                 >
-                  {photoSessions.map((session) => (
-                    <div
-                      key={session.id}
-                      style={{
-                        background: "var(--bg-card)",
-                        border: "1px solid var(--border-color)",
-                        borderRadius: "8px",
-                        padding: "16px 20px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "14px",
-                      }}
-                    >
+                  {displayedPhotoSessions.map((session) => {
+                    const sessionOwner = session.username || "participant";
+                    const canDeleteSession =
+                      isSuperAdmin || session.userId === currentUserId;
+
+                    return (
                       <div
+                        key={session.id}
                         style={{
+                          background: "var(--bg-card)",
+                          border: "1px solid var(--border-color)",
+                          borderRadius: "8px",
+                          padding: "16px 20px",
                           display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          flexWrap: "wrap",
-                          gap: "8px",
+                          flexDirection: "column",
+                          gap: "14px",
                         }}
                       >
                         <div
                           style={{
                             display: "flex",
                             alignItems: "center",
-                            gap: "10px",
+                            justifyContent: "space-between",
+                            flexWrap: "wrap",
+                            gap: "8px",
                           }}
                         >
-                          <span
+                          <div
                             style={{
-                              padding: "3px 8px",
-                              borderRadius: "6px",
-                              background: "rgba(249, 115, 22, 0.15)",
-                              color: "var(--accent-primary, #f97316)",
-                              fontWeight: 700,
-                              fontSize: "12px",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "10px",
+                              flexWrap: "wrap",
                             }}
                           >
-                            Week {session.weekNumber}
-                          </span>
-                          <span style={{ fontSize: "14px", fontWeight: 600 }}>
-                            {session.sessionDate}
-                          </span>
-                          {session.notes && (
                             <span
                               style={{
+                                padding: "3px 8px",
+                                borderRadius: "6px",
+                                background: "rgba(249, 115, 22, 0.15)",
+                                color: "var(--accent-primary, #f97316)",
+                                fontWeight: 700,
                                 fontSize: "12px",
-                                color: "var(--text-muted)",
                               }}
                             >
-                              • {session.notes}
+                              Week {session.weekNumber}
                             </span>
+                            <span
+                              style={{
+                                padding: "2px 7px",
+                                borderRadius: "10px",
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                background: "rgba(59, 130, 246, 0.15)",
+                                color: "var(--accent-blue, #3b82f6)",
+                              }}
+                            >
+                              @{sessionOwner}
+                            </span>
+                            <span style={{ fontSize: "14px", fontWeight: 600 }}>
+                              {session.sessionDate}
+                            </span>
+                            {session.notes && (
+                              <span
+                                style={{
+                                  fontSize: "12px",
+                                  color: "var(--text-muted)",
+                                }}
+                              >
+                                • {session.notes}
+                              </span>
+                            )}
+                          </div>
+
+                          {canDeleteSession && (
+                            <button
+                              type="button"
+                              className="icon-button"
+                              style={{ color: "var(--danger-color, #ef4444)" }}
+                              onClick={() =>
+                                handleDeletePhotoSession(
+                                  session.id,
+                                  session.weekNumber
+                                )
+                              }
+                              aria-label="Delete photo session"
+                            >
+                              <Trash2 size={13} />
+                            </button>
                           )}
                         </div>
 
-                        {canEdit && (
-                          <button
-                            type="button"
-                            className="icon-button"
-                            style={{ color: "var(--danger-color, #ef4444)" }}
-                            onClick={() =>
-                              handleDeletePhotoSession(
-                                session.id,
-                                session.weekNumber
-                              )
-                            }
-                            aria-label="Delete photo session"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Photos Grid */}
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns:
-                            "repeat(auto-fill, minmax(140px, 1fr))",
-                          gap: "12px",
-                        }}
-                      >
-                        {session.photos.map((photo) => (
-                          <div
-                            key={photo.id}
-                            onClick={() => {
-                              setComparisonPhoto(photo);
-                              setIsComparisonOpen(true);
-                            }}
-                            style={{
-                              position: "relative",
-                              height: "130px",
-                              borderRadius: "6px",
-                              overflow: "hidden",
-                              border: "1px solid var(--border-color)",
-                              background: "#000",
-                              cursor: "pointer",
-                            }}
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={photo.cloudinaryUrl}
-                              alt={`Week ${session.weekNumber} - ${photo.angle}`}
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                objectFit: "cover",
-                                transition: "transform 0.2s ease",
-                              }}
-                            />
+                        {/* Photos Grid */}
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns:
+                              "repeat(auto-fill, minmax(140px, 1fr))",
+                            gap: "12px",
+                          }}
+                        >
+                          {session.photos.map((photo) => (
                             <div
+                              key={photo.id}
+                              onClick={() => {
+                                setComparisonPhoto(photo);
+                                setIsComparisonOpen(true);
+                              }}
                               style={{
-                                position: "absolute",
-                                bottom: 0,
-                                left: 0,
-                                right: 0,
-                                padding: "4px 6px",
-                                background:
-                                  "linear-gradient(to top, rgba(0,0,0,0.8), transparent)",
-                                fontSize: "11px",
-                                color: "#fff",
-                                textTransform: "capitalize",
-                                fontWeight: 600,
+                                position: "relative",
+                                height: "130px",
+                                borderRadius: "6px",
+                                overflow: "hidden",
+                                border: "1px solid var(--border-color)",
+                                background: "#000",
+                                cursor: "pointer",
                               }}
                             >
-                              {photo.angle.replace("_", " ")}
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={photo.cloudinaryUrl}
+                                alt={`Week ${session.weekNumber} - ${photo.angle}`}
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  objectFit: "cover",
+                                  transition: "transform 0.2s ease",
+                                }}
+                              />
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  bottom: 0,
+                                  left: 0,
+                                  right: 0,
+                                  padding: "4px 6px",
+                                  background:
+                                    "linear-gradient(to top, rgba(0,0,0,0.8), transparent)",
+                                  fontSize: "11px",
+                                  color: "#fff",
+                                  textTransform: "capitalize",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {photo.angle.replace("_", " ")}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1761,9 +2164,24 @@ export function HealthDashboard({ initialData }: HealthDashboardProps) {
       )}
 
       {activeProfile && (
+        <AddCollaboratorModal
+          profileId={activeProfile.id}
+          profileName={activeProfile.name}
+          isOpen={isAddCollaboratorOpen}
+          onClose={() => setIsAddCollaboratorOpen(false)}
+          existingUserIds={collaborators.map((c) => c.userId)}
+          ownerUserId={activeProfile.userId}
+          onAdded={() => refreshDataInBackground()}
+        />
+      )}
+
+      {activeProfile && (
         <PhotoSessionModal
           profileId={activeProfile.id}
           baselineDate={activeProfile.baselineDate}
+          participants={participants}
+          currentUserId={currentUserId}
+          isSuperAdmin={isSuperAdmin}
           isOpen={isPhotoModalOpen}
           onClose={() => setIsPhotoModalOpen(false)}
           onSaved={() => refreshDataInBackground()}

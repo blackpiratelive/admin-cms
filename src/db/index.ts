@@ -852,6 +852,16 @@ export async function ensureDbInitialized(): Promise<void> {
           updated_at TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS health_profile_collaborators (
+          id TEXT PRIMARY KEY,
+          profile_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          username TEXT NOT NULL,
+          role TEXT NOT NULL DEFAULT 'collaborator',
+          created_at TEXT NOT NULL,
+          created_by TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS health_treatments (
           id TEXT PRIMARY KEY,
           profile_id TEXT NOT NULL,
@@ -868,6 +878,8 @@ export async function ensureDbInitialized(): Promise<void> {
           id TEXT PRIMARY KEY,
           profile_id TEXT NOT NULL,
           treatment_id TEXT NOT NULL,
+          user_id TEXT NOT NULL DEFAULT 'superadmin',
+          username TEXT NOT NULL DEFAULT 'admin',
           log_date TEXT NOT NULL,
           completed_doses INTEGER NOT NULL DEFAULT 0,
           created_at TEXT NOT NULL,
@@ -877,6 +889,8 @@ export async function ensureDbInitialized(): Promise<void> {
         CREATE TABLE IF NOT EXISTS health_photo_sessions (
           id TEXT PRIMARY KEY,
           profile_id TEXT NOT NULL,
+          user_id TEXT NOT NULL DEFAULT 'superadmin',
+          username TEXT NOT NULL DEFAULT 'admin',
           session_date TEXT NOT NULL,
           week_number INTEGER NOT NULL DEFAULT 1,
           notes TEXT,
@@ -912,6 +926,18 @@ export async function ensureDbInitialized(): Promise<void> {
 
       try {
         await client.execute(`ALTER TABLE health_profiles ADD COLUMN creator_username TEXT NOT NULL DEFAULT 'admin';`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE health_treatment_logs ADD COLUMN user_id TEXT NOT NULL DEFAULT 'superadmin';`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE health_treatment_logs ADD COLUMN username TEXT NOT NULL DEFAULT 'admin';`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE health_photo_sessions ADD COLUMN user_id TEXT NOT NULL DEFAULT 'superadmin';`);
+      } catch (err) {}
+      try {
+        await client.execute(`ALTER TABLE health_photo_sessions ADD COLUMN username TEXT NOT NULL DEFAULT 'admin';`);
       } catch (err) {}
 
       // Clean migration: Drop legacy Trakt tables & migrate movie/show metadata

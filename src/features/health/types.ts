@@ -1,5 +1,6 @@
 import type {
   HealthProfileRecord,
+  HealthProfileCollaboratorRecord,
   HealthTreatmentRecord,
   HealthTreatmentLogRecord,
   HealthPhotoSessionRecord,
@@ -53,7 +54,20 @@ export interface HealthProfileSummary {
   notes?: string | null;
   createdAt: string;
   isOwner: boolean;
+  isCollaborator: boolean;
   canEdit: boolean;
+  collaboratorsCount: number;
+}
+
+export interface ParticipantSummary {
+  userId: string;
+  username: string;
+  isOwner: boolean;
+  isCurrentUser: boolean;
+  canLog: boolean;
+  treatments: (HealthTreatmentRecord & { stats: TreatmentStreakAndAdherence })[];
+  latestPhoto?: HealthScalpPhotoRecord | null;
+  latestPhotoWeek?: number;
 }
 
 export interface DualCompanionProfile {
@@ -69,12 +83,16 @@ export interface HealthHubData {
   companionProfiles: DualCompanionProfile[];
   activeProfile: HealthProfileRecord | null;
   isOwner: boolean;
+  isCollaborator: boolean;
   canEdit: boolean;
+  collaborators: HealthProfileCollaboratorRecord[];
+  participants: ParticipantSummary[];
   treatments: (HealthTreatmentRecord & { stats: TreatmentStreakAndAdherence })[];
   recentLogs: HealthTreatmentLogRecord[];
   photoSessions: PhotoSessionWithPhotos[];
   allPhotoSessions: PhotoSessionWithPhotos[];
   weeksElapsed: number;
   currentUsername: string;
+  currentUserId: string;
   isSuperAdmin: boolean;
 }

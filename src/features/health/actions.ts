@@ -4,12 +4,14 @@ import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { db, ensureDbInitialized } from "@/db";
 import {
   healthProfiles,
+  healthProfileCollaborators,
   healthTreatments,
   healthTreatmentLogs,
   healthPhotoSessions,
   healthScalpPhotos,
   users,
   type HealthProfileRecord,
+  type HealthProfileCollaboratorRecord,
   type HealthTreatmentRecord,
   type HealthTreatmentLogRecord,
   type HealthPhotoSessionRecord,
@@ -25,6 +27,7 @@ import {
 import type {
   HealthHubData,
   HealthProfileSummary,
+  ParticipantSummary,
   DualCompanionProfile,
   PhotoSessionWithPhotos,
   ScalpPhotoAngle,
@@ -58,7 +61,7 @@ export async function refreshHealthAction(profileId?: string) {
 }
 
 /**
- * Raw data query engine: executes queries with parallel batching and multi-user companion cards.
+ * Raw data query engine: executes queries with parallel batching, collaborator support, and multi-participant cards.
  */
 async function fetchHealthHubDataRaw(
   userId: string,
@@ -70,73 +73,48 @@ async function fetchHealthHubDataRaw(
 
   // 1. Fetch accessible profiles
   let rawProfiles: HealthProfileRecord[] = [];
+  let userCollaborations: HealthProfileCollaboratorRecord[] = [];
+
   if (isSuperAdmin) {
     rawProfiles = await db
       .select()
       .from(healthProfiles)
       .orderBy(desc(healthProfiles.createdAt));
   } else {
+    // Find profiles where current user is a collaborator
+    userCollaborations = await db
+      .select()
+      .from(healthProfileCollaborators)
+      .where(eq(healthProfileCollaborators.userId, userId));
+
+    const collaboratedProfileIds = userCollaborations.map((c) => c.profileId);
+
+    const conditions = [
+      eq(healthProfiles.userId, userId),
+      eq(healthProfiles.visibility, "public"),
+    ];
+    if (collaboratedProfileIds.length > 0) {
+      conditions.push(inArray(healthProfiles.id, collaboratedProfileIds));
+    }
+
     rawProfiles = await db
       .select()
       .from(healthProfiles)
-      .where(
-        or(
-          eq(healthProfiles.userId, userId),
-          eq(healthProfiles.visibility, "public")
-        )
-      )
+      .where(or(...conditions))
       .orderBy(desc(healthProfiles.createdAt));
   }
 
-  const profileSummaries: HealthProfileSummary[] = rawProfiles.map((p) => {
-    const isOwner = p.userId === userId;
-    return {
-      id: p.id,
-      userId: p.userId,
-      creatorUsername: p.creatorUsername || (p.userId === "superadmin" ? "admin" : "user"),
-      name: p.name,
-      visibility: p.visibility as "private" | "public",
-      baselineDate: p.baselineDate,
-      notes: p.notes,
-      createdAt: p.createdAt,
-      isOwner,
-      canEdit: isOwner || isSuperAdmin,
-    };
-  });
-
-  // Determine active profile (default to current user's profile if available)
-  let activeProfile: HealthProfileRecord | null = null;
-  if (requestedProfileId) {
-    activeProfile = rawProfiles.find((p) => p.id === requestedProfileId) || null;
-  }
-  if (!activeProfile && rawProfiles.length > 0) {
-    activeProfile =
-      rawProfiles.find((p) => p.userId === userId) || rawProfiles[0];
-  }
-
-  if (!activeProfile) {
-    return {
-      profiles: profileSummaries,
-      companionProfiles: [],
-      activeProfile: null,
-      isOwner: false,
-      canEdit: false,
-      treatments: [],
-      recentLogs: [],
-      photoSessions: [],
-      allPhotoSessions: [],
-      weeksElapsed: 0,
-      currentUsername,
-      isSuperAdmin,
-    };
-  }
-
-  const isOwner = activeProfile.userId === userId;
-  const canEdit = isOwner || isSuperAdmin;
   const allProfileIds = rawProfiles.map((p) => p.id);
 
-  // 2. Fetch treatments & photo sessions across all accessible profiles in parallel (Stage 1)
-  const [allTreatments, allSessions] = await Promise.all([
+  // 2. Fetch collaborators, treatments, photo sessions across accessible profiles in parallel (Stage 1)
+  const [allCollaborators, allTreatments, allSessions] = await Promise.all([
+    allProfileIds.length > 0
+      ? db
+          .select()
+          .from(healthProfileCollaborators)
+          .where(inArray(healthProfileCollaborators.profileId, allProfileIds))
+          .orderBy(desc(healthProfileCollaborators.createdAt))
+      : Promise.resolve([] as HealthProfileCollaboratorRecord[]),
     allProfileIds.length > 0
       ? db
           .select()
@@ -152,6 +130,79 @@ async function fetchHealthHubDataRaw(
           .orderBy(desc(healthPhotoSessions.sessionDate))
       : Promise.resolve([] as HealthPhotoSessionRecord[]),
   ]);
+
+  const profileSummaries: HealthProfileSummary[] = rawProfiles.map((p) => {
+    const isOwner = p.userId === userId;
+    const isCollaborator = allCollaborators.some(
+      (c) => c.profileId === p.id && c.userId === userId
+    );
+    const collaboratorsCount = allCollaborators.filter(
+      (c) => c.profileId === p.id
+    ).length;
+
+    return {
+      id: p.id,
+      userId: p.userId,
+      creatorUsername:
+        p.creatorUsername || (p.userId === "superadmin" ? "admin" : "user"),
+      name: p.name,
+      visibility: p.visibility as "private" | "public",
+      baselineDate: p.baselineDate,
+      notes: p.notes,
+      createdAt: p.createdAt,
+      isOwner,
+      isCollaborator,
+      canEdit: isOwner || isSuperAdmin, // Only owner or superadmin can edit profile metadata / treatments!
+      collaboratorsCount,
+    };
+  });
+
+  // Determine active profile
+  let activeProfile: HealthProfileRecord | null = null;
+  if (requestedProfileId) {
+    activeProfile = rawProfiles.find((p) => p.id === requestedProfileId) || null;
+  }
+  if (!activeProfile && rawProfiles.length > 0) {
+    // Prefer owned profile, then collaborated profile, then first accessible
+    activeProfile =
+      rawProfiles.find((p) => p.userId === userId) ||
+      rawProfiles.find((p) =>
+        allCollaborators.some(
+          (c) => c.profileId === p.id && c.userId === userId
+        )
+      ) ||
+      rawProfiles[0];
+  }
+
+  if (!activeProfile) {
+    return {
+      profiles: profileSummaries,
+      companionProfiles: [],
+      activeProfile: null,
+      isOwner: false,
+      isCollaborator: false,
+      canEdit: false,
+      collaborators: [],
+      participants: [],
+      treatments: [],
+      recentLogs: [],
+      photoSessions: [],
+      allPhotoSessions: [],
+      weeksElapsed: 0,
+      currentUsername,
+      currentUserId: userId,
+      isSuperAdmin,
+    };
+  }
+
+  const isOwner = activeProfile.userId === userId;
+  const isCollaborator = allCollaborators.some(
+    (c) => c.profileId === activeProfile.id && c.userId === userId
+  );
+  const canEdit = isOwner || isSuperAdmin;
+  const activeCollaborators = allCollaborators.filter(
+    (c) => c.profileId === activeProfile.id
+  );
 
   const allTreatmentIds = allTreatments.map((t) => t.id);
   const allSessionIds = allSessions.map((s) => s.id);
@@ -184,7 +235,7 @@ async function fetchHealthHubDataRaw(
   // Profile lookup map
   const profileMap = new Map(profileSummaries.map((p) => [p.id, p]));
 
-  // All photo sessions tagged with profile metadata for cross-comparison
+  // All photo sessions tagged with profile and participant metadata
   const allPhotoSessionsWithPhotos: PhotoSessionWithPhotos[] = allSessions.map(
     (session) => {
       const prof = profileMap.get(session.profileId);
@@ -197,7 +248,7 @@ async function fetchHealthHubDataRaw(
     }
   );
 
-  // Active profile specific data
+  // Active profile treatments, logs, photo sessions
   const activeTreatments = allTreatments.filter(
     (t) => t.profileId === activeProfile.id
   );
@@ -206,20 +257,76 @@ async function fetchHealthHubDataRaw(
     (s) => s.profileId === activeProfile.id
   );
 
-  const activeTreatmentsWithStats = activeTreatments.map((treatment) => {
-    const stats = calculateStreakAndAdherence({
-      treatmentId: treatment.id,
-      timesPerDay: treatment.timesPerDay,
-      startDate: treatment.startDate,
-      logs: activeLogs,
+  // Build Participants for the active profile (Owner + all Collaborators)
+  const rawParticipants: { userId: string; username: string; isOwner: boolean }[] = [
+    {
+      userId: activeProfile.userId,
+      username:
+        activeProfile.creatorUsername ||
+        (activeProfile.userId === "superadmin" ? "admin" : "owner"),
+      isOwner: true,
+    },
+    ...activeCollaborators.map((c) => ({
+      userId: c.userId,
+      username: c.username,
+      isOwner: false,
+    })),
+  ];
+
+  const participants: ParticipantSummary[] = rawParticipants.map((part) => {
+    const isCurrentUser = part.userId === userId;
+    const canLog = isSuperAdmin || isCurrentUser;
+
+    const participantTreatments = activeTreatments.map((treatment) => {
+      const stats = calculateStreakAndAdherence({
+        treatmentId: treatment.id,
+        timesPerDay: treatment.timesPerDay,
+        startDate: treatment.startDate,
+        logs: activeLogs,
+        targetUserId: part.userId,
+      });
+      return {
+        ...treatment,
+        stats,
+      };
     });
+
+    const participantSessions = activePhotoSessions.filter(
+      (s) => s.userId === part.userId
+    );
+    const latestSession = participantSessions[0];
+    const latestPhoto = latestSession?.photos[0] || null;
+
     return {
-      ...treatment,
-      stats,
+      userId: part.userId,
+      username: part.username,
+      isOwner: part.isOwner,
+      isCurrentUser,
+      canLog,
+      treatments: participantTreatments,
+      latestPhoto,
+      latestPhotoWeek: latestSession?.weekNumber,
     };
   });
 
-  // Construct Companion Profiles for the Shared Dual Dashboard
+  // Calculate current user's treatments with stats (or first participant if viewing)
+  const currentUserParticipant =
+    participants.find((p) => p.isCurrentUser) || participants[0];
+
+  const activeTreatmentsWithStats =
+    currentUserParticipant?.treatments ||
+    activeTreatments.map((treatment) => ({
+      ...treatment,
+      stats: calculateStreakAndAdherence({
+        treatmentId: treatment.id,
+        timesPerDay: treatment.timesPerDay,
+        startDate: treatment.startDate,
+        logs: activeLogs,
+        targetUserId: userId,
+      }),
+    }));
+
+  // Build Companion Profiles for the Peer Regrowth Dashboard
   const companionProfiles: DualCompanionProfile[] = profileSummaries.map(
     (prof) => {
       const profTreatments = allTreatments.filter(
@@ -230,6 +337,15 @@ async function fetchHealthHubDataRaw(
         (s) => s.profileId === prof.id
       );
 
+      // In companion cards, show stats for the current user if they are owner/collaborator, else the profile owner
+      const targetUserForCard =
+        prof.userId === userId ||
+        allCollaborators.some(
+          (c) => c.profileId === prof.id && c.userId === userId
+        )
+          ? userId
+          : prof.userId;
+
       const treatmentsWithStats = profTreatments.map((treatment) => ({
         ...treatment,
         stats: calculateStreakAndAdherence({
@@ -237,18 +353,26 @@ async function fetchHealthHubDataRaw(
           timesPerDay: treatment.timesPerDay,
           startDate: treatment.startDate,
           logs: profLogs,
+          targetUserId: targetUserForCard,
         }),
       }));
 
       const latestSession = profSessions[0];
       const latestPhoto = latestSession?.photos[0] || null;
 
+      const canLogDoses =
+        isSuperAdmin ||
+        prof.userId === userId ||
+        allCollaborators.some(
+          (c) => c.profileId === prof.id && c.userId === userId
+        );
+
       return {
         profile: prof,
         treatments: treatmentsWithStats,
         latestPhoto,
         latestPhotoWeek: latestSession?.weekNumber,
-        canLogDoses: isSuperAdmin || prof.userId === userId,
+        canLogDoses,
       };
     }
   );
@@ -260,13 +384,17 @@ async function fetchHealthHubDataRaw(
     companionProfiles,
     activeProfile,
     isOwner,
+    isCollaborator,
     canEdit,
+    collaborators: activeCollaborators,
+    participants,
     treatments: activeTreatmentsWithStats,
     recentLogs: activeLogs,
     photoSessions: activePhotoSessions,
     allPhotoSessions: allPhotoSessionsWithPhotos,
     weeksElapsed,
     currentUsername,
+    currentUserId: userId,
     isSuperAdmin,
   };
 }
@@ -311,6 +439,143 @@ export async function getHealthHubDataAction(
 }
 
 /**
+ * Fetches all registered system users (for adding collaborators).
+ */
+export async function getRegisteredUsersAction() {
+  await ensureDbInitialized();
+  await requireUser();
+
+  const allUsers = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      email: users.email,
+      role: users.role,
+    })
+    .from(users)
+    .orderBy(users.username);
+
+  return allUsers;
+}
+
+/**
+ * Adds a registered user as a collaborator to a health profile.
+ * Restricted strictly to profile owner or Super Admin.
+ */
+export async function addCollaboratorAction(
+  profileId: string,
+  targetUserId: string
+) {
+  await ensureDbInitialized();
+  const user = await requireUser();
+
+  const profile = (
+    await db
+      .select({ id: healthProfiles.id, userId: healthProfiles.userId })
+      .from(healthProfiles)
+      .where(eq(healthProfiles.id, profileId))
+      .limit(1)
+  )[0];
+  if (!profile) return { success: false, error: "Profile not found." };
+
+  if (profile.userId !== user.userId && user.role !== "superadmin") {
+    return {
+      success: false,
+      error: "Forbidden: Only the profile owner or Super Admin can add collaborators.",
+    };
+  }
+
+  // Prevent adding owner as collaborator
+  if (profile.userId === targetUserId) {
+    return { success: false, error: "The profile owner is already a participant." };
+  }
+
+  // Check if target user exists in database
+  const targetUserRecord = (
+    await db
+      .select({ id: users.id, username: users.username })
+      .from(users)
+      .where(eq(users.id, targetUserId))
+      .limit(1)
+  )[0];
+
+  const username =
+    targetUserRecord?.username ||
+    (targetUserId === "superadmin" ? "admin" : "collaborator");
+
+  // Check if already a collaborator
+  const existing = (
+    await db
+      .select({ id: healthProfileCollaborators.id })
+      .from(healthProfileCollaborators)
+      .where(
+        and(
+          eq(healthProfileCollaborators.profileId, profileId),
+          eq(healthProfileCollaborators.userId, targetUserId)
+        )
+      )
+      .limit(1)
+  )[0];
+  if (existing) {
+    return { success: false, error: `@${username} is already a collaborator on this profile.` };
+  }
+
+  const now = new Date().toISOString();
+  await db.insert(healthProfileCollaborators).values({
+    id: generateId("hpc"),
+    profileId,
+    userId: targetUserId,
+    username,
+    role: "collaborator",
+    createdAt: now,
+    createdBy: user.username || (user.role === "superadmin" ? "admin" : "user"),
+  });
+
+  refreshHealth(profileId);
+  return { success: true };
+}
+
+/**
+ * Removes a collaborator from a health profile.
+ * Restricted strictly to profile owner or Super Admin.
+ */
+export async function removeCollaboratorAction(
+  profileId: string,
+  collaboratorId: string
+) {
+  await ensureDbInitialized();
+  const user = await requireUser();
+
+  const profile = (
+    await db
+      .select({ id: healthProfiles.id, userId: healthProfiles.userId })
+      .from(healthProfiles)
+      .where(eq(healthProfiles.id, profileId))
+      .limit(1)
+  )[0];
+  if (!profile) return { success: false, error: "Profile not found." };
+
+  if (profile.userId !== user.userId && user.role !== "superadmin") {
+    return {
+      success: false,
+      error: "Forbidden: Only the profile owner or Super Admin can remove collaborators.",
+    };
+  }
+
+  await db
+    .delete(healthProfileCollaborators)
+    .where(
+      and(
+        eq(healthProfileCollaborators.id, collaboratorId),
+        eq(healthProfileCollaborators.profileId, profileId)
+      )
+    );
+
+  refreshHealth(profileId);
+  return { success: true };
+}
+
+/**
  * Creates a new health profile with immutable creator attribution.
  */
 export async function createHealthProfileAction(input: {
@@ -351,6 +616,7 @@ export async function createHealthProfileAction(input: {
 
 /**
  * Updates a health profile while preserving original creator attribution.
+ * Strictly restricted to profile owner or Super Admin (Collaborators CANNOT edit metadata).
  */
 export async function updateHealthProfileAction(
   id: string,
@@ -378,7 +644,10 @@ export async function updateHealthProfileAction(
   if (!profile) return { success: false, error: "Profile not found." };
 
   if (profile.userId !== user.userId && user.role !== "superadmin") {
-    return { success: false, error: "Forbidden: You do not own this profile." };
+    return {
+      success: false,
+      error: "Forbidden: Only the profile owner or Super Admin can edit profile metadata.",
+    };
   }
 
   const now = new Date().toISOString();
@@ -398,6 +667,7 @@ export async function updateHealthProfileAction(
 
 /**
  * Deletes a health profile and all related data.
+ * Strictly restricted to profile owner or Super Admin.
  */
 export async function deleteHealthProfileAction(id: string) {
   await ensureDbInitialized();
@@ -413,7 +683,10 @@ export async function deleteHealthProfileAction(id: string) {
   if (!profile) return { success: false, error: "Profile not found." };
 
   if (profile.userId !== user.userId && user.role !== "superadmin") {
-    return { success: false, error: "Forbidden: You do not own this profile." };
+    return {
+      success: false,
+      error: "Forbidden: Only the profile owner or Super Admin can delete this profile.",
+    };
   }
 
   await Promise.all([
@@ -421,6 +694,7 @@ export async function deleteHealthProfileAction(id: string) {
     db.delete(healthPhotoSessions).where(eq(healthPhotoSessions.profileId, id)),
     db.delete(healthTreatmentLogs).where(eq(healthTreatmentLogs.profileId, id)),
     db.delete(healthTreatments).where(eq(healthTreatments.profileId, id)),
+    db.delete(healthProfileCollaborators).where(eq(healthProfileCollaborators.profileId, id)),
     db.delete(healthProfiles).where(eq(healthProfiles.id, id)),
   ]);
 
@@ -430,6 +704,7 @@ export async function deleteHealthProfileAction(id: string) {
 
 /**
  * Creates or updates a treatment.
+ * Strictly restricted to profile owner or Super Admin.
  */
 export async function saveTreatmentAction(input: {
   id?: string;
@@ -453,7 +728,10 @@ export async function saveTreatmentAction(input: {
   if (!profile) return { success: false, error: "Profile not found." };
 
   if (profile.userId !== user.userId && user.role !== "superadmin") {
-    return { success: false, error: "Forbidden: You cannot edit this profile." };
+    return {
+      success: false,
+      error: "Forbidden: Only the profile owner or Super Admin can add or edit treatments.",
+    };
   }
 
   const name = input.name.trim();
@@ -495,6 +773,7 @@ export async function saveTreatmentAction(input: {
 
 /**
  * Deletes a treatment.
+ * Strictly restricted to profile owner or Super Admin.
  */
 export async function deleteTreatmentAction(profileId: string, treatmentId: string) {
   await ensureDbInitialized();
@@ -508,7 +787,10 @@ export async function deleteTreatmentAction(profileId: string, treatmentId: stri
       .limit(1)
   )[0];
   if (!profile || (profile.userId !== user.userId && user.role !== "superadmin")) {
-    return { success: false, error: "Forbidden: You cannot edit this profile." };
+    return {
+      success: false,
+      error: "Forbidden: Only the profile owner or Super Admin can delete treatments.",
+    };
   }
 
   await Promise.all([
@@ -521,11 +803,14 @@ export async function deleteTreatmentAction(profileId: string, treatmentId: stri
 }
 
 /**
- * Sets dose completion. Superadmin can log for any profile; regular users only for their own.
+ * Sets dose completion for a specific participant.
+ * Super Admin can log for any participant; collaborators can only log for themselves.
  */
 export async function setDoseCompletionAction(input: {
   profileId: string;
   treatmentId: string;
+  targetUserId: string;
+  targetUsername?: string;
   logDate: string;
   completedDoses: number;
 }) {
@@ -543,15 +828,22 @@ export async function setDoseCompletionAction(input: {
     return { success: false, error: "Profile not found." };
   }
 
-  if (profile.userId !== user.userId && user.role !== "superadmin") {
+  // Permission: user must be logging for themselves, or be Super Admin
+  const isSuperAdmin = user.role === "superadmin";
+  const isSelf = user.userId === input.targetUserId;
+
+  if (!isSelf && !isSuperAdmin) {
     return {
       success: false,
-      error: "Forbidden: You can only log doses for your own profile.",
+      error: "Forbidden: You can only log doses for yourself.",
     };
   }
 
   const now = new Date().toISOString();
   const completedDoses = Math.max(0, input.completedDoses);
+  const targetUsername =
+    input.targetUsername ||
+    (isSelf ? user.username || "user" : "participant");
 
   const existing = (
     await db
@@ -560,6 +852,7 @@ export async function setDoseCompletionAction(input: {
       .where(
         and(
           eq(healthTreatmentLogs.treatmentId, input.treatmentId),
+          eq(healthTreatmentLogs.userId, input.targetUserId),
           eq(healthTreatmentLogs.logDate, input.logDate)
         )
       )
@@ -571,6 +864,7 @@ export async function setDoseCompletionAction(input: {
       .update(healthTreatmentLogs)
       .set({
         completedDoses,
+        username: targetUsername,
         updatedAt: now,
       })
       .where(eq(healthTreatmentLogs.id, existing.id));
@@ -579,6 +873,8 @@ export async function setDoseCompletionAction(input: {
       id: generateId("htl"),
       profileId: input.profileId,
       treatmentId: input.treatmentId,
+      userId: input.targetUserId,
+      username: targetUsername,
       logDate: input.logDate,
       completedDoses,
       createdAt: now,
@@ -591,10 +887,12 @@ export async function setDoseCompletionAction(input: {
 }
 
 /**
- * Saves a weekly photo session.
+ * Saves a weekly photo session tagged with the participant's user_id and username.
  */
 export async function savePhotoSessionAction(input: {
   profileId: string;
+  targetUserId?: string;
+  targetUsername?: string;
   sessionDate: string;
   weekNumber?: number;
   notes?: string;
@@ -618,13 +916,28 @@ export async function savePhotoSessionAction(input: {
       .where(eq(healthProfiles.id, input.profileId))
       .limit(1)
   )[0];
-  if (!profile || (profile.userId !== user.userId && user.role !== "superadmin")) {
-    return { success: false, error: "Forbidden: You cannot edit this profile." };
+  if (!profile) {
+    return { success: false, error: "Profile not found." };
+  }
+
+  const isSuperAdmin = user.role === "superadmin";
+  const targetUserId = input.targetUserId || user.userId;
+  const isSelf = user.userId === targetUserId;
+
+  if (!isSelf && !isSuperAdmin) {
+    return {
+      success: false,
+      error: "Forbidden: You cannot upload photos for another participant.",
+    };
   }
 
   if (!input.photos || input.photos.length === 0) {
     return { success: false, error: "At least one scalp photo is required." };
   }
+
+  const targetUsername =
+    input.targetUsername ||
+    (isSelf ? user.username || "user" : "participant");
 
   const now = new Date().toISOString();
   const sessionId = generateId("hps");
@@ -635,6 +948,8 @@ export async function savePhotoSessionAction(input: {
   await db.insert(healthPhotoSessions).values({
     id: sessionId,
     profileId: input.profileId,
+    userId: targetUserId,
+    username: targetUsername,
     sessionDate,
     weekNumber,
     notes: input.notes?.trim() || null,
@@ -670,15 +985,27 @@ export async function deletePhotoSessionAction(
   await ensureDbInitialized();
   const user = await requireUser();
 
-  const profile = (
+  const session = (
     await db
-      .select({ id: healthProfiles.id, userId: healthProfiles.userId })
-      .from(healthProfiles)
-      .where(eq(healthProfiles.id, profileId))
+      .select({
+        id: healthPhotoSessions.id,
+        profileId: healthPhotoSessions.profileId,
+        userId: healthPhotoSessions.userId,
+      })
+      .from(healthPhotoSessions)
+      .where(eq(healthPhotoSessions.id, sessionId))
       .limit(1)
   )[0];
-  if (!profile || (profile.userId !== user.userId && user.role !== "superadmin")) {
-    return { success: false, error: "Forbidden: You cannot edit this profile." };
+  if (!session) return { success: false, error: "Photo session not found." };
+
+  const isSuperAdmin = user.role === "superadmin";
+  const isOwner = session.userId === user.userId;
+
+  if (!isOwner && !isSuperAdmin) {
+    return {
+      success: false,
+      error: "Forbidden: You cannot delete another participant's photo session.",
+    };
   }
 
   await Promise.all([

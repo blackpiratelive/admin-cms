@@ -60,7 +60,7 @@ admin-cms/
 │   │   └── layout.tsx           # Root layout & ThemeProvider
 │   ├── components/              # Shared UI (Header, Sidebar, CommandPalette, DeployWidget, ToastNotification, EntityCombobox, PhotoPickerModal)
 │   ├── db/
-│   │   ├── schema.ts            # Drizzle table schemas for all 58 database entities (including users & health)
+│   │   ├── schema.ts            # Drizzle table schemas for all 59 database entities (including users, health & collaborators)
 │   │   └── index.ts             # Turso / libSQL client & auto-initializer DDL
 │   ├── features/
 │   │   ├── health/              # Health profile management, generic treatment regimens, minimal dose check-ins, streak/adherence engine & Cloudinary scalp photos
@@ -153,11 +153,12 @@ The database consists of **63 SQLite tables** managed via Drizzle ORM:
 - **`collection_knockout_runs`**: Anonymous bracket-run records (`collection_id`, `session_id`, `seed`, `pool_hash`, `bracket_size`, `status` `started`/`completed`, `champion_photo_id`, `matches_played`, `started_at`, `completed_at`). A unique index on (`collection_id`, `session_id`, `seed`) prevents duplicate runs. Rows track completion totals without storing names, IPs, or user agents.
 
 ### 3.6 Health & Hair Regrowth Subsystem Tables
-- **`health_profiles`**: Multi-user health profiles (`id`, `user_id`, `name`, `visibility` `private` | `public`, `baseline_date`, `notes`, `created_at`, `updated_at`). Private profiles are strictly scoped to the owner and Super Admin; public profiles are readable across all authenticated users.
-- **`health_treatments`**: Generic hair/health treatments (`id`, `profile_id`, `name`, `times_per_day` default `1`, `start_date`, `is_active`, `notes`, `created_at`, `updated_at`). Supports Minoxidil (1x, 2x daily), Finasteride, Derma-rolling, vitamins, etc.
-- **`health_treatment_logs`**: Minimal daily dose completion records (`id`, `profile_id`, `treatment_id`, `log_date`, `completed_doses`, `created_at`, `updated_at`). Checkboxes record dose increments with optimistic client toggling.
-- **`health_photo_sessions`**: Weekly scalp photo collection sessions (`id`, `profile_id`, `session_date`, `week_number`, `notes`, `created_at`, `updated_at`). Week numbers are derived automatically relative to profile `baseline_date`.
-- **`health_scalp_photos`**: Scalp photo assets stored on Cloudinary (`id`, `session_id`, `profile_id`, `angle` `crown` | `hairline` | `left_temple` | `right_temple` | `vertex` | `top` | `overall`, `cloudinary_url`, `cloudinary_public_id`, `created_at`). Enables side-by-side split comparison across dates and weeks.
+- **`health_profiles`**: Multi-user health profiles (`id`, `user_id`, `name`, `visibility` `private` | `public`, `baseline_date`, `notes`, `created_at`, `updated_at`). Private profiles are strictly scoped to the owner, invited collaborators, and Super Admin; public profiles are readable across all authenticated users.
+- **`health_profile_collaborators`**: Invited collaborator records for shared profiles (`id`, `profile_id`, `user_id`, `username`, `role` default `'collaborator'`, `created_at`, `created_by`). Allows collaborators to track against the owner's shared regimen with independent streaks and photos while preventing edits to profile metadata.
+- **`health_treatments`**: Generic hair/health treatments (`id`, `profile_id`, `name`, `times_per_day` default `1`, `start_date`, `is_active`, `notes`, `created_at`, `updated_at`). Defined once per profile by owner/admin.
+- **`health_treatment_logs`**: Minimal daily dose completion records (`id`, `profile_id`, `treatment_id`, `user_id`, `username`, `log_date`, `completed_doses`, `created_at`, `updated_at`). Checkboxes record dose increments per participant with optimistic client toggling.
+- **`health_photo_sessions`**: Weekly scalp photo collection sessions (`id`, `profile_id`, `user_id`, `username`, `session_date`, `week_number`, `notes`, `created_at`, `updated_at`). Tagged with participant metadata.
+- **`health_scalp_photos`**: Scalp photo assets stored on Cloudinary (`id`, `session_id`, `profile_id`, `angle` `crown` | `hairline` | `left_temple` | `right_temple` | `vertex` | `top` | `overall`, `cloudinary_url`, `cloudinary_public_id`, `created_at`). Enables side-by-side split comparison across dates, weeks, and participants.
 
 ---
 
@@ -371,31 +372,32 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 
 ### November 2026: Multi-User Health Module — Hairfall & Regrowth Tracker (Cloudinary Scalp Photos & Streak Engine)
 
-- **Overview & Architecture**: Introduced the Health Module (`/health` & `src/features/health/`) focused on hairfall and hair regrowth tracking with first-class multi-user support (Profile-based model `health_profiles`).
-- **Access Control, Creator Attribution & Shared Dual Dashboard**:
-  - **Shared Dual Dashboard**: Top of `/health` surfaces companion journey cards for both Super Admin (`@admin`) and friends (e.g. `@sam`) side-by-side on one screen, showing streaks, today's Minoxidil/Derma-roller check-ins, and latest scalp photos.
-  - **Creator Attribution**: Profiles feature immutable `creator_username` (`@admin`, `@sam`). When Super Admin modifies a friend's profile, original creator attribution is strictly preserved.
-  - **Asymmetric Role Permissions**: Super Admin can manage, edit, and log doses on any profile. Friend users (`role: "user"`) have full edit and dose check-in rights on their own profile, and can view Super Admin's progress as read-only.
+- **Overview & Architecture**: Introduced the Health Module (`/health` & `src/features/health/`) focused on hairfall and hair regrowth tracking with first-class multi-user support (Profile-based model `health_profiles` and Collaborator Architecture `health_profile_collaborators`).
+- **Collaborator Architecture (Option B), Access Control & Metadata Protection**:
+  - **Shared Regimen**: Profile owner or Super Admin defines treatments once (e.g. Minoxidil 5% 2x/day, Derma Roller 1.0mm 1x/week). All participants track against this shared regimen.
+  - **Collaborator Management (`AddCollaboratorModal.tsx`)**: Profile owner or Super Admin can invite registered accounts (e.g. `@sam`) from a user dropdown (`getRegisteredUsersAction`, `addCollaboratorAction`, `removeCollaboratorAction`).
+  - **Strict Metadata Protection**: Collaborators **cannot** edit profile metadata (`name`, `baselineDate`, `visibility`, `notes`), delete the profile, or add/delete treatments. Only the Profile Owner and Super Admin hold edit rights.
+  - **Independent Streaks & Dose Isolation**: Dose logs (`health_treatment_logs`) store `user_id` and `username`. Each participant maintains an independent daily streak (e.g., Admin 2d streak, Sam 1d streak) and rolling 30-day adherence rate on the same profile.
+  - **Asymmetric Role Permissions**: Super Admin can log doses and upload photos on behalf of any participant. Collaborators can only check doses and upload photos for themselves.
+  - **Shared Dual Dashboard**: Top of `/health` surfaces companion journey cards for both Super Admin (`@admin`) and friends (e.g. `@sam`) side-by-side on one screen, showing individual streaks, today's check-ins, and latest scalp photos.
   - Updated Next.js `middleware.ts` to permit non-superadmin accounts access to `/health` and `/api/health`.
   - Updated `Sidebar.tsx` and `DashboardClientShell.tsx` to surface the Health & Regrowth link for all authenticated accounts.
-- **Minimalist Generic Treatment & Dose Logging**:
-  - `health_treatments` allows users to define generic treatments (e.g. Minoxidil 5% Topical, Finasteride 1mg, Derma Roller 1.0mm) with configurable daily frequencies (`timesPerDay`: 1x, 2x AM/PM, 3x).
-  - Minimalist dose checkboxes record daily applications in `health_treatment_logs` with optimistic UI updates and background server sync.
-  - Analytics engine (`analytics.ts`) computes active consecutive daily streaks, historical longest streaks, and rolling 30-day adherence percentages.
-- **Cross-Profile Scalp Photo Sessions & Cloudinary Integration**:
-  - Photos grouped into weekly collection sessions (`health_photo_sessions`) with auto-calculated `weekNumber` relative to baseline date.
+- **Participant-Tagged Scalp Photos & Cloudinary Integration**:
+  - Photos grouped into weekly collection sessions (`health_photo_sessions`) tagged with participant `user_id` and `username`.
   - Supports mobile browser direct camera capture (`accept="image/*" capture="environment"`) and desktop file selection.
   - Photos uploaded directly to Cloudinary (`health_scalp_photos`) categorized by standardized scalp angles (`crown`, `hairline`, `left_temple`, `right_temple`, `vertex`, `top`, `overall`).
-  - Interactive Photo Inspector (`PhotoComparisonModal`) supporting side-by-side cross-profile comparison (e.g. Left: Admin Week 8 Crown vs Right: Sam Week 8 Crown).
-- **Database Schema**: 5 new tables (`health_profiles` with `creator_username`, `health_treatments`, `health_treatment_logs`, `health_photo_sessions`, `health_scalp_photos`) with automated cold-start DDL batch execution in `ensureDbInitialized()`. Total database entities: 58.
+  - Photo Gallery includes participant filter chips (`All Photos`, `@admin`, `@sam`) and Photo Comparison Modal (`PhotoComparisonModal`) supporting side-by-side split comparisons across dates, weeks, and participants.
+- **Database Schema**: 6 health tables (`health_profiles` with `creator_username`, `health_profile_collaborators`, `health_treatments`, `health_treatment_logs`, `health_photo_sessions`, `health_scalp_photos`) with automated cold-start DDL batch execution in `ensureDbInitialized()`. Total database entities: 59.
 - **Performance Caching & Non-Blocking Background Write Pipeline**:
   - **Server-Side Read Cache (`createCachedQuery`)**: `getHealthHubDataAction` is wrapped in `createCachedQuery` with tags `["health-hub", "health-user-{userId}", "health-profile-{profileId}"]` delivering **0ms instant DB cache reads**.
-  - **Parallel Batch Execution**: Replaced 5 sequential database queries with 2 parallel roundtrips using `Promise.all` (`[healthTreatments, healthPhotoSessions]` in Stage 1, followed by `[healthTreatmentLogs, healthScalpPhotos]` in Stage 2).
-  - **Non-Blocking Background Writes (`notify.bg`)**: Daily dose checkboxes, treatment additions, deletions, profile updates, and Cloudinary photo session uploads run asynchronously via `notify.bg(...)` with immediate optimistic UI updates (**0ms perceived input latency**), debouncing rapid clicks and eliminating synchronous `revalidatePath` blocking.
+  - **Parallel Batch Execution**: Queries parallelized with `Promise.all` (`[healthProfileCollaborators, healthTreatments, healthPhotoSessions]` in Stage 1, followed by `[healthTreatmentLogs, healthScalpPhotos]` in Stage 2).
+  - **Non-Blocking Background Writes (`notify.bg`)**: Daily dose checkboxes, treatment additions, deletions, profile updates, collaborator additions/removals, and Cloudinary photo session uploads run asynchronously via `notify.bg(...)` with immediate optimistic UI updates (**0ms perceived input latency**).
   - **Client-Side SWR Browser Caching (`getBrowserCache` & `setBrowserCache`)**: Cached in `localStorage` under `health_cache_{profileId}` for **0ms instant initial paints** on navigation and profile switching.
 - **Quality Gates & Test Coverage**:
-  - Turbopack Build: Verified `npm run build` succeeds cleanly with Turbopack across 29 routes (`refreshHealth` cache invalidation helper unexported to conform to Next.js Server Action async constraints).
-  - Vitest suite: **208 tests across 29 test files, 100% passing** (added 19 tests in `tests/health.test.ts` covering week calculation, streak math, multi-dose adherence, creator attribution, and cross-profile comparison).
+  - Turbopack Build: Verified `npm run build` succeeds cleanly with Turbopack across 29 routes.
+  - Vitest suite: **211 tests across 29 test files, 100% passing** (added 22 tests in `tests/health.test.ts` covering week calculation, streak math, multi-dose adherence, collaborator permissions, metadata protection, and multi-user streak isolation).
+  - TypeScript type check (`npx tsc --noEmit`): 0 errors.
+  - Subsystem isolation: `android/`, `mobile-microblog/`, and `mobile-people/` remain 100% clean and untouched.
   - TypeScript type check (`npx tsc --noEmit`): 0 errors.
   - Subsystem isolation: `android/`, `mobile-microblog/`, and `mobile-people/` remain 100% clean and untouched.
 

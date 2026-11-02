@@ -43,15 +43,19 @@ export function calculateStreakAndAdherence(params: {
   timesPerDay: number;
   startDate: string;
   logs: HealthTreatmentLogRecord[];
+  targetUserId?: string;
   asOfDate?: string;
 }): TreatmentStreakAndAdherence {
-  const { treatmentId, timesPerDay, startDate, logs } = params;
+  const { treatmentId, timesPerDay, startDate, logs, targetUserId } = params;
   const todayStr = params.asOfDate || formatDateIso();
 
-  // Map dates to completed doses for this treatment
+  // Map dates to completed doses for this treatment (optionally filtered by participant)
   const doseMap = new Map<string, number>();
   for (const log of logs) {
-    if (log.treatmentId === treatmentId) {
+    if (
+      log.treatmentId === treatmentId &&
+      (!targetUserId || log.userId === targetUserId)
+    ) {
       doseMap.set(log.logDate, (doseMap.get(log.logDate) || 0) + log.completedDoses);
     }
   }

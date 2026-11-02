@@ -978,6 +978,16 @@ export const healthProfiles = sqliteTable("health_profiles", {
   updatedAt: text("updated_at").notNull(),
 });
 
+export const healthProfileCollaborators = sqliteTable("health_profile_collaborators", {
+  id: text("id").primaryKey(),
+  profileId: text("profile_id").notNull(),
+  userId: text("user_id").notNull(),
+  username: text("username").notNull(),
+  role: text("role").notNull().default("collaborator"),
+  createdAt: text("created_at").notNull(),
+  createdBy: text("created_by").notNull(),
+});
+
 export const healthTreatments = sqliteTable("health_treatments", {
   id: text("id").primaryKey(),
   profileId: text("profile_id").notNull(),
@@ -994,6 +1004,8 @@ export const healthTreatmentLogs = sqliteTable("health_treatment_logs", {
   id: text("id").primaryKey(),
   profileId: text("profile_id").notNull(),
   treatmentId: text("treatment_id").notNull(),
+  userId: text("user_id").notNull().default("superadmin"),
+  username: text("username").notNull().default("admin"),
   logDate: text("log_date").notNull(), // ISO YYYY-MM-DD
   completedDoses: integer("completed_doses").notNull().default(0),
   createdAt: text("created_at").notNull(),
@@ -1003,6 +1015,8 @@ export const healthTreatmentLogs = sqliteTable("health_treatment_logs", {
 export const healthPhotoSessions = sqliteTable("health_photo_sessions", {
   id: text("id").primaryKey(),
   profileId: text("profile_id").notNull(),
+  userId: text("user_id").notNull().default("superadmin"),
+  username: text("username").notNull().default("admin"),
   sessionDate: text("session_date").notNull(), // ISO YYYY-MM-DD
   weekNumber: integer("week_number").notNull().default(1),
   notes: text("notes"),
@@ -1022,6 +1036,9 @@ export const healthScalpPhotos = sqliteTable("health_scalp_photos", {
 
 export type HealthProfileRecord = typeof healthProfiles.$inferSelect;
 export type NewHealthProfile = typeof healthProfiles.$inferInsert;
+
+export type HealthProfileCollaboratorRecord = typeof healthProfileCollaborators.$inferSelect;
+export type NewHealthProfileCollaborator = typeof healthProfileCollaborators.$inferInsert;
 
 export type HealthTreatmentRecord = typeof healthTreatments.$inferSelect;
 export type NewHealthTreatment = typeof healthTreatments.$inferInsert;

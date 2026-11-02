@@ -49,11 +49,15 @@ describe("Health & Hair Regrowth Analytics", () => {
     const makeLog = (
       logDate: string,
       completedDoses: number,
-      treatmentId = "t1"
+      treatmentId = "t1",
+      userId = "superadmin",
+      username = "admin"
     ): HealthTreatmentLogRecord => ({
-      id: `log_${logDate}`,
+      id: `log_${logDate}_${userId}`,
       profileId: "p1",
       treatmentId,
+      userId,
+      username,
       logDate,
       completedDoses,
       createdAt: "2026-10-01T00:00:00Z",
@@ -192,6 +196,158 @@ describe("Health & Hair Regrowth Analytics", () => {
       expect(stats.totalCompliantDays).toBe(15);
       expect(stats.totalElapsedDays).toBe(30);
     });
+
+    it("computes distinct streaks for multiple collaborators on the same shared treatment", () => {
+      const today = "2026-10-15";
+      const adminId = "superadmin";
+      const samId = "uuid_sam";
+
+      // Super Admin logged on Oct 14 and Oct 15 (2-day streak)
+      // Sam only logged on Oct 15 (1-day streak)
+      const logs = [
+        makeLog("2026-10-14", 1, "treatment_minox", adminId, "admin"),
+        makeLog("2026-10-15", 1, "treatment_minox", adminId, "admin"),
+        makeLog("2026-10-15", 1, "treatment_minox", samId, "sam"),
+      ];
+
+      // Admin stats
+      const adminStats = calculateStreakAndAdherence({
+        treatmentId: "treatment_minox",
+        timesPerDay: 1,
+        startDate: "2026-10-01",
+        logs,
+        targetUserId: adminId,
+        asOfDate: today,
+      });
+
+      // Sam stats
+      const samStats = calculateStreakAndAdherence({
+        treatmentId: "treatment_minox",
+        timesPerDay: 1,
+        startDate: "2026-10-01",
+        logs,
+        targetUserId: samId,
+        asOfDate: today,
+      });
+
+      // Super Admin has a 2-day streak
+      expect(adminStats.currentStreak).toBe(2);
+      expect(adminStats.longestStreak).toBe(2);
+      expect(adminStats.isTodayCompliant).toBe(true);
+
+      // Sam has a 1-day streak
+      expect(samStats.currentStreak).toBe(1);
+      expect(samStats.longestStreak).toBe(1);
+      expect(samStats.isTodayCompliant).toBe(true);
+    });
+  });
+
+  describe("Collaborator Permissions & Metadata Protection (Option B)", () => {
+    interface TestProfile {
+      id: string;
+      userId: string;
+      creatorUsername: string;
+      name: string;
+      visibility: "private" | "public";
+      baselineDate: string;
+      notes?: string;
+    }
+
+    interface TestCollaborator {
+      id: string;
+      profileId: string;
+      userId: string;
+      username: string;
+    }
+
+    const testProfile: TestProfile = {
+      id: "hp_shared_1",
+      userId: "user_owner",
+      creatorUsername: "admin",
+      name: "Hair Regrowth Protocol",
+      visibility: "public",
+      baselineDate: "2026-09-01",
+      notes: "Baseline notes",
+    };
+
+    const collaborators: TestCollaborator[] = [
+      {
+        id: "collab_1",
+        profileId: "hp_shared_1",
+        userId: "uuid_sam",
+        username: "sam",
+      },
+    ];
+
+    function canModifyProfileMetadata(
+      profile: TestProfile,
+      collabs: TestCollaborator[],
+      actor: { role: string; userId: string }
+    ): boolean {
+      // Only profile owner or superadmin can modify metadata
+      return actor.role === "superadmin" || actor.userId === profile.userId;
+    }
+
+    function canModifyTreatments(
+      profile: TestProfile,
+      collabs: TestCollaborator[],
+      actor: { role: string; userId: string }
+    ): boolean {
+      // Collaborators CANNOT add, edit, or delete treatments
+      return actor.role === "superadmin" || actor.userId === profile.userId;
+    }
+
+    function canLogDoseForParticipant(
+      profile: TestProfile,
+      collabs: TestCollaborator[],
+      actor: { role: string; userId: string },
+      targetUserId: string
+    ): boolean {
+      // Superadmin can log for any participant; collaborators can only log for themselves
+      if (actor.role === "superadmin") return true;
+      return actor.userId === targetUserId;
+    }
+
+    it("forbids collaborator Sam from editing profile metadata, name, privacy, or start date", () => {
+      const samActor = { role: "user", userId: "uuid_sam" };
+      expect(canModifyProfileMetadata(testProfile, collaborators, samActor)).toBe(false);
+    });
+
+    it("forbids collaborator Sam from adding or deleting treatments", () => {
+      const samActor = { role: "user", userId: "uuid_sam" };
+      expect(canModifyTreatments(testProfile, collaborators, samActor)).toBe(false);
+    });
+
+    it("permits profile owner and Super Admin to edit metadata and treatments", () => {
+      const ownerActor = { role: "user", userId: "user_owner" };
+      const adminActor = { role: "superadmin", userId: "superadmin" };
+
+      expect(canModifyProfileMetadata(testProfile, collaborators, ownerActor)).toBe(true);
+      expect(canModifyProfileMetadata(testProfile, collaborators, adminActor)).toBe(true);
+
+      expect(canModifyTreatments(testProfile, collaborators, ownerActor)).toBe(true);
+      expect(canModifyTreatments(testProfile, collaborators, adminActor)).toBe(true);
+    });
+
+    it("permits collaborator Sam to log doses for himself, but forbids him from logging for Super Admin", () => {
+      const samActor = { role: "user", userId: "uuid_sam" };
+
+      // Sam logging for himself
+      expect(canLogDoseForParticipant(testProfile, collaborators, samActor, "uuid_sam")).toBe(true);
+
+      // Sam trying to log for Super Admin
+      expect(canLogDoseForParticipant(testProfile, collaborators, samActor, "user_owner")).toBe(false);
+    });
+
+    it("permits Super Admin to log doses for any collaborator", () => {
+      const adminActor = { role: "superadmin", userId: "superadmin" };
+
+      // Super Admin logging for himself
+      expect(canLogDoseForParticipant(testProfile, collaborators, adminActor, "superadmin")).toBe(true);
+
+      // Super Admin logging for Sam
+      expect(canLogDoseForParticipant(testProfile, collaborators, adminActor, "uuid_sam")).toBe(true);
+    });
   });
 
   describe("Multi-User Profile Visibility Rules", () => {
@@ -249,125 +405,6 @@ describe("Health & Hair Regrowth Analytics", () => {
         "Admin Public",
         "Bob Public",
       ]);
-    });
-  });
-
-  describe("Creator Attribution & Super Admin Modification Permissions", () => {
-    interface HealthProfileWithCreator {
-      id: string;
-      userId: string;
-      creatorUsername: string;
-      name: string;
-      baselineDate: string;
-    }
-
-    it("preserves original creatorUsername when Super Admin modifies a friend's profile", () => {
-      const samProfile: HealthProfileWithCreator = {
-        id: "hp_sam_1",
-        userId: "uuid_sam_123",
-        creatorUsername: "sam",
-        name: "Sam Scalp Progress",
-        baselineDate: "2026-09-01",
-      };
-
-      // Super Admin updates name and baseline date
-      function applyUpdate(
-        profile: HealthProfileWithCreator,
-        updater: { role: string; userId: string },
-        updates: { name?: string; baselineDate?: string }
-      ) {
-        if (updater.role !== "superadmin" && updater.userId !== profile.userId) {
-          throw new Error("Forbidden");
-        }
-        return {
-          ...profile,
-          ...updates,
-          // userId and creatorUsername remain untouched
-          userId: profile.userId,
-          creatorUsername: profile.creatorUsername,
-        };
-      }
-
-      const updated = applyUpdate(
-        samProfile,
-        { role: "superadmin", userId: "superadmin" },
-        { name: "Sam Scalp Progress (Updated by Admin)", baselineDate: "2026-09-15" }
-      );
-
-      expect(updated.name).toBe("Sam Scalp Progress (Updated by Admin)");
-      expect(updated.baselineDate).toBe("2026-09-15");
-      // Original creator ownership remains permanently preserved!
-      expect(updated.creatorUsername).toBe("sam");
-      expect(updated.userId).toBe("uuid_sam_123");
-    });
-
-    it("allows Super Admin to log doses on friend Sam's profile", () => {
-      function canLogDose(
-        profileUserId: string,
-        actor: { role: string; userId: string }
-      ): boolean {
-        return actor.role === "superadmin" || actor.userId === profileUserId;
-      }
-
-      // Super Admin logging for Sam
-      expect(
-        canLogDose("uuid_sam_123", { role: "superadmin", userId: "superadmin" })
-      ).toBe(true);
-
-      // Sam logging for Sam
-      expect(
-        canLogDose("uuid_sam_123", { role: "user", userId: "uuid_sam_123" })
-      ).toBe(true);
-
-      // Sam trying to log for Super Admin (Forbidden/View-Only)
-      expect(
-        canLogDose("superadmin", { role: "user", userId: "uuid_sam_123" })
-      ).toBe(false);
-    });
-
-    it("bundles photos across both profiles for cross-profile scalp photo comparison", () => {
-      interface SessionPhoto {
-        id: string;
-        profileId: string;
-        profileName: string;
-        creatorUsername: string;
-        weekNumber: number;
-        angle: string;
-        cloudinaryUrl: string;
-      }
-
-      const photos: SessionPhoto[] = [
-        {
-          id: "photo_admin_wk8",
-          profileId: "hp_admin",
-          profileName: "Admin Scalp",
-          creatorUsername: "admin",
-          weekNumber: 8,
-          angle: "crown",
-          cloudinaryUrl: "https://res.cloudinary.com/demo/image/upload/admin_wk8.jpg",
-        },
-        {
-          id: "photo_sam_wk8",
-          profileId: "hp_sam",
-          profileName: "Sam Scalp",
-          creatorUsername: "sam",
-          weekNumber: 8,
-          angle: "crown",
-          cloudinaryUrl: "https://res.cloudinary.com/demo/image/upload/sam_wk8.jpg",
-        },
-      ];
-
-      // Filter by angle for side-by-side comparison
-      const crownPhotos = photos.filter((p) => p.angle === "crown");
-      expect(crownPhotos).toHaveLength(2);
-
-      const adminPhoto = crownPhotos.find((p) => p.creatorUsername === "admin");
-      const samPhoto = crownPhotos.find((p) => p.creatorUsername === "sam");
-
-      expect(adminPhoto?.weekNumber).toBe(8);
-      expect(samPhoto?.weekNumber).toBe(8);
-      expect(adminPhoto?.profileName).toBe("Admin Scalp");
-      expect(samPhoto?.profileName).toBe("Sam Scalp");
     });
   });
 });
