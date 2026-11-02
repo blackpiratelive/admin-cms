@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { type CloudinaryResource } from "@/features/media/cloudinaryActions";
 import { importMicroblogBatch } from "@/features/microblog/actions";
 import { type CloudflareUsageStats } from "@/features/gallery/actions";
@@ -828,6 +829,31 @@ export function SettingsDashboard({ cloudinaryImages, r2Stats }: SettingsDashboa
               </h2>
               <div style={{ fontSize: "13px", color: "var(--text-secondary)" }}>
                 Single-user administration protected via HTTP-Only JWT session token (<code>cms_session</code>). Password configured via <code>ADMIN_PASSWORD</code>.
+              </div>
+
+              <div
+                style={{
+                  background: "var(--bg-card)",
+                  border: "1px solid var(--border-color)",
+                  borderRadius: "6px",
+                  padding: "16px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginTop: "8px",
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "14px", color: "var(--text-primary)" }}>
+                    User Accounts & Access Management
+                  </div>
+                  <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "4px" }}>
+                    Create collaborator accounts with username, email, and password. Newly created accounts start with zero module permissions.
+                  </div>
+                </div>
+                <Link href="/settings/users" className="btn btn-primary btn-sm">
+                  Manage Accounts &rarr;
+                </Link>
               </div>
             </div>
           )}

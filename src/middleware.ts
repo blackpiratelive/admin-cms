@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { verifySessionToken } from "./features/auth/session";
+import { verifyAndDecodeSession } from "./features/auth/session";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -24,15 +24,29 @@ export async function middleware(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : null;
   const sessionToken = request.cookies.get("cms_session")?.value || bearerToken;
-  const isValid = sessionToken ? await verifySessionToken(sessionToken) : false;
+  const sessionUser = sessionToken ? await verifyAndDecodeSession(sessionToken) : null;
 
-  if (!isValid) {
+  if (!sessionUser) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("from", pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Non-superadmin accounts have zero module access by default
+  if (sessionUser.role !== "superadmin") {
+    // Only permit root dashboard ("/") and auth endpoints
+    if (pathname !== "/" && !pathname.startsWith("/api/auth")) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json(
+          { error: "Forbidden: No module access assigned." },
+          { status: 403 }
+        );
+      }
+      return NextResponse.redirect(new URL("/", request.url));
+    }
   }
 
   return NextResponse.next();

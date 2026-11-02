@@ -1,32 +1,16 @@
-"use client";
+import { getSessionUser } from "@/features/auth/session";
+import { DashboardClientShell } from "./DashboardClientShell";
 
-import { useState, Suspense } from "react";
-import { Header } from "@/components/Header";
-import { Sidebar } from "@/components/Sidebar";
-import { NavigationProgressBar } from "@/components/NavigationProgressBar";
-import { ToastNotification } from "@/components/ToastNotification";
-
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const user = await getSessionUser();
 
   return (
-    <div className="app-container">
-      <Suspense fallback={null}>
-        <NavigationProgressBar />
-      </Suspense>
-      <ToastNotification />
-      <Header onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} sidebarOpen={sidebarOpen} />
-      <div className="body-layout">
-        {sidebarOpen && (
-          <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
-        )}
-        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-        <main className="main-content">{children}</main>
-      </div>
-    </div>
+    <DashboardClientShell user={user}>
+      {children}
+    </DashboardClientShell>
   );
 }

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { loginAction } from "./actions";
-import { Lock, ArrowRight, AlertCircle } from "lucide-react";
+import { Lock, ArrowRight, AlertCircle, User } from "lucide-react";
 
 export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +32,7 @@ export function LoginForm() {
         <Lock size={18} />
         <span>Personal CMS Login</span>
       </div>
-      <p className="auth-desc">Single-user administration panel for Hugo + Turso.</p>
+      <p className="auth-desc">Sign in with your username, email, or master admin password.</p>
 
       {error && (
         <div
@@ -55,17 +55,31 @@ export function LoginForm() {
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
+          <label className="form-label" htmlFor="identifier">
+            Username or Email
+          </label>
+          <input
+            id="identifier"
+            name="identifier"
+            type="text"
+            autoFocus
+            className="text-input"
+            placeholder="admin, username, or email..."
+            style={{ width: "100%" }}
+          />
+        </div>
+
+        <div className="form-group">
           <label className="form-label" htmlFor="password">
-            Admin Password
+            Password
           </label>
           <input
             id="password"
             name="password"
             type="password"
             required
-            autoFocus
             className="text-input"
-            placeholder="Enter ADMIN_PASSWORD..."
+            placeholder="Enter password..."
             style={{ width: "100%" }}
           />
         </div>
@@ -73,7 +87,7 @@ export function LoginForm() {
         <button
           type="submit"
           className="btn btn-primary"
-          style={{ width: "100%", justifyContent: "center", marginTop: "8px" }}
+          style={{ width: "100%", justifyContent: "center", marginTop: "12px" }}
           disabled={isPending}
         >
           <span>{isPending ? "Authenticating..." : "Enter Dashboard"}</span>

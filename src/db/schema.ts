@@ -951,6 +951,19 @@ export type NewRssArticle = typeof rssArticles.$inferInsert;
 export type RssFeedRecord = typeof rssFeeds.$inferSelect;
 export type RssCategoryRecord = typeof rssCategories.$inferSelect;
 
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  email: text("email").unique(),
+  passwordHash: text("password_hash").notNull(),
+  role: text("role").notNull().default("user"), // 'superadmin' | 'user'
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+
 
 
 

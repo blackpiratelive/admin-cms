@@ -5,17 +5,22 @@ import Link from "next/link";
 import { ThemeToggle } from "./ThemeToggle";
 import { CommandPalette } from "./CommandPalette";
 import { logoutAction } from "@/features/auth/actions";
-import { LogOut, Terminal, Menu, X, Search, Command } from "lucide-react";
+import { LogOut, Terminal, Menu, X, Search } from "lucide-react";
+import type { SessionUser } from "@/features/auth/session";
 
 interface HeaderProps {
   onToggleSidebar: () => void;
   sidebarOpen: boolean;
+  user?: SessionUser | null;
 }
 
-export function Header({ onToggleSidebar, sidebarOpen }: HeaderProps) {
+export function Header({ onToggleSidebar, sidebarOpen, user }: HeaderProps) {
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const isSuperAdmin = user?.role === "superadmin";
 
   useEffect(() => {
+    if (!isSuperAdmin) return;
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -24,7 +29,7 @@ export function Header({ onToggleSidebar, sidebarOpen }: HeaderProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [isSuperAdmin]);
 
   return (
     <>
@@ -53,40 +58,65 @@ export function Header({ onToggleSidebar, sidebarOpen }: HeaderProps) {
         </div>
 
         <div className="header-right" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <button
-            onClick={() => setPaletteOpen(true)}
-            className="header-search-btn"
-            aria-label="Search everything"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "4px 10px",
-              borderRadius: "2px",
-              backgroundColor: "var(--bg-card)",
-              border: "1px solid var(--border-color)",
-              color: "var(--text-primary)",
-              cursor: "pointer",
-              fontSize: "12px",
-            }}
-          >
-            <Search size={13} style={{ color: "var(--text-muted)" }} />
-            <span className="header-search-label">Search Everything...</span>
-            <kbd
-              className="header-search-kbd"
+          {isSuperAdmin ? (
+            <button
+              onClick={() => setPaletteOpen(true)}
+              className="header-search-btn"
+              aria-label="Search everything"
               style={{
-                fontSize: "10px",
-                padding: "1px 4px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "4px 10px",
                 borderRadius: "2px",
-                backgroundColor: "var(--bg-sidebar)",
+                backgroundColor: "var(--bg-card)",
                 border: "1px solid var(--border-color)",
-                color: "var(--text-secondary)",
-                fontFamily: "var(--font-mono)",
+                color: "var(--text-primary)",
+                cursor: "pointer",
+                fontSize: "12px",
               }}
             >
-              Ctrl+K
-            </kbd>
-          </button>
+              <Search size={13} style={{ color: "var(--text-muted)" }} />
+              <span className="header-search-label">Search Everything...</span>
+              <kbd
+                className="header-search-kbd"
+                style={{
+                  fontSize: "10px",
+                  padding: "1px 4px",
+                  borderRadius: "2px",
+                  backgroundColor: "var(--bg-sidebar)",
+                  border: "1px solid var(--border-color)",
+                  color: "var(--text-secondary)",
+                  fontFamily: "var(--font-mono)",
+                }}
+              >
+                Ctrl+K
+              </kbd>
+            </button>
+          ) : user ? (
+            <div
+              style={{
+                fontSize: "12px",
+                color: "var(--text-secondary)",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <span
+                style={{
+                  padding: "2px 8px",
+                  background: "var(--bg-card)",
+                  border: "1px solid var(--border-color)",
+                  borderRadius: "4px",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "11px",
+                }}
+              >
+                @{user.username}
+              </span>
+            </div>
+          ) : null}
 
           <ThemeToggle />
           <form action={logoutAction}>
@@ -98,7 +128,9 @@ export function Header({ onToggleSidebar, sidebarOpen }: HeaderProps) {
         </div>
       </header>
 
-      <CommandPalette isOpen={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      {isSuperAdmin && (
+        <CommandPalette isOpen={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      )}
     </>
   );
 }

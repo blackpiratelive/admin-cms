@@ -43,7 +43,7 @@ admin-cms/
 │   │   │   ├── locations/       # Geographical locations entity page & detail hub (/locations and /locations/[slug])
 │   │   │   ├── trips/           # Travel itineraries & trip grouping hub (/trips and /trips/[slug])
 │   │   │   ├── analytics/       # Analytics & Memory Discovery Engine hub (/analytics & /stats)
-│   │   │   ├── settings/        # Centralized Settings Hub (General, Storage, Providers, etc.)
+│   │   │   ├── settings/        # Centralized Settings Hub (General, Storage, Providers, Users & Access at /settings/users)
 │   │   │   ├── libraries/       # Personal Media Libraries (Movies, TV, Music, Collections)
 │   │   │   └── sync/            # Sync Center integration hub (Movie Tracker, Last.fm, FreshRSS, Bluesky, Mastodon)
 │   │   ├── collections/         # Public shareable collection pages (/collections, /collections/[slug], /collections/[slug]/knockout)
@@ -59,7 +59,7 @@ admin-cms/
 │   │   └── layout.tsx           # Root layout & ThemeProvider
 │   ├── components/              # Shared UI (Header, Sidebar, CommandPalette, DeployWidget, ToastNotification, EntityCombobox, PhotoPickerModal)
 │   ├── db/
-│   │   ├── schema.ts            # Drizzle table schemas for all 52 database entities
+│   │   ├── schema.ts            # Drizzle table schemas for all 53 database entities (including users)
 │   │   └── index.ts             # Turso / libSQL client & auto-initializer DDL
 │   ├── features/
 │   │   ├── analytics/           # Modular Analytics Engine (11 providers including Reading), Memory Index scoring, timeline cache & snapshots
@@ -74,7 +74,7 @@ admin-cms/
 │   │   ├── locations/           # Location CRUD actions, detail hub, GeocodeLocationModal & trip associations
 │   │   ├── trips/               # Trip management server actions, location linkage & day-by-day journal (day-actions.ts, day-helpers.ts)
 │   │   ├── pickers/             # Shared Location/Trip picker data: light option projections + server-derived recents (actions.ts, types.ts)
-│   │   ├── auth/                # Session cookies, password check, login server actions
+│   │   ├── auth/                # Session cookies, password check, login & user creation actions (users-actions.ts)
 │   │   ├── microblog/           # Microblog actions, Zod validation, Editor & List
 │   │   ├── libraries/           # Personal media libraries, collections & Best Pic Knockout engine
 │   │   └── sync/                # Extensible Provider integration registry (Movie Tracker, Last.fm, FreshRSS, Bluesky, Mastodon)
@@ -86,7 +86,7 @@ admin-cms/
 │   │   ├── event-bus.ts         # Internal event pub-sub bus
 │   │   └── deploy-hook.ts       # Vercel deploy hook caller
 │   └── middleware.ts            # Next.js route protection middleware
-├── tests/                       # Vitest unit test suite (185 tests across 28 test files)
+├── tests/                       # Vitest unit test suite (189 tests across 28 test files)
 ├── freshrss.md                  # FreshRSS Sync Provider feature specification
 ├── android-journal.md           # Native Android Journal Application specification
 ├── HUGO_CONTENT_ADAPTER.md      # Step-by-step Hugo Content Adapter setup guide
@@ -359,6 +359,35 @@ The mobile app (`android/`) is a cross-platform Flutter application designed to 
 ---
 
 ## 8. Standalone Apps & Release Signing Changelog
+
+### November 2026: Multi-User RBAC Foundation, User Accounts Management & Default Zero-Access Guard
+
+- **Overview & Strategy**: Transitioned `admin-cms` from a single-credential application to a multi-user Role-Based Access Control (RBAC) foundation. Super Admin retains master control and can register new user accounts (e.g. for friends/collaborators) with username, optional email, and password. Newly created accounts default to **zero module access**, displaying an empty access state upon login and blocked by Next.js middleware from accessing any other module.
+- **Database Schema & DDL Auto-Migration**:
+  - Added `users` table to `src/db/schema.ts` with `id` (primary key UUID), `username` (unique, lowercase alphanumeric), `email` (unique optional), `password_hash` (bcrypt), `role` (`superadmin` vs `user`), `created_at`, and `updated_at`.
+  - Added idempotent DDL `CREATE TABLE IF NOT EXISTS users` in `src/db/index.ts` within `ensureDbInitialized()`. Total database entities: 53.
+- **Dual-Mode Authentication & Session Management (`src/features/auth/session.ts` & `actions.ts`)**:
+  - `loginAction` supports dual credentials:
+    1. **Master Password**: Logging in with `ADMIN_PASSWORD` from `.env` (with username `admin` or empty identifier) instantly grants `superadmin` role, guaranteeing 100% backwards compatibility and zero lockout risk.
+    2. **Database Accounts**: Entering `username` or `email` queries the `users` table and compares the hashed password via `bcrypt.compare`.
+  - JWT session token now carries full `SessionUser` claims (`userId`, `username`, `email`, `role`). Legacy tokens with `{ role: "admin" }` automatically normalize to `superadmin`.
+  - Updated mobile and REST authentication endpoint `/api/auth/login` to support both master password and database user authentication.
+- **Middleware Guard & Zero-Module Enforcement (`src/middleware.ts`)**:
+  - Non-superadmin accounts (`role !== "superadmin"`) are restricted strictly to root dashboard (`/`) and auth endpoints (`/api/auth/*`).
+  - Any direct navigation to other modules (`/microblog`, `/journal`, `/settings`, `/people`, `/trips`, `/locations`, etc.) is intercepted and redirected back to `/` (or 403 Forbidden for API routes).
+- **Dashboard UI & Layout Adaptability**:
+  - `src/app/(dashboard)/layout.tsx` converted to Server Component passing `user` context down via `DashboardClientShell.tsx`.
+  - `Sidebar.tsx`: When `role !== "superadmin"`, completely hides all module navigation sections and `DeployWidget`, showing only a clean "No Modules Assigned" indicator. For `superadmin`, adds a dedicated link to `/settings/users`.
+  - `Header.tsx`: Hides `Ctrl+K` "Search Everything" and command palette for non-superadmin accounts to prevent search index record leakage. Displays `@username` badge.
+  - `src/app/(dashboard)/page.tsx`: For non-superadmin users, skips admin metrics queries and displays a clean empty state explaining that no module permissions have been assigned yet.
+- **User Accounts Management Page (`src/app/(dashboard)/settings/users`)**:
+  - Accessible only to Super Admin (redirects non-superadmin users to `/`).
+  - Interactive account creation form with validation (min 3 char alphanumeric username, optional valid email, min 6 char password).
+  - Displays registered accounts table showing usernames, emails, roles, module access status (`None`), creation dates, and account deletion with confirmation.
+- **Quality Gates & Test Coverage**:
+  - Vitest suite: **189 tests across 28 test files, 100% passing** (added 4 new tests in `tests/auth.test.ts` for token signing, session decoding, role mapping, and bcrypt hashing).
+  - TypeScript type check (`npx tsc --noEmit`): 0 errors.
+  - Subsystem isolation: `android/`, `mobile-microblog/`, and `mobile-people/` remain 100% clean and untouched.
 
 ### October 2026: Replacement of Trakt with Personal Movie Tracker (CineTracker) Provider & Clean Media Schema
 

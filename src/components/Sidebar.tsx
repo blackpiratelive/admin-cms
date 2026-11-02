@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { DeployWidget } from "./DeployWidget";
+import type { SessionUser } from "@/features/auth/session";
 import {
   LayoutDashboard,
   BarChart3,
@@ -31,8 +32,17 @@ import {
   Rss,
 } from "lucide-react";
 
-export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
+export function Sidebar({
+  isOpen,
+  onClose,
+  user,
+}: {
+  isOpen?: boolean;
+  onClose?: () => void;
+  user?: SessionUser | null;
+}) {
   const pathname = usePathname();
+  const isSuperAdmin = user?.role === "superadmin";
 
   const isActive = (path: string) => {
     if (path === "/" && pathname === "/") return true;
@@ -45,6 +55,45 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
       onClose();
     }
   };
+
+  if (!isSuperAdmin) {
+    return (
+      <aside className={`sidebar ${isOpen ? "open" : ""}`}>
+        <div className="sidebar-nav-container">
+          <nav className="nav-section">
+            <Link
+              href="/"
+              className={`nav-link ${isActive("/") ? "active" : ""}`}
+              onClick={handleLinkClick}
+            >
+              <LayoutDashboard size={16} />
+              <span>Dashboard</span>
+            </Link>
+          </nav>
+
+          <div
+            style={{
+              padding: "16px 14px",
+              margin: "12px 8px",
+              borderRadius: "4px",
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              color: "var(--text-muted)",
+              fontSize: "12px",
+              lineHeight: 1.5,
+            }}
+          >
+            <p style={{ margin: 0, fontWeight: 600, color: "var(--text-primary)" }}>
+              No Modules Assigned
+            </p>
+            <p style={{ margin: "6px 0 0 0" }}>
+              Your account currently does not have access to any modules.
+            </p>
+          </div>
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <aside
@@ -292,11 +341,19 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
         <div className="nav-section">
           <Link
             href="/settings"
-            className={`nav-link ${isActive("/settings") ? "active" : ""}`}
+            className={`nav-link ${isActive("/settings") && pathname !== "/settings/users" ? "active" : ""}`}
             onClick={handleLinkClick}
           >
             <Settings size={16} />
             <span>Settings</span>
+          </Link>
+          <Link
+            href="/settings/users"
+            className={`nav-link ${isActive("/settings/users") ? "active" : ""}`}
+            onClick={handleLinkClick}
+          >
+            <Users size={16} />
+            <span>User Accounts</span>
           </Link>
         </div>
       </div>
