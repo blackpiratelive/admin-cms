@@ -7,6 +7,7 @@ import {
   updateHealthProfileAction,
 } from "../actions";
 import { formatDateIso } from "../analytics";
+import { notify } from "@/lib/notifications";
 import type { HealthProfileRecord } from "@/db/schema";
 
 interface ProfileModalProps {
@@ -31,59 +32,49 @@ export function ProfileModal({
     profile?.baselineDate || formatDateIso()
   );
   const [notes, setNotes] = useState(profile?.notes || "");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      setError("Please enter a profile name.");
-      return;
-    }
-    if (!baselineDate) {
-      setError("Please select a baseline start date.");
-      return;
-    }
+    const profileName = name.trim();
+    if (!profileName || !baselineDate) return;
 
-    setLoading(true);
-    setError(null);
+    // Close modal immediately for 0ms perceived latency
+    onClose();
 
-    try {
-      if (isEditing && profile) {
-        const res = await updateHealthProfileAction(profile.id, {
-          name,
-          visibility,
-          baselineDate,
-          notes,
-        });
-        if (!res.success) {
-          setError(res.error || "Failed to update profile.");
-          setLoading(false);
-          return;
+    notify.bg({
+      title: isEditing ? "Update Profile" : "Create Profile",
+      loadingMessage: `Saving profile '${profileName}' in background...`,
+      successMessage: `Profile '${profileName}' saved successfully!`,
+      errorMessage: (err) =>
+        `Failed to save profile: ${err?.message || String(err)}`,
+      task: async () => {
+        if (isEditing && profile) {
+          const res = await updateHealthProfileAction(profile.id, {
+            name: profileName,
+            visibility,
+            baselineDate,
+            notes,
+          });
+          if (!res.success) throw new Error(res.error || "Update failed.");
+          return profile.id;
+        } else {
+          const res = await createHealthProfileAction({
+            name: profileName,
+            visibility,
+            baselineDate,
+            notes,
+          });
+          if (!res.success || !res.profileId)
+            throw new Error(res.error || "Creation failed.");
+          return res.profileId;
         }
-        onSaved(profile.id);
-      } else {
-        const res = await createHealthProfileAction({
-          name,
-          visibility,
-          baselineDate,
-          notes,
-        });
-        if (!res.success) {
-          setError(res.error || "Failed to create profile.");
-          setLoading(false);
-          return;
-        }
-        onSaved(res.profileId!);
-      }
-      onClose();
-    } catch (err: any) {
-      setError(err?.message || "An unexpected error occurred.");
-    } finally {
-      setLoading(false);
-    }
+      },
+      onSuccess: (savedId) => {
+        onSaved(savedId);
+      },
+    });
   };
 
   return (
@@ -104,21 +95,6 @@ export function ProfileModal({
         </div>
 
         <form onSubmit={handleSubmit} className="modal-form">
-          {error && (
-            <div
-              style={{
-                background: "rgba(239, 68, 68, 0.15)",
-                border: "1px solid var(--danger-color, #ef4444)",
-                color: "var(--danger-color, #ef4444)",
-                borderRadius: "6px",
-                padding: "10px 12px",
-                fontSize: "13px",
-              }}
-            >
-              {error}
-            </div>
-          )}
-
           <div className="form-group">
             <label className="form-label" htmlFor="profile-name">
               Profile Name *
@@ -147,7 +123,11 @@ export function ProfileModal({
               required
             />
             <span
-              style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "4px" }}
+              style={{
+                fontSize: "12px",
+                color: "var(--text-muted)",
+                marginTop: "4px",
+              }}
             >
               The date you began treatments or started taking progress photos.
             </span>
@@ -155,7 +135,9 @@ export function ProfileModal({
 
           <div className="form-group">
             <label className="form-label">Profile Privacy</label>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+            >
               <label
                 style={{
                   display: "flex",
@@ -196,7 +178,8 @@ export function ProfileModal({
                     <Lock size={14} /> Private (Recommended)
                   </div>
                   <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                    Only you and the Super Admin can see this profile and its logs.
+                    Only you and the Super Admin can see this profile and its
+                    logs.
                   </div>
                 </div>
               </label>
@@ -241,7 +224,8 @@ export function ProfileModal({
                     <Globe size={14} /> Public
                   </div>
                   <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                    All logged-in CMS users can view this profile, logs, and photos.
+                    All logged-in CMS users can view this profile, logs, and
+                    photos.
                   </div>
                 </div>
               </label>
@@ -267,16 +251,11 @@ export function ProfileModal({
               type="button"
               className="btn btn-secondary"
               onClick={onClose}
-              disabled={loading}
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={loading}
-            >
-              {loading ? "Saving..." : isEditing ? "Save Changes" : "Create Profile"}
+            <button type="submit" className="btn btn-primary">
+              {isEditing ? "Save Changes" : "Create Profile"}
             </button>
           </div>
         </form>

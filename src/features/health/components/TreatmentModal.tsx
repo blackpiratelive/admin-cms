@@ -4,6 +4,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { saveTreatmentAction } from "../actions";
 import { formatDateIso } from "../analytics";
+import { notify } from "@/lib/notifications";
 import type { HealthTreatmentRecord } from "@/db/schema";
 
 interface TreatmentModalProps {
@@ -33,49 +34,43 @@ export function TreatmentModal({
     treatment ? treatment.isActive === 1 : true
   );
   const [notes, setNotes] = useState(treatment?.notes || "");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      setError("Please enter a treatment name.");
-      return;
-    }
-    if (!startDate) {
-      setError("Please select a start date.");
-      return;
-    }
+    const treatmentName = name.trim();
+    if (!treatmentName) return;
 
-    setLoading(true);
-    setError(null);
+    // Close modal immediately for 0ms perceived latency
+    onClose();
 
-    try {
-      const res = await saveTreatmentAction({
-        id: treatment?.id,
-        profileId,
-        name,
-        timesPerDay,
-        startDate,
-        isActive,
-        notes,
-      });
-
-      if (!res.success) {
-        setError(res.error || "Failed to save treatment.");
-        setLoading(false);
-        return;
-      }
-
-      onSaved();
-      onClose();
-    } catch (err: any) {
-      setError(err?.message || "An unexpected error occurred.");
-    } finally {
-      setLoading(false);
-    }
+    // Execute in background
+    notify.bg({
+      title: isEditing ? "Update Treatment" : "Add Treatment",
+      loadingMessage: `Saving '${treatmentName}' in background...`,
+      successMessage: `'${treatmentName}' saved successfully!`,
+      errorMessage: (err) =>
+        `Failed to save treatment: ${err?.message || String(err)}`,
+      task: async () => {
+        const res = await saveTreatmentAction({
+          id: treatment?.id,
+          profileId,
+          name: treatmentName,
+          timesPerDay,
+          startDate,
+          isActive,
+          notes,
+        });
+        if (!res.success) {
+          throw new Error(res.error || "Save failed.");
+        }
+        return res;
+      },
+      onSuccess: () => {
+        onSaved();
+      },
+    });
   };
 
   return (
@@ -96,21 +91,6 @@ export function TreatmentModal({
         </div>
 
         <form onSubmit={handleSubmit} className="modal-form">
-          {error && (
-            <div
-              style={{
-                background: "rgba(239, 68, 68, 0.15)",
-                border: "1px solid var(--danger-color, #ef4444)",
-                color: "var(--danger-color, #ef4444)",
-                borderRadius: "6px",
-                padding: "10px 12px",
-                fontSize: "13px",
-              }}
-            >
-              {error}
-            </div>
-          )}
-
           <div className="form-group">
             <label className="form-label" htmlFor="treatment-name">
               Treatment Name *
@@ -130,7 +110,13 @@ export function TreatmentModal({
             <label className="form-label" htmlFor="treatment-times">
               Application Frequency (Times Per Day) *
             </label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr",
+                gap: "8px",
+              }}
+            >
               {[1, 2, 3].map((num) => (
                 <button
                   key={num}
@@ -157,12 +143,23 @@ export function TreatmentModal({
                     fontSize: "13px",
                   }}
                 >
-                  {num === 1 ? "1x Daily" : num === 2 ? "2x (AM/PM)" : `${num}x Daily`}
+                  {num === 1
+                    ? "1x Daily"
+                    : num === 2
+                    ? "2x (AM/PM)"
+                    : `${num}x Daily`}
                 </button>
               ))}
             </div>
-            <span style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "4px" }}>
-              Controls how many check-in doses are required per day to maintain your streak.
+            <span
+              style={{
+                fontSize: "12px",
+                color: "var(--text-muted)",
+                marginTop: "4px",
+              }}
+            >
+              Controls how many check-in doses are required per day to maintain
+              your streak.
             </span>
           </div>
 
@@ -200,7 +197,8 @@ export function TreatmentModal({
                 </span>
               </label>
               <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                Uncheck to pause tracking this treatment without deleting historical logs.
+                Uncheck to pause tracking this treatment without deleting
+                historical logs.
               </span>
             </div>
           )}
@@ -224,16 +222,11 @@ export function TreatmentModal({
               type="button"
               className="btn btn-secondary"
               onClick={onClose}
-              disabled={loading}
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={loading}
-            >
-              {loading ? "Saving..." : isEditing ? "Update Treatment" : "Add Treatment"}
+            <button type="submit" className="btn btn-primary">
+              {isEditing ? "Update Treatment" : "Add Treatment"}
             </button>
           </div>
         </form>

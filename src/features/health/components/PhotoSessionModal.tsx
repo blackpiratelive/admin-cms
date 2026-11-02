@@ -5,6 +5,7 @@ import { X, Upload, Camera, Trash2 } from "lucide-react";
 import { uploadDirectToCloudinary } from "@/lib/cloudinary";
 import { savePhotoSessionAction } from "../actions";
 import { calculateWeekNumber, formatDateIso } from "../analytics";
+import { notify } from "@/lib/notifications";
 import { SCALP_ANGLES, type ScalpPhotoAngle } from "../types";
 
 interface PhotoSessionModalProps {
@@ -32,8 +33,6 @@ export function PhotoSessionModal({
   const [sessionDate, setSessionDate] = useState(formatDateIso());
   const [notes, setNotes] = useState("");
   const [photos, setPhotos] = useState<PendingPhoto[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [progressMsg, setProgressMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
@@ -81,76 +80,87 @@ export function PhotoSessionModal({
     );
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (photos.length === 0) {
       setError("Please select or take at least one scalp photo.");
       return;
     }
 
-    setUploading(true);
-    setError(null);
+    const photosToUpload = [...photos];
+    const sDate = sessionDate;
+    const sNotes = notes;
+    const sWeek = weekNumber;
 
-    try {
-      // 1. Upload photos to Cloudinary
-      const uploadedPhotos: {
-        angle: ScalpPhotoAngle;
-        cloudinaryUrl: string;
-        cloudinaryPublicId: string;
-      }[] = [];
+    // Close modal immediately for 0ms perceived latency
+    onClose();
 
-      for (let i = 0; i < photos.length; i++) {
-        const item = photos[i];
-        setProgressMsg(`Uploading photo ${i + 1} of ${photos.length}...`);
+    // Run upload and DB write in background
+    notify.bg({
+      title: "Scalp Photo Session",
+      loadingMessage: `Uploading ${photosToUpload.length} scalp photos to Cloudinary in background...`,
+      successMessage: `Week ${sWeek} photo session uploaded and saved!`,
+      errorMessage: (err) =>
+        `Failed to upload photo session: ${err?.message || String(err)}`,
+      task: async () => {
+        const uploadedPhotos: {
+          angle: ScalpPhotoAngle;
+          cloudinaryUrl: string;
+          cloudinaryPublicId: string;
+        }[] = [];
 
-        const uploadRes = await uploadDirectToCloudinary(item.file);
-        uploadedPhotos.push({
-          angle: item.angle,
-          cloudinaryUrl: uploadRes.secure_url,
-          cloudinaryPublicId: uploadRes.public_id,
+        for (const item of photosToUpload) {
+          const uploadRes = await uploadDirectToCloudinary(item.file);
+          uploadedPhotos.push({
+            angle: item.angle,
+            cloudinaryUrl: uploadRes.secure_url,
+            cloudinaryPublicId: uploadRes.public_id,
+          });
+        }
+
+        const res = await savePhotoSessionAction({
+          profileId,
+          sessionDate: sDate,
+          weekNumber: sWeek,
+          notes: sNotes,
+          photos: uploadedPhotos,
         });
-      }
 
-      // 2. Save session and photos in DB
-      setProgressMsg("Saving session to database...");
-      const res = await savePhotoSessionAction({
-        profileId,
-        sessionDate,
-        weekNumber,
-        notes,
-        photos: uploadedPhotos,
-      });
+        if (!res.success) {
+          throw new Error(res.error || "Failed to save photo session in DB.");
+        }
 
-      if (!res.success) {
-        setError(res.error || "Failed to save photo session.");
-        setUploading(false);
-        return;
-      }
+        // Clean up object URLs
+        for (const p of photosToUpload) {
+          URL.revokeObjectURL(p.previewUrl);
+        }
 
-      // Clean up object URLs
-      for (const p of photos) {
-        URL.revokeObjectURL(p.previewUrl);
-      }
-
-      onSaved();
-      onClose();
-    } catch (err: any) {
-      setError(err?.message || "An error occurred while uploading photos.");
-    } finally {
-      setUploading(false);
-      setProgressMsg(null);
-    }
+        return res;
+      },
+      onSuccess: () => {
+        onSaved();
+      },
+    });
   };
 
   return (
     <div className="modal-overlay" style={{ zIndex: 1100 }}>
-      <div className="modal-content" style={{ maxWidth: "600px", maxHeight: "90vh", overflowY: "auto" }}>
+      <div
+        className="modal-content"
+        style={{ maxWidth: "600px", maxHeight: "90vh", overflowY: "auto" }}
+      >
         <div className="modal-header">
           <div>
             <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 600 }}>
               New Scalp Photo Session
             </h2>
-            <div style={{ fontSize: "12px", color: "var(--accent-primary, #f97316)", marginTop: "2px" }}>
+            <div
+              style={{
+                fontSize: "12px",
+                color: "var(--accent-primary, #f97316)",
+                marginTop: "2px",
+              }}
+            >
               Week {weekNumber} since baseline
             </div>
           </div>
@@ -159,7 +169,6 @@ export function PhotoSessionModal({
             className="icon-button"
             onClick={onClose}
             aria-label="Close"
-            disabled={uploading}
           >
             <X size={18} />
           </button>
@@ -191,13 +200,14 @@ export function PhotoSessionModal({
               className="form-input"
               value={sessionDate}
               onChange={(e) => setSessionDate(e.target.value)}
-              disabled={uploading}
               required
             />
           </div>
 
           <div className="form-group">
-            <label className="form-label">Add Scalp Photos (Mobile Camera or Files)</label>
+            <label className="form-label">
+              Add Scalp Photos (Mobile Camera or Files)
+            </label>
             <div
               style={{
                 display: "flex",
@@ -213,7 +223,7 @@ export function PhotoSessionModal({
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "6px",
-                  cursor: uploading ? "not-allowed" : "pointer",
+                  cursor: "pointer",
                   fontSize: "13px",
                 }}
               >
@@ -226,7 +236,6 @@ export function PhotoSessionModal({
                   multiple
                   style={{ display: "none" }}
                   onChange={handleFilesSelected}
-                  disabled={uploading}
                 />
               </label>
 
@@ -237,7 +246,7 @@ export function PhotoSessionModal({
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "6px",
-                  cursor: uploading ? "not-allowed" : "pointer",
+                  cursor: "pointer",
                   fontSize: "13px",
                 }}
               >
@@ -249,7 +258,6 @@ export function PhotoSessionModal({
                   multiple
                   style={{ display: "none" }}
                   onChange={handleFilesSelected}
-                  disabled={uploading}
                 />
               </label>
             </div>
@@ -257,14 +265,23 @@ export function PhotoSessionModal({
 
           {/* Photos Preview List */}
           {photos.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)" }}>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "10px" }}
+            >
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "var(--text-secondary)",
+                }}
+              >
                 Selected Photos ({photos.length}):
               </span>
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))",
+                  gridTemplateColumns:
+                    "repeat(auto-fill, minmax(130px, 1fr))",
                   gap: "12px",
                 }}
               >
@@ -280,7 +297,14 @@ export function PhotoSessionModal({
                       flexDirection: "column",
                     }}
                   >
-                    <div style={{ position: "relative", width: "100%", height: "110px", background: "#000" }}>
+                    <div
+                      style={{
+                        position: "relative",
+                        width: "100%",
+                        height: "110px",
+                        background: "#000",
+                      }}
+                    >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={item.previewUrl}
@@ -294,7 +318,6 @@ export function PhotoSessionModal({
                       <button
                         type="button"
                         onClick={() => handleRemovePhoto(item.id)}
-                        disabled={uploading}
                         style={{
                           position: "absolute",
                           top: "4px",
@@ -315,12 +338,18 @@ export function PhotoSessionModal({
                     <div style={{ padding: "6px" }}>
                       <select
                         className="form-input"
-                        style={{ fontSize: "11px", padding: "4px 6px", height: "auto" }}
+                        style={{
+                          fontSize: "11px",
+                          padding: "4px 6px",
+                          height: "auto",
+                        }}
                         value={item.angle}
                         onChange={(e) =>
-                          handleAngleChange(item.id, e.target.value as ScalpPhotoAngle)
+                          handleAngleChange(
+                            item.id,
+                            e.target.value as ScalpPhotoAngle
+                          )
                         }
-                        disabled={uploading}
                       >
                         {SCALP_ANGLES.map((angle) => (
                           <option key={angle.value} value={angle.value}>
@@ -346,30 +375,23 @@ export function PhotoSessionModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g. Scalp looking calmer, noticeable baby hairs along temple..."
-              disabled={uploading}
             />
           </div>
 
           <div className="modal-footer" style={{ marginTop: "16px" }}>
-            {progressMsg && (
-              <span style={{ fontSize: "12px", color: "var(--accent-primary, #f97316)", marginRight: "auto" }}>
-                {progressMsg}
-              </span>
-            )}
             <button
               type="button"
               className="btn btn-secondary"
               onClick={onClose}
-              disabled={uploading}
             >
               Cancel
             </button>
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={uploading || photos.length === 0}
+              disabled={photos.length === 0}
             >
-              {uploading ? "Uploading..." : `Upload & Save (${photos.length})`}
+              Upload & Save ({photos.length})
             </button>
           </div>
         </form>
